@@ -1,5 +1,4 @@
 #include "ppm.h"
-#include "bitmap.h"
 #include "codec.h"
 
 #include <iostream>
@@ -10,7 +9,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  Bitmap *image = loadPPM(argv[1]);
+  uint64_t width;
+  uint64_t height;
+
+  uint8_t *image = loadPPM(argv[1], width, height);
+  uint8_t *compressedImage = encodeRGB(width, height, image);
+
+  delete compressedImage;
   delete image;
 
   return 0;

@@ -18,8 +18,8 @@ enum State {
   STATE_END
 };
 
-Bitmap *loadPPM(const char *filename);
-bool savePPM(const char *filename, Bitmap *bitmap);
+uint8_t *loadPPM(const char *filename, uint64_t &width, uint64_t &height);
+bool savePPM(const char *filename, uint64_t width, uint64_t height, uint8_t *data);
 
 void skipUntilEol(std::ifstream &input);
 bool parseHeader(std::ifstream &input, uint64_t &width, uint64_t &height, uint32_t &depth);

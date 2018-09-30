@@ -38,4 +38,4 @@ clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)
 
 run: $(BINDIR)/$(TARGET)
-	./$^ samples/chess/*.ppm
+	./$^ ../samples/chess/*.ppm

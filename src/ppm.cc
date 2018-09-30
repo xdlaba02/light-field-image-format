@@ -1,36 +1,45 @@
 #include "ppm.h"
-#include "bitmap.h"
 
 #include <string>
 
-Bitmap *loadPPM(const char *filename) {
-  std::ifstream input;
-  input.open(filename);
-  if (!input.is_open()) {
-    return nullptr;
-  }
+uint8_t *loadPPM(const char *filename, uint64_t &width, uint64_t &height) {
+  uint8_t *image = nullptr;
 
-  Bitmap *bitmap = nullptr;
+  std::ifstream input(filename);
+  if (input.is_open()) {
+    uint32_t depth;
 
-  uint64_t width;
-  uint64_t height;
-  uint32_t depth;
+    if (parseHeader(input, width, height, depth)) {
+      uint64_t transformed_data_size = width * height * 3;
+      uint64_t raw_data_size = transformed_data_size * (depth > 255 ? 2 : 1);
 
-  if (parseHeader(input, width, height, depth)) {
-    bitmap = new Bitmap(width, height, depth);
-    input.read(reinterpret_cast<char *>(bitmap->data()), bitmap->size());
-    if (!input) {
-      delete bitmap;
-      bitmap = nullptr;
+      char *tmp = new char[raw_data_size];
+      if (tmp) {
+        input.read(tmp, raw_data_size);
+        if (input) {
+          image = new uint8_t[transformed_data_size];
+          if (image) {
+            for (uint64_t i = 0; i < transformed_data_size; i++) {
+              if (depth > 255) {
+                image[i] = reinterpret_cast<uint16_t *>(tmp)[i] * 255 / depth;
+              }
+              else {
+                image[i] = reinterpret_cast<uint8_t *>(tmp)[i] * 255 / depth;
+              }
+            }
+          }
+        }
+        delete[] tmp;
+      }
     }
+
+    input.close();
   }
 
-  input.close();
-
-  return bitmap;
+  return image;
 }
 
-bool savePPM(const char *filename, Bitmap *bitmap) {
+bool savePPM(const char *filename, uint64_t width, uint64_t height, uint8_t *data) {
   std::ofstream output;
   output.open(filename);
   if (!output.is_open()) {
@@ -38,11 +47,11 @@ bool savePPM(const char *filename, Bitmap *bitmap) {
   }
 
   output << "P6" << std::endl;
-  output << bitmap->width() << std::endl;
-  output << bitmap->height() << std::endl;
-  output << bitmap->depth() << std::endl;
+  output << width << std::endl;
+  output << height << std::endl;
+  output << "255" << std::endl;
 
-  output.write(reinterpret_cast<char *>(bitmap->data()), bitmap->size());
+  output.write(reinterpret_cast<char *>(data), width * height * 3);
 
   output.close();
   return true;
