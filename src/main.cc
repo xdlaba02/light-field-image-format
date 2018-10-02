@@ -1,22 +1,45 @@
 #include "ppm.h"
+#include "bitmap.h"
+#include "image_jpeg.h"
 #include "codec.h"
 
 #include <iostream>
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cout << "Usage: " << std::endl << argv[0] << " path/to/file.ppm" << std::endl;
+  if (argc < 3) {
+    std::cout << "Usage: " << std::endl << argv[0] << " -e <quality> path/to/file.ppm" << std::endl;
     return 1;
   }
 
-  uint64_t width;
-  uint64_t height;
+  std::string type(argv[1]);
 
-  uint8_t *image = loadPPM(argv[1], width, height);
-  uint8_t *compressedImage = encodeRGB(width, height, image);
+  if (type == "-e" || type == "--encode") {
+    std::string quality(argv[2]);
+    std::string filename(argv[3]);
 
-  delete compressedImage;
-  delete image;
+    BitmapRGB rgb;
+    loadPPM(filename, rgb);
+
+    ImageJPEG jpeg;
+    jpegEncode(rgb, stoi(quality), jpeg);
+
+    //saveJPEG("potato.jpeg2d", jpeg);
+  }
+  else if (type == "-d" || type == "--decode") {
+    std::string filename(argv[2]);
+
+    ImageJPEG jpeg;
+    //loadJPEG(filename, jpeg);
+
+    BitmapRGB rgb;
+    jpegDecode(jpeg, rgb);
+
+    savePPM(std::string("potato.ppm"), rgb);
+  }
+  else {
+    std::cout << "Usage: " << std::endl << argv[0] << " -e <quality> path/to/file.ppm" << std::endl;
+    return 1;
+  }
 
   return 0;
 }

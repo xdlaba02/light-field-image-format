@@ -1,4 +1,4 @@
-TARGET = coder
+TARGET = codec
 
 DEPDIR = .dep
 SRCDIR = src
@@ -38,4 +38,4 @@ clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)
 
 run: $(BINDIR)/$(TARGET)
-	./$^ ../samples/chess/*.ppm
+	./$^ --encode 50 ../samples/chess/*.ppm

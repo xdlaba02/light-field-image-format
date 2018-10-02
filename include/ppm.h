@@ -1,9 +1,10 @@
 #ifndef PPM_H
 #define PPM_H
 
-#include <fstream>
+#include "bitmap.h"
 
-class Bitmap;
+#include <fstream>
+#include <string>
 
 enum State {
   STATE_INIT,
@@ -18,8 +19,8 @@ enum State {
   STATE_END
 };
 
-uint8_t *loadPPM(const char *filename, uint64_t &width, uint64_t &height);
-bool savePPM(const char *filename, uint64_t width, uint64_t height, uint8_t *data);
+bool loadPPM(const std::string &filename, BitmapRGB &rgb);
+bool savePPM(const std::string &filename, BitmapRGB &rgb);
 
 void skipUntilEol(std::ifstream &input);
 bool parseHeader(std::ifstream &input, uint64_t &width, uint64_t &height, uint32_t &depth);

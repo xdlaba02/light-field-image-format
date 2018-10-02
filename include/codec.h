@@ -1,20 +1,24 @@
 #ifndef CODEC_H
 #define CODEC_H
 
+#include "bitmap.h"
+
 #include <cstdint>
+#include <vector>
 
-class MyJPEG;
+class ImageJPEG;
 
-uint8_t *encodeRGB(uint64_t width, uint64_t height, uint8_t *RGBdata);
+using Block = uint64_t[8][8];
 
-void RGBtoYCbCr(uint8_t R,
-                uint8_t G,
-                uint8_t B,
-                uint8_t &Y,
-                uint8_t &Cb,
-                uint8_t &Cr);
+bool jpegEncode(const BitmapRGB &rgb, const uint8_t quality, ImageJPEG &jpeg);
+bool jpegDecode(const ImageJPEG &jpeg, BitmapRGB &rgb);
 
-void fct(int8_t input[8][8], double output[8][8]);
 
+void RGBToYCbCr(const BitmapRGB &rgb, BitmapG &Y, BitmapG &Cb, BitmapG &Cr);
+void getBlock(uint64_t x, uint64_t y, BitmapG &input, uint8_t output[8][8]);
+void fct(uint8_t input[8][8], double output[8][8]);
+void quantize(double input[8][8], int8_t output[8][8]);
+void zigzag(int8_t input[8][8], int8_t *output);
+//void runlength(int8_t input[64], std::vector<RunLengthData> &output);
 
 #endif
