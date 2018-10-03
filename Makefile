@@ -7,7 +7,7 @@ OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -Og -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS = -Iinclude -Og -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -g
 LDFLAGS =
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
@@ -32,10 +32,13 @@ $(BINDIR):
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-.PHONY: clean run
+.PHONY: clean run valgrind
 
 clean:
-	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)
+	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore*
 
 run: $(BINDIR)/$(TARGET)
-	./$^ --encode 50 ../samples/chess/*.ppm
+	./$^ --encode 100 ../samples/chess/*.ppm
+
+valgrind: $(BINDIR)/$(TARGET)
+	valgrind ./$^ --encode 50 ../samples/chess/*.ppm

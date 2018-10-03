@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     //loadJPEG(filename, jpeg);
 
     BitmapRGB rgb;
-    jpegDecode(jpeg, rgb);
+    //jpegDecode(jpeg, rgb);
 
     savePPM(std::string("potato.ppm"), rgb);
   }

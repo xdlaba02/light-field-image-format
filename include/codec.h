@@ -8,17 +8,30 @@
 
 class ImageJPEG;
 
-using Block = uint64_t[8][8];
+template<typename T>
+using Block = T[64];
 
-bool jpegEncode(const BitmapRGB &rgb, const uint8_t quality, ImageJPEG &jpeg);
-bool jpegDecode(const ImageJPEG &jpeg, BitmapRGB &rgb);
+struct RLTuple {
+  RLTuple(uint8_t z, int16_t a): amplitude(a), zeroes(z) {}
+  int16_t amplitude;
+  uint8_t zeroes;
+};
 
+void jpegEncode(const BitmapRGB &input, const uint8_t quality, ImageJPEG &output);
+void RGBToYCbCr(const BitmapRGB &input, BitmapG &Y, BitmapG &Cb, BitmapG &Cr);
 
-void RGBToYCbCr(const BitmapRGB &rgb, BitmapG &Y, BitmapG &Cb, BitmapG &Cr);
-void getBlock(uint64_t x, uint64_t y, BitmapG &input, uint8_t output[8][8]);
-void fct(uint8_t input[8][8], double output[8][8]);
-void quantize(double input[8][8], int8_t output[8][8]);
-void zigzag(int8_t input[8][8], int8_t *output);
-//void runlength(int8_t input[64], std::vector<RunLengthData> &output);
+void encodeChannel(const BitmapG &input, const uint8_t quality, std::vector<RLTuple> &output);
+void splitToBlocks(const BitmapG &input, BitmapG &output);
+
+void encodeBlock(const Block<uint8_t> &input, const uint8_t quality, std::vector<RLTuple> &output);
+
+void fct(const Block<uint8_t> &input, Block<double> &output);
+void quantize(const Block<double> &input, const uint8_t quality, Block<int8_t> &output);
+void zigzag(const Block<int8_t> &input, Block<int8_t> &output);
+void runlengthEncode(const Block<int8_t> &input, std::vector<RLTuple> &output);
+
+uint8_t RGBtoY(uint8_t R, uint8_t G, uint8_t B);
+uint8_t RGBtoCb(uint8_t R, uint8_t G, uint8_t B);
+uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B);
 
 #endif
