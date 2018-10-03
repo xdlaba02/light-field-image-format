@@ -1,7 +1,7 @@
 #include "codec.h"
 #include "bitmap.h"
+#include "huffman.h"
 
-#include <iostream>
 #include <cmath>
 
 void jpegEncode(const BitmapRGB &input, const uint8_t quality, ImageJPEG &output) {
@@ -12,14 +12,36 @@ void jpegEncode(const BitmapRGB &input, const uint8_t quality, ImageJPEG &output
   RGBToYCbCr(input, Y, Cb, Cr);
 
   std::vector<RLTuple> runlengthEncodedY;
-  std::vector<RLTuple> runlengthEncodedCb;
-  std::vector<RLTuple> runlengthEncodedCr;
+  //std::vector<RLTuple> runlengthEncodedCb;
+  //std::vector<RLTuple> runlengthEncodedCr;
 
   encodeChannel(Y, quality, runlengthEncodedY);
-  encodeChannel(Y, quality, runlengthEncodedCb);
-  encodeChannel(Y, quality, runlengthEncodedCr);
 
+  HuffmanTable luma_DC;
+  HuffmanTable luma_AC;
+  //HuffmanTable chroma_AC;
+  //HuffmanTable chroma_DC;
 
+  ACDCState state = STATE_DC;
+
+  for (auto &tuple: runlengthEncodedY) {
+    switch (state) {
+      case STATE_DC:
+      luma_DC.addKey(tuple);
+      state = STATE_AC;
+      break;
+
+      case STATE_AC:
+      luma_AC.addKey(tuple);
+      if (tuple.amplitude == 0 && tuple.zeroes == 0) {
+        state = STATE_DC;
+      }
+      break;
+    }
+  }
+
+  luma_DC.constructTable();
+  luma_DC.printTable();
 }
 
 void RGBToYCbCr(const BitmapRGB &input, BitmapG &Y, BitmapG &Cb, BitmapG &Cr) {
@@ -150,7 +172,7 @@ void zigzag(const Block<int8_t> &input, Block<int8_t> &output) {
   // 20 22 33 38 46 51 55 60
   // 21 34 37 47 50 56 59 61
   // 35 36 48 49 57 58 62 63
-  
+
   const uint8_t zigzag_index_table[] = {
      0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
@@ -169,7 +191,8 @@ void zigzag(const Block<int8_t> &input, Block<int8_t> &output) {
 
 void runlengthEncode(const Block<int8_t> &input, std::vector<RLTuple> &output) {
   uint8_t zeroes = 0;
-  for (uint8_t i = 0; i < 64; i++) {
+  output.push_back(RLTuple(0, input[0]));
+  for (uint8_t i = 1; i < 64; i++) {
     if (input[i] == 0) {
       zeroes++;
     }

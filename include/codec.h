@@ -12,9 +12,14 @@ template<typename T>
 using Block = T[64];
 
 struct RLTuple {
-  RLTuple(uint8_t z, int16_t a): amplitude(a), zeroes(z) {}
-  int16_t amplitude;
+  RLTuple(uint8_t z, int16_t a):zeroes(z), amplitude(a) {}
   uint8_t zeroes;
+  int16_t amplitude;
+};
+
+enum ACDCState {
+  STATE_DC,
+  STATE_AC
 };
 
 void jpegEncode(const BitmapRGB &input, const uint8_t quality, ImageJPEG &output);

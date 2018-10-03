@@ -38,7 +38,7 @@ clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore*
 
 run: $(BINDIR)/$(TARGET)
-	./$^ --encode 100 ../samples/chess/*.ppm
+	./$^ --encode 100 test.ppm
 
 valgrind: $(BINDIR)/$(TARGET)
-	valgrind ./$^ --encode 50 ../samples/chess/*.ppm
+	valgrind ./$^ --encode 50 test.ppm

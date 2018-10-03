@@ -13,7 +13,7 @@ public:
   }
 
   ~Bitmap() {
-    delete m_data;
+    delete[] m_data;
   }
 
   void init(uint64_t width, uint64_t height) {
