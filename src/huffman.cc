@@ -7,7 +7,7 @@ HuffmanTable::HuffmanTable(): m_key_counts(), m_codewords() {}
 
 HuffmanTable::~HuffmanTable() {}
 
-void HuffmanTable::addKey(RLTuple &tuple) {
+void HuffmanTable::addKey(const RLTuple &tuple) {
   m_key_counts[key(tuple)]++;
 }
 
@@ -44,7 +44,21 @@ void HuffmanTable::constructTable() {
   l.top(root, root_priority);
   l.pop();
 
-  consumeTree(root, Codeword());
+  consumeTree(root, BitField());
+}
+
+BitField HuffmanTable::getCodeword(const RLTuple &tuple) {
+  return m_codewords[key(tuple)];
+}
+
+BitField HuffmanTable::getEncodedValue(const RLTuple &tuple) {
+  BitField b;
+  b.value = tuple.amplitude;
+  if (tuple.amplitude < 0) {
+    b.value = ~b.value;
+  }
+  b.length = category(tuple.amplitude);
+  return b;
 }
 
 void HuffmanTable::printTable() {
@@ -55,7 +69,8 @@ void HuffmanTable::printTable() {
   }
 }
 
-uint8_t HuffmanTable::key(RLTuple &tuple) {
+
+uint8_t HuffmanTable::key(const RLTuple &tuple) {
   return (tuple.zeroes << 4) | category(tuple.amplitude);
 }
 
@@ -73,7 +88,7 @@ uint8_t HuffmanTable::category(int16_t value) {
   return cat;
 }
 
-void HuffmanTable::consumeTree(Node *node, Codeword codeword) {
+void HuffmanTable::consumeTree(Node *node, BitField codeword) {
   if(!node) {
     return;
   }

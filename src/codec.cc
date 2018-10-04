@@ -1,10 +1,64 @@
 #include "codec.h"
 #include "bitmap.h"
 #include "huffman.h"
+#include "jpeg2d.h"
+
+#include <fstream>
 
 #include <cmath>
 
-void jpegEncode(const BitmapRGB &input, const uint8_t quality, ImageJPEG &output) {
+void saveJPEG(std::string filename, JPEG2D &jpeg) {
+  std::ofstream output(filename);
+  if (output.fail()) {
+    return;
+  }
+
+  std::cout << "width: " << jpeg.width << std::endl;
+  std::cout << "height: " << jpeg.height << std::endl;
+  std::cout << std::endl;
+  std::cout << "Luma kvantizacni tabulka: " << std::endl;
+  for (uint8_t i = 0; i < 8; i++) {
+    for (uint8_t j = 0; j < 8; j++) {
+      std::cout << static_cast<unsigned>(jpeg.quant_table_luma[i * 8 + j]) << ", ";
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+  std::cout << "Chroma kvantizacni tabulka: " << std::endl;
+  for (uint8_t i = 0; i < 8; i++) {
+    for (uint8_t j = 0; j < 8; j++) {
+      std::cout << static_cast<unsigned>(jpeg.quant_table_chroma[i * 8 + j]) << ", ";
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+  std::cout << "Luma DC huffmanova tabulka: " << std::endl;
+  jpeg.huffman_luma_DC.printTable();
+  std::cout << std::endl;
+  std::cout << "Luma AC huffmanova tabulka: " << std::endl;
+  jpeg.huffman_luma_AC.printTable();
+  std::cout << std::endl;
+  std::cout << "Chroma DC huffmanova tabulka: " << std::endl;
+  jpeg.huffman_chroma_DC.printTable();
+  std::cout << std::endl;
+  std::cout << "Chroma AC huffmanova tabulka: " << std::endl;
+  jpeg.huffman_chroma_AC.printTable();
+
+  //vytiskni nejaku magic neco
+  //sira a vyska vysledneho obrazku
+  //kvantizacni tabulky
+  //huffmanovy tabulky
+  //data
+}
+
+void loadJPEG(std::string filename, JPEG2D &jpeg) {
+
+}
+
+void jpegEncode(const BitmapRGB &input, const uint8_t quality, JPEG2D &output) {
+  output.width = input.width();
+  output.height = input.height();
+
   BitmapG Y;
   BitmapG Cb;
   BitmapG Cr;
@@ -12,36 +66,82 @@ void jpegEncode(const BitmapRGB &input, const uint8_t quality, ImageJPEG &output
   RGBToYCbCr(input, Y, Cb, Cr);
 
   std::vector<RLTuple> runlengthEncodedY;
-  //std::vector<RLTuple> runlengthEncodedCb;
-  //std::vector<RLTuple> runlengthEncodedCr;
+  std::vector<RLTuple> runlengthEncodedCb;
+  std::vector<RLTuple> runlengthEncodedCr;
 
-  encodeChannel(Y, quality, runlengthEncodedY);
+  scaleQuantizationTable(universal_quantization_table, quality, output.quant_table_luma);
+  scaleQuantizationTable(universal_quantization_table, quality, output.quant_table_chroma);
 
-  HuffmanTable luma_DC;
-  HuffmanTable luma_AC;
-  //HuffmanTable chroma_AC;
-  //HuffmanTable chroma_DC;
+  encodeChannel(Y, output.quant_table_luma, runlengthEncodedY);
+  encodeChannel(Cb, output.quant_table_chroma, runlengthEncodedCb);
+  encodeChannel(Cr, output.quant_table_chroma, runlengthEncodedCr);
 
-  ACDCState state = STATE_DC;
+  fillHuffmanTables(runlengthEncodedY, output.huffman_luma_DC, output.huffman_luma_AC);
+  fillHuffmanTables(runlengthEncodedCb, output.huffman_chroma_DC, output.huffman_chroma_AC);
+  fillHuffmanTables(runlengthEncodedCr, output.huffman_chroma_DC, output.huffman_chroma_AC);
 
-  for (auto &tuple: runlengthEncodedY) {
-    switch (state) {
-      case STATE_DC:
-      luma_DC.addKey(tuple);
-      state = STATE_AC;
-      break;
+  output.huffman_luma_DC.constructTable();
+  output.huffman_luma_AC.constructTable();
 
-      case STATE_AC:
-      luma_AC.addKey(tuple);
-      if (tuple.amplitude == 0 && tuple.zeroes == 0) {
-        state = STATE_DC;
-      }
-      break;
-    }
+  output.huffman_chroma_DC.constructTable();
+  output.huffman_chroma_AC.constructTable();
+
+  std::vector<RLTuple>::iterator it_Y = runlengthEncodedY.begin();
+  std::vector<RLTuple>::iterator it_Cb = runlengthEncodedCb.begin();
+  std::vector<RLTuple>::iterator it_Cr = runlengthEncodedCr.begin();
+
+  Bitstream &bitstream = output.data;
+  BitField codeword;
+  BitField encodedValue;
+
+  while (it_Y != runlengthEncodedY.end()) {
+    codeword = output.huffman_luma_DC.getCodeword(*it_Y);
+    bitstream.append(codeword.value, codeword.length);
+
+    encodedValue = HuffmanTable::getEncodedValue(*it_Y);
+    bitstream.append(encodedValue.value, encodedValue.length);
+
+    do {
+      it_Y++;
+      codeword = output.huffman_luma_AC.getCodeword(*it_Y);
+      bitstream.append(codeword.value, codeword.length);
+
+      encodedValue = HuffmanTable::getEncodedValue(*it_Y);
+      bitstream.append(encodedValue.value, encodedValue.length);
+    } while ((*it_Y).zeroes != 0 && (*it_Y).amplitude != 0);
+
+    codeword = output.huffman_chroma_DC.getCodeword(*it_Cb);
+    bitstream.append(codeword.value, codeword.length);
+
+    encodedValue = HuffmanTable::getEncodedValue(*it_Cb);
+    bitstream.append(encodedValue.value, encodedValue.length);
+
+    do {
+      it_Cb++;
+      codeword = output.huffman_chroma_AC.getCodeword(*it_Cb);
+      bitstream.append(codeword.value, codeword.length);
+
+      encodedValue = HuffmanTable::getEncodedValue(*it_Cb);
+      bitstream.append(encodedValue.value, encodedValue.length);
+    } while ((*it_Cb).zeroes != 0 && (*it_Cb).amplitude != 0);
+
+    codeword = output.huffman_chroma_DC.getCodeword(*it_Cr);
+    bitstream.append(codeword.value, codeword.length);
+
+    encodedValue = HuffmanTable::getEncodedValue(*it_Cr);
+    bitstream.append(encodedValue.value, encodedValue.length);
+
+    do {
+      it_Cr++;
+      codeword = output.huffman_chroma_AC.getCodeword(*it_Cr);
+      bitstream.append(codeword.value, codeword.length);
+
+      encodedValue = HuffmanTable::getEncodedValue(*it_Cr);
+      bitstream.append(encodedValue.value, encodedValue.length);
+    } while ((*it_Cr).zeroes != 0 && (*it_Cr).amplitude != 0);
   }
 
-  luma_DC.constructTable();
-  luma_DC.printTable();
+  bitstream.flush();
 }
 
 void RGBToYCbCr(const BitmapRGB &input, BitmapG &Y, BitmapG &Cb, BitmapG &Cr) {
@@ -60,26 +160,67 @@ void RGBToYCbCr(const BitmapRGB &input, BitmapG &Y, BitmapG &Cb, BitmapG &Cr) {
   }
 }
 
-void encodeChannel(const BitmapG &input, const uint8_t quality, std::vector<RLTuple> &output) {
-  BitmapG blocky;
-  splitToBlocks(input, blocky);
+void fillHuffmanTables(const std::vector<RLTuple> &input, HuffmanTable &DC, HuffmanTable &AC) {
+  ACDCState state = STATE_DC;
 
-  for (uint64_t i = 0; i < blocky.sizeInPixels(); i += 64) {
-    uint8_t *data = &blocky.data()[i];
-    Block<uint8_t> *block = reinterpret_cast<Block<uint8_t> *>(data);
-    encodeBlock(*block, quality, output);
+  for (auto &tuple: input) {
+    switch (state) {
+      case STATE_DC:
+      DC.addKey(tuple);
+      state = STATE_AC;
+      break;
+
+      case STATE_AC:
+      AC.addKey(tuple);
+      if (tuple.amplitude == 0 && tuple.zeroes == 0) {
+        state = STATE_DC;
+      }
+      break;
+    }
   }
 }
 
-void encodeBlock(const Block<uint8_t> &input, const uint8_t quality, std::vector<RLTuple> &output) {
-  Block<double> freq_block;
-  Block<int8_t> quant_block;
-  Block<int8_t> zigzag_block;
+void scaleQuantizationTable(const Block<uint8_t> &input, const uint8_t quality, Block<uint8_t> &output) {
+  uint8_t scaled_quality;
+  if (quality < 50) {
+    scaled_quality = 5000 / quality;
+  }
+  else {
+    scaled_quality = 200 - 2 * quality;
+  }
 
-  fct(input, freq_block);
-  quantize(freq_block, quality, quant_block);
-  zigzag(quant_block, zigzag_block);
-  runlengthEncode(zigzag_block, output);
+  for (uint8_t i = 0; i < 64; i++) {
+    uint8_t quant_value = (input[i] * scaled_quality) / 100;
+    if (quant_value < 1) {
+      quant_value = 1;
+    }
+    output[i] = quant_value;
+  }
+}
+
+void encodeChannel(const BitmapG &input, const Block<uint8_t> &quant_table, std::vector<RLTuple> &output) {
+  BitmapG blocky;
+  splitToBlocks(input, blocky);
+
+  int8_t prev = 0;
+  for (uint64_t i = 0; i < blocky.sizeInPixels(); i += 64) {
+    Block<uint8_t> &block = reinterpret_cast<Block<uint8_t> &>(blocky.data()[i]);
+    Block<double> freq_block;
+    Block<int8_t> quant_block;
+    Block<int8_t> zigzag_data;
+
+    fct(block, freq_block);
+    quantize(freq_block, quant_table, quant_block);
+    zigzag(quant_block, zigzag_data);
+
+    int8_t DC_coef = zigzag_data[0];
+    zigzag_data[0] -= prev;
+    prev = DC_coef;
+
+    runlengthEncode(zigzag_data, output);
+  }
+
+
 }
 
 void splitToBlocks(const BitmapG &input, BitmapG &output) {
@@ -133,33 +274,9 @@ void fct(const Block<uint8_t> &input, Block<double> &output) {
   }
 }
 
-void quantize(const Block<double> &input, const uint8_t quality, Block<int8_t> &output) {
-  const Block<uint8_t> quantization_table = {
-    16,11,10,16,24 ,40 ,51 ,61,
-    12,12,14,19,26 ,58 ,60 ,55,
-    14,13,16,24,40 ,57 ,69 ,56,
-    14,17,22,29,51 ,87 ,80 ,62,
-    18,22,37,56,68 ,109,103,77,
-    24,35,55,64,81 ,104,113,92,
-    49,64,78,87,103,121,120,101,
-    72,92,95,98,112,100,103,99
-  };
-
-  uint8_t scaled_quality;
-
-  if ( quality < 50 ) {
-    scaled_quality = 5000 / quality;
-  }
-  else {
-    scaled_quality = 200 - 2 * quality;
-  }
-
+void quantize(const Block<double> &input, const Block<uint8_t> &quant_table, Block<int8_t> &output) {
   for (uint8_t i = 0; i < 64; i++) {
-    uint8_t quant_value = (quantization_table[i] * scaled_quality) / 100;
-    if (quant_value < 1) {
-      quant_value = 1;
-    }
-    output[i] = round(input[i]/quant_value);
+    output[i] = round(input[i]/quant_table[i]);
   }
 }
 

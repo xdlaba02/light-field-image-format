@@ -1,43 +1,45 @@
 #include "ppm.h"
 #include "bitmap.h"
-#include "image_jpeg.h"
 #include "codec.h"
+#include "jpeg2d.h"
+#include "bitstream.h"
 
 #include <iostream>
 
+void print_usage(const char *argv0) {
+  std::cout << "Usage: " << std::endl;
+  std::cout << argv0 << " --encode <quality> path/to/file.ppm" << std::endl;
+  std::cout << argv0 << " --decode path/to/file.jpeg2d" << std::endl;
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 3) {
-    std::cout << "Usage: " << std::endl << argv[0] << " -e <quality> path/to/file.ppm" << std::endl;
+    print_usage(argv[0]);
     return 1;
   }
 
   std::string type(argv[1]);
 
+  BitmapRGB rgb;
+  JPEG2D jpeg;
+
   if (type == "-e" || type == "--encode") {
     std::string quality(argv[2]);
     std::string filename(argv[3]);
 
-    BitmapRGB rgb;
     loadPPM(filename, rgb);
-
-    ImageJPEG jpeg;
     jpegEncode(rgb, stoi(quality), jpeg);
-
-    //saveJPEG("potato.jpeg2d", jpeg);
+    saveJPEG(filename+".jpeg2d", jpeg);
   }
   else if (type == "-d" || type == "--decode") {
     std::string filename(argv[2]);
 
-    ImageJPEG jpeg;
     //loadJPEG(filename, jpeg);
-
-    BitmapRGB rgb;
     //jpegDecode(jpeg, rgb);
-
-    savePPM(std::string("potato.ppm"), rgb);
+    //savePPM(filename+".ppm", rgb);
   }
   else {
-    std::cout << "Usage: " << std::endl << argv[0] << " -e <quality> path/to/file.ppm" << std::endl;
+    print_usage(argv[0]);
     return 1;
   }
 
