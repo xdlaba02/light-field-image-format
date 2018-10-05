@@ -6,19 +6,14 @@
 
 #include <cstdint>
 
-struct JPEG2D {
-  uint64_t width;
-  uint64_t height;
 
-  Block<uint8_t> quant_table_luma;
-  Block<uint8_t> quant_table_chroma;
 
-  HuffmanTable huffman_luma_DC;
-  HuffmanTable huffman_luma_AC;
-  HuffmanTable huffman_chroma_AC;
-  HuffmanTable huffman_chroma_DC;
+class JPEG2D {
+public:
+  JPEG2D();
+  bool load(const std::string filename);
 
-  Bitstream data;
+private:
 };
 
 #endif

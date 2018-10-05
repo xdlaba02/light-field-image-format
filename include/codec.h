@@ -1,17 +1,84 @@
 #ifndef CODEC_H
 #define CODEC_H
 
-#include "bitmap.h"
+#include "huffman.h"
 
-#include <string>
 #include <cstdint>
 #include <vector>
 
-class HuffmanTable;
-class JPEG2D;
-
 template<typename T>
 using Block = T[64];
+
+using QuantTable = Block<uint8_t>;
+
+class JPEG2DEncoder {
+public:
+  JPEG2DEncoder(const uint64_t width, const uint64_t height, const uint8_t rgb_data[], const uint8_t quality);
+  ~JPEG2DEncoder();
+
+  void run();
+
+  bool save(const std::string filename);
+
+private:
+  uint64_t pixelCount();
+  uint64_t blockCount();
+
+  void scaleQuantTables(uint8_t quality);
+
+  void RGBToYCbCr();
+  void reorderToBlocks();
+  void forwardDCT();
+  void forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output);
+  void quantize();
+  void zigzagReorder();
+  void entropyEncode();
+
+  uint64_t m_width;
+  uint64_t m_height;
+
+  std::vector<uint8_t> m_channel_R;
+  std::vector<uint8_t> m_channel_G;
+  std::vector<uint8_t> m_channel_B;
+
+  std::vector<uint8_t> m_channel_Y_raw;
+  std::vector<uint8_t> m_channel_Cb_raw;
+  std::vector<uint8_t> m_channel_Cr_raw;
+
+  std::vector<Block<uint8_t>> m_channel_Y_blocky;
+  std::vector<Block<uint8_t>> m_channel_Cb_blocky;
+  std::vector<Block<uint8_t>> m_channel_Cr_blocky;
+
+  std::vector<Block<double>> m_channel_Y_transformed;
+  std::vector<Block<double>> m_channel_Cb_transformed;
+  std::vector<Block<double>> m_channel_Cr_transformed;
+
+  std::vector<Block<int8_t>> m_channel_Y_quantized;
+  std::vector<Block<int8_t>> m_channel_Cb_qunatized;
+  std::vector<Block<int8_t>> m_channel_Cr_quantized;
+
+  std::vector<Block<int8_t>> m_channel_Y_zigzag;
+  std::vector<Block<int8_t>> m_channel_Cb_zigzag;
+  std::vector<Block<int8_t>> m_channel_Cr_zigzag;
+
+  std::vector<int8_t> m_channel_Y_DC;
+  std::vector<int8_t> m_channel_Cb_DC;
+  std::vector<int8_t> m_channel_Cr_DC;
+
+  std::vector<std::vector<RunLengthPair>> m_channel_Y_AC;
+  std::vector<std::vector<RunLengthPair>> m_channel_Cb_AC;
+  std::vector<std::vector<RunLengthPair>> m_channel_Cr_AC;
+
+  QuantTable m_quant_table_luma_scaled;
+  QuantTable m_quant_table_chroma_scaled;
+
+  HuffmanTable m_huffman_table_luma_DC;
+  HuffmanTable m_huffman_table_luma_AC;
+  HuffmanTable m_huffman_table_chroma_AC;
+  HuffmanTable m_huffman_table_chroma_DC;
+
+  EncodedImage m_encoded_image;
+};
 
 struct RLTuple {
   RLTuple(uint8_t z, int16_t a):zeroes(z), amplitude(a) {}
@@ -22,17 +89,6 @@ struct RLTuple {
 enum ACDCState {
   STATE_DC,
   STATE_AC
-};
-
-const Block<uint8_t> universal_quantization_table = {
-  16,11,10,16,24 ,40 ,51 ,61,
-  12,12,14,19,26 ,58 ,60 ,55,
-  14,13,16,24,40 ,57 ,69 ,56,
-  14,17,22,29,51 ,87 ,80 ,62,
-  18,22,37,56,68 ,109,103,77,
-  24,35,55,64,81 ,104,113,92,
-  49,64,78,87,103,121,120,101,
-  72,92,95,98,112,100,103,99
 };
 
 void saveJPEG(std::string filename, JPEG2D &jpeg);
