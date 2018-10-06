@@ -32,7 +32,10 @@ private:
   void forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output);
   void quantize();
   void zigzagReorder();
-  void entropyEncode();
+  void diffEncodeDC();
+  void runLengthEncodeAC();
+  void runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output);
+  void constructHuffmanTables();
 
   uint64_t m_width;
   uint64_t m_height;

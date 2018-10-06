@@ -46,7 +46,9 @@ void JPEG2DEncoder::run() {
   forwardDCT();
   quantize();
   zigzagReorder();
-  entropyEncode();
+  diffEncodeDC();
+  runLengthEncodeAC();
+  constructHuffmanTables();
 }
 
 bool JPEG2DEncoder::save(const std::string filename) {
@@ -63,7 +65,7 @@ uint64_t JPEG2DEncoder::blockCount() {
 
 void JPEG2DEncoder::scaleQuantTables(uint8_t quality) {
   //TODO luma chroma ruzne tabulky
-  const QuantTable universal_quan_table = {
+  const QuantTable universal_quant_table = {
     16,11,10,16, 24, 40, 51, 61,
     12,12,14,19, 26, 58, 60, 55,
     14,13,16,24, 40, 57, 69, 56,
@@ -83,7 +85,7 @@ void JPEG2DEncoder::scaleQuantTables(uint8_t quality) {
   }
 
   for (uint8_t i = 0; i < 64; i++) {
-    uint8_t quant_value = (universal_quan_table[i] * scaled_quality) / 100;
+    uint8_t quant_value = (universal_quant_table[i] * scaled_quality) / 100;
 
     if (quant_value < 1) {
       quant_value = 1;
@@ -196,7 +198,7 @@ void JPEG2DEncoder::zigzagReorder() {
   }
 }
 
-void JPEG2DEncoder::entropyEncode() {
+void JPEG2DEncoder::diffEncodeDC() {
   int8_t prev_Y_DC = 0;
   int8_t prev_Cb_DC = 0;
   int8_t prev_Cr_DC = 0;
@@ -207,112 +209,37 @@ void JPEG2DEncoder::entropyEncode() {
   }
 }
 
-void jpegEncode(const BitmapRGB &input, const uint8_t quality, JPEG2D &output) {
-  output.width = input.width();
-  output.height = input.height();
-
-  BitmapG Y;
-  BitmapG Cb;
-  BitmapG Cr;
-
-  RGBToYCbCr(input, Y, Cb, Cr);
-
-  std::vector<RLTuple> runlengthEncodedY;
-  std::vector<RLTuple> runlengthEncodedCb;
-  std::vector<RLTuple> runlengthEncodedCr;
-
-  scaleQuantizationTable(universal_quantization_table, quality, output.quant_table_luma);
-  scaleQuantizationTable(universal_quantization_table, quality, output.quant_table_chroma);
-
-  encodeChannel(Y, output.quant_table_luma, runlengthEncodedY);
-  encodeChannel(Cb, output.quant_table_chroma, runlengthEncodedCb);
-  encodeChannel(Cr, output.quant_table_chroma, runlengthEncodedCr);
-
-  fillHuffmanTables(runlengthEncodedY, output.huffman_luma_DC, output.huffman_luma_AC);
-  fillHuffmanTables(runlengthEncodedCb, output.huffman_chroma_DC, output.huffman_chroma_AC);
-  fillHuffmanTables(runlengthEncodedCr, output.huffman_chroma_DC, output.huffman_chroma_AC);
-
-  output.huffman_luma_DC.constructTable();
-  output.huffman_luma_AC.constructTable();
-
-  output.huffman_chroma_DC.constructTable();
-  output.huffman_chroma_AC.constructTable();
-
-  std::vector<RLTuple>::iterator it_Y = runlengthEncodedY.begin();
-  std::vector<RLTuple>::iterator it_Cb = runlengthEncodedCb.begin();
-  std::vector<RLTuple>::iterator it_Cr = runlengthEncodedCr.begin();
-
-  Bitstream &bitstream = output.data;
-  BitField codeword;
-  BitField encodedValue;
-
-  while (it_Y != runlengthEncodedY.end()) {
-    codeword = output.huffman_luma_DC.getCodeword(*it_Y);
-    bitstream.append(codeword.value, codeword.length);
-
-    encodedValue = HuffmanTable::getEncodedValue(*it_Y);
-    bitstream.append(encodedValue.value, encodedValue.length);
-
-    do {
-      it_Y++;
-      codeword = output.huffman_luma_AC.getCodeword(*it_Y);
-      bitstream.append(codeword.value, codeword.length);
-
-      encodedValue = HuffmanTable::getEncodedValue(*it_Y);
-      bitstream.append(encodedValue.value, encodedValue.length);
-    } while ((*it_Y).zeroes != 0 && (*it_Y).amplitude != 0);
-
-    codeword = output.huffman_chroma_DC.getCodeword(*it_Cb);
-    bitstream.append(codeword.value, codeword.length);
-
-    encodedValue = HuffmanTable::getEncodedValue(*it_Cb);
-    bitstream.append(encodedValue.value, encodedValue.length);
-
-    do {
-      it_Cb++;
-      codeword = output.huffman_chroma_AC.getCodeword(*it_Cb);
-      bitstream.append(codeword.value, codeword.length);
-
-      encodedValue = HuffmanTable::getEncodedValue(*it_Cb);
-      bitstream.append(encodedValue.value, encodedValue.length);
-    } while ((*it_Cb).zeroes != 0 && (*it_Cb).amplitude != 0);
-
-    codeword = output.huffman_chroma_DC.getCodeword(*it_Cr);
-    bitstream.append(codeword.value, codeword.length);
-
-    encodedValue = HuffmanTable::getEncodedValue(*it_Cr);
-    bitstream.append(encodedValue.value, encodedValue.length);
-
-    do {
-      it_Cr++;
-      codeword = output.huffman_chroma_AC.getCodeword(*it_Cr);
-      bitstream.append(codeword.value, codeword.length);
-
-      encodedValue = HuffmanTable::getEncodedValue(*it_Cr);
-      bitstream.append(encodedValue.value, encodedValue.length);
-    } while ((*it_Cr).zeroes != 0 && (*it_Cr).amplitude != 0);
+void JPEG2DEncoder::runLengthEncodeAC() {
+  for (uint64_t i = 0; i < blockCount(); i++) {
+    runLengthEncodeACBlock(m_channel_Y_zigzag[i])
+    runLengthEncodeACBlock(m_channel_Cb_zigzag[i])
+    runLengthEncodeACBlock(m_channel_Cr_zigzag[i])
   }
-
-  bitstream.flush();
 }
 
-void fillHuffmanTables(const std::vector<RLTuple> &input, HuffmanTable &DC, HuffmanTable &AC) {
-  ACDCState state = STATE_DC;
-
-  for (auto &tuple: input) {
-    switch (state) {
-      case STATE_DC:
-      DC.addKey(tuple);
-      state = STATE_AC;
-      break;
-
-      case STATE_AC:
-      AC.addKey(tuple);
-      if (tuple.amplitude == 0 && tuple.zeroes == 0) {
-        state = STATE_DC;
-      }
-      break;
+void JPEG2DEncoder::runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output) {
+  uint8_t zeroes = 0;
+  for (uint8_t i = 1; i < 64; i++) {
+    if (input[i] == 0) {
+      zeroes++;
     }
+    else {
+      while (zeroes >= 16) {
+        output.push_back(RunLengthPair(15, 0));
+        zeroes -= 16;
+      }
+      output.push_back(RunLengthPair(zeroes, input[i]));
+      zeroes = 0;
+    }
+  }
+  output.push_back(RunLengthPair(0, 0));
+}
+
+void JPEG2DEncoder::constructHuffmanTables() {
+  for (uint64_t i = 0; i < blockCount(); i++) {
+    runLengthEncodeACBlock(m_channel_Y_zigzag[i])
+    runLengthEncodeACBlock(m_channel_Cb_zigzag[i])
+    runLengthEncodeACBlock(m_channel_Cr_zigzag[i])
   }
 }
 
@@ -337,23 +264,4 @@ void encodeChannel(const BitmapG &input, const Block<uint8_t> &quant_table, std:
 
     runlengthEncode(zigzag_data, output);
   }
-}
-
-void runlengthEncode(const Block<int8_t> &input, std::vector<RLTuple> &output) {
-  uint8_t zeroes = 0;
-  output.push_back(RLTuple(0, input[0]));
-  for (uint8_t i = 1; i < 64; i++) {
-    if (input[i] == 0) {
-      zeroes++;
-    }
-    else {
-      while (zeroes >= 16) {
-        output.push_back(RLTuple(15, 0));
-        zeroes -= 16;
-      }
-      output.push_back(RLTuple(zeroes, input[i]));
-      zeroes = 0;
-    }
-  }
-  output.push_back(RLTuple(0, 0));
 }

@@ -8,57 +8,33 @@ HuffmanTable::HuffmanTable(): m_key_counts(), m_codewords() {}
 HuffmanTable::~HuffmanTable() {}
 
 void HuffmanTable::addKey(const RLTuple &tuple) {
-  m_key_counts[key(tuple)]++;
+  m_frequencies[key(tuple)]++;
 }
 
 void HuffmanTable::constructTable() {
-  PriorityList<Node *> l;
-  for (auto &tuple: m_key_counts) {
-    Node *n = new Node(tuple.first);
-    l.insert(n, tuple.second);
+  std::priority_queue<INode *, std::vector<INode *>, NodeCmp> trees;
+
+  for (auto &tuple: m_frequencies) {
+    trees.push(new LeafNode(tuple.second, tuple.first));
   }
 
-  while (l.len() > 1) {
-    Node *n1 = nullptr;
-    Node *n2 = nullptr;
+  while (trees.size() > 1)
+  {
+      INode* right = trees.top();
+      trees.pop();
 
-    uint64_t p1 = 0;
-    uint64_t p2 = 0;
+      INode* left = trees.top();
+      trees.pop();
 
-    l.top(n1, p1);
-    l.pop();
-
-    l.top(n2, p2);
-    l.pop();
-
-    Node *n3 = new Node();
-    n3->left = n1;
-    n3->right = n2;
-
-    l.insert(n3, p1 + p2);
+      trees.push(new InternalNode(childR, childL));
   }
 
-  Node *root = nullptr;
-  uint64_t root_priority;
+  INode *root = trees.top();
+  trees.pop();
 
-  l.top(root, root_priority);
-  l.pop();
+  generateCodes(root, HuffCoef());
 
-  consumeTree(root, BitField());
-}
-
-BitField HuffmanTable::getCodeword(const RLTuple &tuple) {
-  return m_codewords[key(tuple)];
-}
-
-BitField HuffmanTable::getEncodedValue(const RLTuple &tuple) {
-  BitField b;
-  b.value = tuple.amplitude;
-  if (tuple.amplitude < 0) {
-    b.value = ~b.value;
-  }
-  b.length = category(tuple.amplitude);
-  return b;
+  delete root;
 }
 
 void HuffmanTable::printTable() {
@@ -69,37 +45,18 @@ void HuffmanTable::printTable() {
   }
 }
 
-
-uint8_t HuffmanTable::key(const RLTuple &tuple) {
-  return (tuple.zeroes << 4) | category(tuple.amplitude);
-}
-
-uint8_t HuffmanTable::category(int16_t value) {
-  if (value < 0) {
-    value = -value;
+void HuffmanTable::generateCodes(const Node *node, const HuffCode& prefix) {
+  if (const LeafNode* leaf = dynamic_cast<const LeafNode *>(node)) {
+      m_codewords[leag->key] = prefix;
   }
+  else if (const InternalNode* internal = dynamic_cast<const InternalNode *>(node))
+  {
+      HuffCode leftPrefix = prefix;
+      leftPrefix.push_back(false);
+      GenerateCodes(internal->left, leftPrefix);
 
-  int cat = 0;
-  while (value > 0) {
-    value = value >> 1;
-    cat++;
+      HuffCode rightPrefix = prefix;
+      rightPrefix.push_back(true);
+      GenerateCodes(internal->right, rightPrefix);
   }
-
-  return cat;
-}
-
-void HuffmanTable::consumeTree(Node *node, BitField codeword) {
-  if(!node) {
-    return;
-  }
-
-  if (!node->left && !node->right) {
-    m_codewords[node->value] = codeword;
-  }
-  else {
-    consumeTree(node->left, (codeword << 1) | 0);
-    consumeTree(node->right, (codeword << 1) | 1);
-  }
-
-  delete node;
 }
