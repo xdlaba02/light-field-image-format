@@ -1,5 +1,5 @@
 #include "ppm.h"
-#include "codec.h"
+#include "jpeg2_encoder.h"
 
 #include <iostream>
 

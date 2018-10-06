@@ -1,7 +1,7 @@
 #ifndef CODEC_H
 #define CODEC_H
 
-#include "huffman.h"
+#include "huffman_encoder.h"
 
 #include <cstdint>
 #include <vector>
@@ -42,7 +42,13 @@ private:
   void diffEncodeDC();
   void runLengthEncodeAC();
   void runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output);
-  void constructHuffmanTables();
+  void constructHuffmanEncoders();
+  void huffmanEncode();
+
+  static uint8_t huffmanClass(int8_t value);
+  static uint8_t huffmanKey(RunLengthPair &pair);
+
+  void encodeAmplitude(int8_t amplitude, std::vector<bool> &output);
 
   uint64_t m_width;
   uint64_t m_height;
@@ -82,10 +88,12 @@ private:
   std::vector<std::vector<RunLengthPair>> m_channel_Cb_AC;
   std::vector<std::vector<RunLengthPair>> m_channel_Cr_AC;
 
-  HuffmanTable m_huffman_table_luma_DC;
-  HuffmanTable m_huffman_table_luma_AC;
-  HuffmanTable m_huffman_table_chroma_DC;
-  HuffmanTable m_huffman_table_chroma_AC;
+  HuffmanEncoder m_huffman_table_luma_DC;
+  HuffmanEncoder m_huffman_table_luma_AC;
+  HuffmanEncoder m_huffman_table_chroma_DC;
+  HuffmanEncoder m_huffman_table_chroma_AC;
+
+  std::vector<bool> m_jpeg2d_data;
 };
 
 #endif

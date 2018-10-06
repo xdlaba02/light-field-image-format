@@ -25,5 +25,4 @@ void skipUntilEol(std::ifstream &input);
 bool parseHeader(std::ifstream &input, uint64_t &width, uint64_t &height, uint32_t &depth);
 void writeHeader(std::ofstream &output, uint64_t width, uint64_t height, uint32_t depth);
 
-
 #endif

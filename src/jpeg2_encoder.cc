@@ -1,12 +1,15 @@
-#include "codec.h"
+#include "jpeg2_encoder.h"
 
 #include <cmath>
+#include <iostream>
+#include <bitset>
+#include <fstream>
 
 JPEG2DEncoder::JPEG2DEncoder(const uint64_t width, const uint64_t height, const uint8_t rgb_data[], const uint8_t quality):
   m_width(width),
   m_height(height),
-  m_quant_table_luma_scaled(0),
-  m_quant_table_chroma_scaled(0),
+  m_quant_table_luma_scaled(),
+  m_quant_table_chroma_scaled(),
   m_channel_R(pixelCount()),
   m_channel_G(pixelCount()),
   m_channel_B(pixelCount()),
@@ -34,7 +37,8 @@ JPEG2DEncoder::JPEG2DEncoder(const uint64_t width, const uint64_t height, const 
   m_huffman_table_luma_DC(),
   m_huffman_table_luma_AC(),
   m_huffman_table_chroma_DC(),
-  m_huffman_table_chroma_AC() {
+  m_huffman_table_chroma_AC(),
+  m_jpeg2d_data() {
 
   for (uint64_t i = 0; i < pixelCount(); i++) {
     m_channel_R[i] = rgb_data[3 * i + 0];
@@ -45,6 +49,8 @@ JPEG2DEncoder::JPEG2DEncoder(const uint64_t width, const uint64_t height, const 
   scaleQuantTables(quality);
 }
 
+JPEG2DEncoder::~JPEG2DEncoder() {}
+
 void JPEG2DEncoder::run() {
   RGBToYCbCr();
   reorderToBlocks();
@@ -53,11 +59,62 @@ void JPEG2DEncoder::run() {
   zigzagReorder();
   diffEncodeDC();
   runLengthEncodeAC();
-  constructHuffmanTables();
+  constructHuffmanEncoders();
+  huffmanEncode();
 }
 
 bool JPEG2DEncoder::save(const std::string filename) {
+    std::ofstream output(filename);
+    if (output.fail()) {
+      return false;
+    }
 
+    output.write("JPEG-2D\n", 8);
+
+    auto byteswap = [](uint64_t v) {
+      return
+      ((v & 0xFF00000000000000u) >> 56u) |
+      ((v & 0x00FF000000000000u) >> 40u) |
+      ((v & 0x0000FF0000000000u) >> 24u) |
+      ((v & 0x000000FF00000000u) >>  8u) |
+      ((v & 0x00000000FF000000u) <<  8u) |
+      ((v & 0x0000000000FF0000u) << 24u) |
+      ((v & 0x000000000000FF00u) << 40u) |
+      ((v & 0x00000000000000FFu) << 56u);
+    };
+
+    uint64_t swapped_w = byteswap(m_width);
+    uint64_t swapped_h = byteswap(m_height);
+
+    output.write(reinterpret_cast<char *>(&swapped_w), 8);
+    output.write(reinterpret_cast<char *>(&swapped_h), 8);
+
+    output.write(reinterpret_cast<char *>(m_quant_table_luma_scaled), 64);
+    output.write(reinterpret_cast<char *>(m_quant_table_chroma_scaled), 64);
+
+    m_huffman_table_luma_DC.writeTable(output);
+    m_huffman_table_luma_AC.writeTable(output);
+    m_huffman_table_chroma_DC.writeTable(output);
+    m_huffman_table_chroma_AC.writeTable(output);
+
+    uint8_t i(0);
+    uint8_t acc(0);
+    for (auto &&bit: m_jpeg2d_data) {
+      if (i > 7) {
+        output.write(reinterpret_cast<char *>(&acc), sizeof(acc));
+        i = 0;
+        acc = 0;
+      }
+
+      acc |= bit << 7 - i;
+      i++;
+    }
+
+    if (i > 0) {
+      output.write(reinterpret_cast<char *>(&acc), sizeof(acc));
+    }
+
+    return true;
 }
 
 uint64_t JPEG2DEncoder::pixelCount() {
@@ -81,23 +138,23 @@ void JPEG2DEncoder::scaleQuantTables(uint8_t quality) {
     72,92,95,98,112,100,103, 99
   };
 
-  uint8_t scaled_quality;
+  double scaled_coef;
   if (quality < 50) {
-    scaled_quality = 5000 / quality;
+    scaled_coef = (5000.0 / quality) / 100;
   }
   else {
-    scaled_quality = 200 - 2 * quality;
+    scaled_coef = (200.0 - 2 * quality) / 100;
   }
 
   for (uint8_t i = 0; i < 64; i++) {
-    uint8_t quant_value = (universal_quant_table[i] * scaled_quality) / 100;
+    uint8_t quant_value = universal_quant_table[i] * scaled_coef;
 
     if (quant_value < 1) {
       quant_value = 1;
     }
 
-    m_quant_table_luma[i] = quant_value;
-    m_quant_table_chroma[i] = quant_value;
+    m_quant_table_luma_scaled[i] = quant_value;
+    m_quant_table_chroma_scaled[i] = quant_value;
   }
 }
 
@@ -116,7 +173,7 @@ void JPEG2DEncoder::RGBToYCbCr() {
 void JPEG2DEncoder::reorderToBlocks() {
   for (uint64_t block_y = 0; block_y < ceil(m_height/8.0); block_y++) {
     for (uint64_t block_x = 0; block_x < ceil(m_width/8.0); block_x++) {
-      uint64_t block_index = block_y * ceil(m_width/8.0) * block_x;
+      uint64_t block_index = block_y * ceil(m_width/8.0) + block_x;
 
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
@@ -131,8 +188,8 @@ void JPEG2DEncoder::reorderToBlocks() {
             image_y = m_height - 1;
           }
 
-          uint64_t input_pixel_index = image_y * m_width * image_x;
-          uint64_t output_pixel_index = pixel_y * 8 * pixel_x;
+          uint64_t input_pixel_index = image_y * m_width + image_x;
+          uint64_t output_pixel_index = (8 * pixel_y) + pixel_x;
 
           m_channel_Y_blocky[block_index][output_pixel_index] = m_channel_Y_raw[input_pixel_index];
           m_channel_Cb_blocky[block_index][output_pixel_index] = m_channel_Cb_raw[input_pixel_index];
@@ -173,11 +230,11 @@ void JPEG2DEncoder::forwardDCTBlock(const Block<uint8_t> &input, Block<double> &
 }
 
 void JPEG2DEncoder::quantize() {
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    for (uint8_t i = 0; i < 64; i++) {
-      m_channel_Y_quantized[i] = round(m_channel_Y_transformed[i]/m_quant_table_luma_scaled[i]);
-      m_channel_Cb_quantized[i] = round(m_channel_Cb_transformed[i]/m_quant_table_chroma_scaled[i]);
-      m_channel_Cr_quantized[i] = round(m_channel_Cr_transformed[i]/m_quant_table_chroma_scaled[i]);
+  for (uint64_t block = 0; block < blockCount(); block++) {
+    for (uint8_t pixel = 0; pixel < 64; pixel++) {
+      m_channel_Y_quantized[block][pixel] = round(m_channel_Y_transformed[block][pixel] / m_quant_table_luma_scaled[pixel]);
+      m_channel_Cb_quantized[block][pixel] = round(m_channel_Cb_transformed[block][pixel] / m_quant_table_chroma_scaled[pixel]);
+      m_channel_Cr_quantized[block][pixel] = round(m_channel_Cr_transformed[block][pixel] / m_quant_table_chroma_scaled[pixel]);
     }
   }
 }
@@ -194,11 +251,11 @@ void JPEG2DEncoder::zigzagReorder() {
     53, 60, 61, 54, 47, 55, 62, 63
   };
 
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    for (uint8_t i = 0; i < 64; i++) {
-      m_channel_Y_zigzag[i] = m_channel_Y_quantized[zigzag_index_table[i]];
-      m_channel_Cb_zigzag[i] = m_channel_Cb_quantized[zigzag_index_table[i]];
-      m_channel_Cr_zigzag[i] = m_channel_Cr_quantized[zigzag_index_table[i]];
+  for (uint64_t block = 0; block < blockCount(); block++) {
+    for (uint8_t pixel = 0; pixel < 64; pixel++) {
+      m_channel_Y_zigzag[block][pixel] = m_channel_Y_quantized[block][zigzag_index_table[pixel]];
+      m_channel_Cb_zigzag[block][pixel] = m_channel_Cb_quantized[block][zigzag_index_table[pixel]];
+      m_channel_Cr_zigzag[block][pixel] = m_channel_Cr_quantized[block][zigzag_index_table[pixel]];
     }
   }
 }
@@ -216,9 +273,9 @@ void JPEG2DEncoder::diffEncodeDC() {
 
 void JPEG2DEncoder::runLengthEncodeAC() {
   for (uint64_t i = 0; i < blockCount(); i++) {
-    runLengthEncodeACBlock(m_channel_Y_zigzag[i])
-    runLengthEncodeACBlock(m_channel_Cb_zigzag[i])
-    runLengthEncodeACBlock(m_channel_Cr_zigzag[i])
+    runLengthEncodeACBlock(m_channel_Y_zigzag[i], m_channel_Y_AC[i]);
+    runLengthEncodeACBlock(m_channel_Cb_zigzag[i], m_channel_Cb_AC[i]);
+    runLengthEncodeACBlock(m_channel_Cr_zigzag[i], m_channel_Cr_AC[i]);
   }
 }
 
@@ -240,10 +297,86 @@ void JPEG2DEncoder::runLengthEncodeACBlock(const Block<int8_t> &input, std::vect
   output.push_back(RunLengthPair(0, 0));
 }
 
-void JPEG2DEncoder::constructHuffmanTables() {
+void JPEG2DEncoder::constructHuffmanEncoders() {
   for (uint64_t i = 0; i < blockCount(); i++) {
-    runLengthEncodeACBlock(m_channel_Y_zigzag[i])
-    runLengthEncodeACBlock(m_channel_Cb_zigzag[i])
-    runLengthEncodeACBlock(m_channel_Cr_zigzag[i])
+    m_huffman_table_luma_DC.incrementKey(huffmanClass(m_channel_Y_DC[i]));
+    m_huffman_table_chroma_DC.incrementKey(huffmanClass(m_channel_Cb_DC[i]));
+    m_huffman_table_chroma_DC.incrementKey(huffmanClass(m_channel_Cr_DC[i]));
+
+    for (auto &pair: m_channel_Y_AC[i]) {
+      m_huffman_table_luma_AC.incrementKey(huffmanKey(pair));
+    }
+
+    for (auto &pair: m_channel_Cb_AC[i]) {
+      m_huffman_table_chroma_AC.incrementKey(huffmanKey(pair));
+    }
+
+    for (auto &pair: m_channel_Cr_AC[i]) {
+      m_huffman_table_chroma_AC.incrementKey(huffmanKey(pair));
+    }
+  }
+
+  m_huffman_table_luma_DC.constructTable();
+  m_huffman_table_luma_AC.constructTable();
+  m_huffman_table_chroma_DC.constructTable();
+  m_huffman_table_chroma_AC.constructTable();
+}
+
+void JPEG2DEncoder::huffmanEncode() {
+  for (uint64_t i = 0; i < blockCount(); i++) {
+    m_huffman_table_luma_DC.encode(huffmanClass(m_channel_Y_DC[i]), m_jpeg2d_data);
+    encodeAmplitude(m_channel_Y_DC[i], m_jpeg2d_data);
+
+    for (auto &pair: m_channel_Y_AC[i]) {
+      m_huffman_table_luma_AC.encode(huffmanKey(pair), m_jpeg2d_data);
+      encodeAmplitude(pair.amplitude, m_jpeg2d_data);
+    }
+
+    m_huffman_table_chroma_DC.encode(huffmanClass(m_channel_Cb_DC[i]), m_jpeg2d_data);
+    encodeAmplitude(m_channel_Cb_DC[i], m_jpeg2d_data);
+
+    for (auto &pair: m_channel_Cb_AC[i]) {
+      m_huffman_table_chroma_AC.encode(huffmanKey(pair), m_jpeg2d_data);
+      encodeAmplitude(pair.amplitude, m_jpeg2d_data);
+    }
+
+    m_huffman_table_chroma_DC.encode(huffmanClass(m_channel_Cr_DC[i]), m_jpeg2d_data);
+    encodeAmplitude(m_channel_Cr_DC[i], m_jpeg2d_data);
+
+    for (auto &pair: m_channel_Cr_AC[i]) {
+      m_huffman_table_chroma_AC.encode(huffmanKey(pair), m_jpeg2d_data);
+      encodeAmplitude(pair.amplitude, m_jpeg2d_data);
+    }
+  }
+}
+
+uint8_t JPEG2DEncoder::huffmanClass(int8_t value) {
+  if (value < 0) {
+    value = -value;
+  }
+
+  int huff_class = 0;
+  while (value > 0) {
+    value = value >> 1;
+    huff_class++;
+  }
+
+  return huff_class;
+}
+
+uint8_t JPEG2DEncoder::huffmanKey(RunLengthPair &pair) {
+  return pair.zeroes << 4 | huffmanClass(pair.amplitude);
+}
+
+void JPEG2DEncoder::encodeAmplitude(int8_t amplitude, std::vector<bool> &output) {
+  uint8_t huff_class = huffmanClass(amplitude);
+  if (amplitude < 0) {
+    amplitude = -amplitude;
+    amplitude = ~amplitude;
+  }
+
+  std::bitset<8> bits(amplitude);
+  for (uint8_t i = 8 - huff_class; i < 8; i++) {
+    output.push_back(bits[i]);
   }
 }
