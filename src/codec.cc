@@ -5,6 +5,8 @@
 JPEG2DEncoder::JPEG2DEncoder(const uint64_t width, const uint64_t height, const uint8_t rgb_data[], const uint8_t quality):
   m_width(width),
   m_height(height),
+  m_quant_table_luma_scaled(0),
+  m_quant_table_chroma_scaled(0),
   m_channel_R(pixelCount()),
   m_channel_G(pixelCount()),
   m_channel_B(pixelCount()),
@@ -23,13 +25,16 @@ JPEG2DEncoder::JPEG2DEncoder(const uint64_t width, const uint64_t height, const 
   m_channel_Y_zigzag(blockCount()),
   m_channel_Cb_zigzag(blockCount()),
   m_channel_Cr_zigzag(blockCount()),
-  m_quant_table_luma(0),
-  m_quant_table_chroma(0),
+  m_channel_Y_DC(blockCount()),
+  m_channel_Cb_DC(blockCount()),
+  m_channel_Cr_DC(blockCount()),
+  m_channel_Y_AC(blockCount()),
+  m_channel_Cb_AC(blockCount()),
+  m_channel_Cr_AC(blockCount()),
   m_huffman_table_luma_DC(),
   m_huffman_table_luma_AC(),
   m_huffman_table_chroma_DC(),
-  m_huffman_table_chroma_AC(),
-  m_encoded_image() {
+  m_huffman_table_chroma_AC() {
 
   for (uint64_t i = 0; i < pixelCount(); i++) {
     m_channel_R[i] = rgb_data[3 * i + 0];
@@ -240,28 +245,5 @@ void JPEG2DEncoder::constructHuffmanTables() {
     runLengthEncodeACBlock(m_channel_Y_zigzag[i])
     runLengthEncodeACBlock(m_channel_Cb_zigzag[i])
     runLengthEncodeACBlock(m_channel_Cr_zigzag[i])
-  }
-}
-
-void encodeChannel(const BitmapG &input, const Block<uint8_t> &quant_table, std::vector<RLTuple> &output) {
-  BitmapG blocky;
-  splitToBlocks(input, blocky);
-
-  int8_t prev = 0;
-  for (uint64_t i = 0; i < blocky.sizeInPixels(); i += 64) {
-    Block<uint8_t> &block = reinterpret_cast<Block<uint8_t> &>(blocky.data()[i]);
-    Block<double> freq_block;
-    Block<int8_t> quant_block;
-    Block<int8_t> zigzag_data;
-
-    fct(block, freq_block);
-    quantize(freq_block, quant_table, quant_block);
-    zigzag(quant_block, zigzag_data);
-
-    int8_t DC_coef = zigzag_data[0];
-    zigzag_data[0] -= prev;
-    prev = DC_coef;
-
-    runlengthEncode(zigzag_data, output);
   }
 }

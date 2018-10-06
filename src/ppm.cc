@@ -1,26 +1,19 @@
 #include "ppm.h"
 #include <vector>
 
-bool loadPPM(const std::string &filename, BitmapRGB &rgb) {
+bool loadPPM(const std::string filename, uint64_t &width, uint64_t &height, std::vector<uint8_t> &data) {
   std::ifstream input(filename);
   if (input.fail()) {
     return false;
   }
 
-  uint64_t width;
-  uint64_t height;
   uint32_t depth;
 
   if (!parseHeader(input, width, height, depth)) {
     return false;
   }
 
-  uint64_t data_size = width * height * 3;
-
-  if (depth > 255) {
-    data_size *= 2;
-  }
-
+  uint64_t data_size = width * height * 3 * (depth > 255 ? 2 : 1);
   std::vector<uint8_t> tmp(data_size);
 
   input.read(reinterpret_cast<char *>(tmp.data()), data_size);
@@ -28,12 +21,9 @@ bool loadPPM(const std::string &filename, BitmapRGB &rgb) {
     return false;
   }
 
-  rgb.init(width, height);
-  if (!rgb.initialized()) {
-    return false;
-  }
+  data.reserve(width * height * 3);
 
-  for (uint64_t i = 0; i < rgb.sizeInBytes(); i++) {
+  for (uint64_t i = 0; i < width * height * 3; i++) {
     uint64_t byteValue;
 
     if (depth > 255) {
@@ -43,24 +33,24 @@ bool loadPPM(const std::string &filename, BitmapRGB &rgb) {
       byteValue = reinterpret_cast<uint8_t *>(tmp.data())[i] * 255 / depth;
     }
 
-    rgb.data()[i] = byteValue;
+    data[i] = byteValue;
   }
 
   return true;
 }
 
-bool savePPM(const std::string &filename, BitmapRGB &rgb) {
+bool savePPM(const std::string filename, const uint64_t width, const uint64_t height, std::vector<uint8_t> &data) {
   std::ofstream output(filename);
   if (output.fail()) {
     return false;
   }
 
   output << "P6" << std::endl;
-  output << rgb.width() << std::endl;
-  output << rgb.height() << std::endl;
+  output << width << std::endl;
+  output << height << std::endl;
   output << "255" << std::endl;
 
-  output.write(reinterpret_cast<char *>(rgb.data()), rgb.sizeInBytes());
+  output.write(reinterpret_cast<char *>(data.data()), width * height * 3);
   if (output.fail()) {
     return false;
   }
