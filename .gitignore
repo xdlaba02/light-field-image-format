@@ -3,3 +3,4 @@ bin
 build
 *.ppm
 *.jpeg2d
+vgcore.*
