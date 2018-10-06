@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <fstream>
+#include <bitset>
 
 using HuffCode = std::vector<bool>;
 
@@ -21,15 +22,14 @@ public:
 
   void writeTable(std::ofstream &stream);
 
+  void print();
+
 private:
   class Node {
   public:
       const uint64_t frequency;
 
       virtual ~Node() {}
-
-      virtual uint8_t countLeavesAtDepth(const int8_t depth) = 0;
-      virtual void writeLeavesInOrder(std::ofstream &stream) = 0;
 
   protected:
       Node(int f): frequency(f) {}
@@ -45,19 +45,6 @@ private:
           delete left;
           delete right;
       }
-
-      uint8_t countLeavesAtDepth(const int8_t depth) {
-        if (depth == 0) {
-          return 0;
-        }
-
-        return left->countLeavesAtDepth(depth - 1) + right->countLeavesAtDepth(depth - 1);
-      }
-
-      void writeLeavesInOrder(std::ofstream &stream) {
-        left->writeLeavesInOrder(stream);
-        right->writeLeavesInOrder(stream);
-      }
   };
 
   class LeafNode: public Node {
@@ -65,14 +52,6 @@ private:
       uint8_t key;
 
       LeafNode(uint64_t f, uint8_t k) : Node(f), key(k) {}
-
-      uint8_t countLeavesAtDepth(const int8_t depth) {
-        return depth == 0 ? 1 : 0;
-      }
-
-      void writeLeavesInOrder(std::ofstream &stream) {
-        stream.write(reinterpret_cast<char *>(&key), sizeof(key));
-      }
   };
 
   struct NodeCmp
@@ -80,9 +59,9 @@ private:
       bool operator()(const Node* left, const Node* right) const { return left->frequency > right->frequency; }
   };
 
-  void generateCodes(const Node *node, const HuffCode& prefix);
+  void levelReorder(const Node *node, const uint8_t depth);
 
-  Node *m_root;
+  std::array<std::vector<uint8_t>, 16> m_level_order_keys;
   std::map<uint8_t, uint64_t> m_frequencies;
   std::map<uint8_t, HuffCode> m_codewords;
 };

@@ -32,13 +32,18 @@ $(BINDIR):
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-.PHONY: clean run valgrind
+.PHONY: clean run encode decode valgrind
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore*
 
-run: $(BINDIR)/$(TARGET)
-	./$^ --encode 100 test.ppm
+run: encode decode
+
+encode: $(BINDIR)/$(TARGET)
+	./$< --encode 50 test.ppm
+
+decode: $(BINDIR)/$(TARGET) encode
+	./$< --decode test.ppm.jpeg2d
 
 valgrind: $(BINDIR)/$(TARGET)
 	valgrind ./$^ --encode 50 test.ppm

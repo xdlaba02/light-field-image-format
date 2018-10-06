@@ -1,14 +1,12 @@
 #include "huffman_encoder.h"
 
 #include <queue>
-#include <iostream>
 #include <bitset>
+#include <iostream>
 
-HuffmanEncoder::HuffmanEncoder(): m_root(nullptr), m_frequencies(), m_codewords() {}
+HuffmanEncoder::HuffmanEncoder(): m_level_order_keys(), m_frequencies(), m_codewords() {}
 
-HuffmanEncoder::~HuffmanEncoder() {
-  delete m_root;
-}
+HuffmanEncoder::~HuffmanEncoder() {}
 
 void HuffmanEncoder::incrementKey(uint8_t key) {
   m_frequencies[key]++;
@@ -31,24 +29,33 @@ void HuffmanEncoder::constructTable() {
     trees.push(new InternalNode(left, right));
   }
 
-  m_root = trees.top();
+  Node *root = trees.top();
+
+  levelReorder(root, 0);
   trees.pop();
 
-  generateCodes(m_root, HuffCode());
+  delete root;
+
+  uint16_t codeword = 0;
+
+  for (uint8_t i = 0; i < 16; i++) {
+    for (auto &key: m_level_order_keys[i]) {
+      std::bitset<16> bits(codeword);
+      for (uint8_t k = 0; k < i; k++) {
+        m_codewords[key].push_back(bits[15 - k]);
+      }
+      codeword = ((codeword >> (16 - i)) + 1) << (16 - i);
+    }
+  }
 }
 
-void HuffmanEncoder::generateCodes(const Node *node, const HuffCode& prefix) {
+void HuffmanEncoder::levelReorder(const Node *node, const uint8_t depth) {
   if (const LeafNode* leaf = dynamic_cast<const LeafNode *>(node)) {
-    m_codewords[leaf->key] = prefix;
+    m_level_order_keys[depth].push_back(leaf->key);
   }
   else if (const InternalNode* internal = dynamic_cast<const InternalNode *>(node)) {
-    HuffCode leftPrefix = prefix;
-    leftPrefix.push_back(false);
-    generateCodes(internal->left, leftPrefix);
-
-    HuffCode rightPrefix = prefix;
-    rightPrefix.push_back(true);
-    generateCodes(internal->right, rightPrefix);
+    levelReorder(internal->left, depth + 1);
+    levelReorder(internal->right, depth + 1);
   }
 }
 
@@ -58,8 +65,22 @@ void HuffmanEncoder::encode(const uint8_t key, std::vector<bool> &output) {
 
 void HuffmanEncoder::writeTable(std::ofstream &stream) {
   for (uint8_t i = 0; i < 16; i++) {
-    uint8_t leaves = m_root->countLeavesAtDepth(i);
+    uint8_t leaves = m_level_order_keys[i].size();
     stream.write(reinterpret_cast<char *>(&leaves), sizeof(char));
   }
-  m_root->writeLeavesInOrder(stream);
+  for (uint8_t i = 0; i < 16; i++) {
+    for (uint8_t key: m_level_order_keys[i]) {
+      stream.write(reinterpret_cast<char *>(&key), sizeof(char));
+    }
+  }
+}
+
+void HuffmanEncoder::print() {
+  for (auto &pair: m_codewords) {
+    std::cout << std::bitset<8>(pair.first) << ": ";
+    for (auto &&bit: pair.second) {
+      std::cout << bit;
+    }
+    std::cout << std::endl;
+  }
 }

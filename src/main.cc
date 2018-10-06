@@ -1,5 +1,6 @@
 #include "ppm.h"
-#include "jpeg2_encoder.h"
+#include "jpeg2d_encoder.h"
+#include "jpeg2d_decoder.h"
 
 #include <iostream>
 
@@ -39,6 +40,9 @@ int main(int argc, char *argv[]) {
   }
   else if (type == "-d" || type == "--decode") {
     std::string filename(argv[2]);
+
+    JPEG2DDecoder decoder;
+    decoder.load(filename);
 
   }
   else {
