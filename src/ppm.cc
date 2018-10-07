@@ -1,5 +1,6 @@
 #include "ppm.h"
 #include <vector>
+#include <iostream>
 
 bool loadPPM(const std::string filename, uint64_t &width, uint64_t &height, std::vector<uint8_t> &data) {
   std::ifstream input(filename);
@@ -74,7 +75,8 @@ bool parseHeader(std::ifstream &input, uint64_t &width, uint64_t &height, uint32
 
   State state = STATE_INIT;
 
-  while(int c = input.get()) {
+  uint8_t c = 0;
+  while(input.read(reinterpret_cast<char *>(&c), 1)) {
     if (input.eof()) {
       return false;
     }

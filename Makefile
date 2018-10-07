@@ -40,10 +40,11 @@ clean:
 run: encode decode
 
 encode: $(BINDIR)/$(TARGET)
-	./$< --encode 50 test.ppm
+	./$< --encode 50 paprika.ppm
 
 decode: $(BINDIR)/$(TARGET) encode
-	./$< --decode test.ppm.jpeg2d
+	./$< --decode paprika.ppm.jpeg2d
 
 valgrind: $(BINDIR)/$(TARGET)
-	valgrind ./$^ --encode 50 test.ppm
+	valgrind ./$^ --encode 50 paprika.ppm
+	valgrind ./$^ --decode paprika.ppm.jpeg2d

@@ -1,6 +1,5 @@
 #include "jpeg2d_encoder.h"
 
-#include <cmath>
 #include <iostream>
 #include <bitset>
 #include <fstream>
@@ -78,8 +77,8 @@ bool JPEG2DEncoder::save(const std::string filename) {
     output.write(reinterpret_cast<char *>(&swapped_w), 8);
     output.write(reinterpret_cast<char *>(&swapped_h), 8);
 
-    output.write(reinterpret_cast<char *>(m_quant_table_luma_scaled), 64);
-    output.write(reinterpret_cast<char *>(m_quant_table_chroma_scaled), 64);
+    output.write(reinterpret_cast<char *>(m_quant_table_luma_scaled.data()), 64);
+    output.write(reinterpret_cast<char *>(m_quant_table_chroma_scaled.data()), 64);
 
     m_huffman_encoder_luma_DC.writeTable(output);
     m_huffman_encoder_luma_AC.writeTable(output);
@@ -198,8 +197,6 @@ void JPEG2DEncoder::forwardDCT() {
 }
 
 void JPEG2DEncoder::forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output) {
-  static const double PI = 4 * atan(1);
-
   for (uint8_t k = 0; k < 8; k++) {
     for (uint8_t l = 0; l < 8; l++) {
       double sum = 0;
@@ -305,11 +302,8 @@ void JPEG2DEncoder::constructHuffmanEncoders() {
     }
   }
 
-  m_huffman_encoder_luma_DC.constructTable();
   m_huffman_encoder_luma_AC.constructTable();
-
-  m_huffman_encoder_luma_AC.print();
-  std::cout << std::endl;
+  m_huffman_encoder_luma_DC.constructTable();
 
   m_huffman_encoder_chroma_DC.constructTable();
   m_huffman_encoder_chroma_AC.constructTable();

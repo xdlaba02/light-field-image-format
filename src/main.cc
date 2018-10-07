@@ -31,7 +31,10 @@ int main(int argc, char *argv[]) {
 
     std::string filename(argv[3]);
 
-    loadPPM(filename, width, height, rgb);
+    if (!loadPPM(filename, width, height, rgb)) {
+      std::cout << "Unable to open file \"" << filename << "\"" << std::endl;
+      return 1;
+    }
 
     JPEG2DEncoder encoder(width, height, rgb.data(), quality);
 
@@ -42,7 +45,14 @@ int main(int argc, char *argv[]) {
     std::string filename(argv[2]);
 
     JPEG2DDecoder decoder;
-    decoder.load(filename);
+    if (!decoder.load(filename)) {
+      std::cout << "Unable to open file \"" << filename << "\"" << std::endl;
+      return 1;
+    }
+
+    decoder.run(width, height, rgb);
+
+    savePPM(filename+".ppm", width, height, rgb);
 
   }
   else {

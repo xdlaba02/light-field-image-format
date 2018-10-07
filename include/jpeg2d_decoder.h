@@ -17,6 +17,23 @@ public:
   void run(uint64_t &width, uint64_t &height, std::vector<uint8_t> &data);
 
 private:
+  uint64_t blockCount();
+  uint64_t pixelCount();
+
+  void huffmanDecode();
+  void runLengthDecodeAC();
+  static void runLengthDecodeACBlock(const std::vector<RunLengthPair> &input, Block<int8_t> &output);
+  void diffDecodeDC();
+  void dezigzag();
+  void dequantize();
+  void backwardDCT();
+  static void backwardDCTBlock(const Block<int8_t> &input, Block<double> &output);
+  void deblockize();
+  void YCbCrToRGB();
+
+  static RunLengthPair decodeValue(const HuffmanDecoder &decoder, std::vector<bool>::iterator &it);
+  static int8_t decodeAmplitude(const uint8_t len, std::vector<bool>::iterator &it);
+
   uint64_t m_width;
   uint64_t m_height;
 
@@ -38,25 +55,25 @@ private:
   std::vector<std::vector<RunLengthPair>> m_channel_Cb_AC;
   std::vector<std::vector<RunLengthPair>> m_channel_Cr_AC;
 
-  std::vector<Block<int8_t>> m_channel_Y_zigzag;
-  std::vector<Block<int8_t>> m_channel_Cb_zigzag;
-  std::vector<Block<int8_t>> m_channel_Cr_zigzag;
+  std::vector<Block<int8_t>> m_channel_Y_run_length_decoded;
+  std::vector<Block<int8_t>> m_channel_Cb_run_length_decoded;
+  std::vector<Block<int8_t>> m_channel_Cr_run_length_decoded;
 
-  std::vector<Block<int8_t>> m_channel_Y_quantized;
-  std::vector<Block<int8_t>> m_channel_Cb_quantized;
-  std::vector<Block<int8_t>> m_channel_Cr_quantized;
+  std::vector<Block<int8_t>> m_channel_Y_unzigzaged;
+  std::vector<Block<int8_t>> m_channel_Cb_unzigzaged;
+  std::vector<Block<int8_t>> m_channel_Cr_unzigzaged;
 
-  std::vector<Block<double>> m_channel_Y_transformed;
-  std::vector<Block<double>> m_channel_Cb_transformed;
-  std::vector<Block<double>> m_channel_Cr_transformed;
+  std::vector<Block<int8_t>> m_channel_Y_dequantized;
+  std::vector<Block<int8_t>> m_channel_Cb_dequantized;
+  std::vector<Block<int8_t>> m_channel_Cr_dequantized;
 
-  std::vector<Block<uint8_t>> m_channel_Y_blocky;
-  std::vector<Block<uint8_t>> m_channel_Cb_blocky;
-  std::vector<Block<uint8_t>> m_channel_Cr_blocky;
+  std::vector<Block<double>> m_channel_Y_detransformed;
+  std::vector<Block<double>> m_channel_Cb_detransformed;
+  std::vector<Block<double>> m_channel_Cr_detransformed;
 
-  std::vector<uint8_t> m_channel_Y_raw;
-  std::vector<uint8_t> m_channel_Cb_raw;
-  std::vector<uint8_t> m_channel_Cr_raw;
+  std::vector<uint8_t> m_channel_Y_deblockized;
+  std::vector<uint8_t> m_channel_Cb_deblockized;
+  std::vector<uint8_t> m_channel_Cr_deblockized;
 
   std::vector<uint8_t> m_channel_R;
   std::vector<uint8_t> m_channel_G;

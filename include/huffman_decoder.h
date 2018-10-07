@@ -11,13 +11,16 @@ public:
   HuffmanDecoder();
   ~HuffmanDecoder();
 
-  bool load(std::ifstream &input);
+  void load(std::ifstream &input);
+
+  uint8_t decodeOne(std::vector<bool>::iterator &it) const;
 
   void print();
 
 private:
   std::array<uint8_t, 16> m_counts;
-  std::map<uint8_t, std::vector<bool>> m_codewords;
+  std::vector<uint8_t> m_symbols;
+
 };
 
 #endif

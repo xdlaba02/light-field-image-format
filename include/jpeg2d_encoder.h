@@ -25,12 +25,12 @@ private:
   void RGBToYCbCr();
   void reorderToBlocks();
   void forwardDCT();
-  void forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output);
+  static void forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output);
   void quantize();
   void zigzagReorder();
   void diffEncodeDC();
   void runLengthEncodeAC();
-  void runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output);
+  static void runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output);
   void constructHuffmanEncoders();
   void huffmanEncode();
 

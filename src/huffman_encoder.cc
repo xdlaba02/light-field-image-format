@@ -4,7 +4,10 @@
 #include <bitset>
 #include <iostream>
 
-HuffmanEncoder::HuffmanEncoder(): m_level_order_keys(), m_frequencies(), m_codewords() {}
+HuffmanEncoder::HuffmanEncoder():
+  m_frequencies(),
+  m_level_order_keys(),
+  m_codewords() {}
 
 HuffmanEncoder::~HuffmanEncoder() {}
 
@@ -30,9 +33,9 @@ void HuffmanEncoder::constructTable() {
   }
 
   Node *root = trees.top();
-
-  levelReorder(root, 0);
   trees.pop();
+
+  treeToLevelOrder(root, 0);
 
   delete root;
 
@@ -49,13 +52,13 @@ void HuffmanEncoder::constructTable() {
   }
 }
 
-void HuffmanEncoder::levelReorder(const Node *node, const uint8_t depth) {
+void HuffmanEncoder::treeToLevelOrder(const Node *node, const uint8_t depth) {
   if (const LeafNode* leaf = dynamic_cast<const LeafNode *>(node)) {
     m_level_order_keys[depth].push_back(leaf->key);
   }
   else if (const InternalNode* internal = dynamic_cast<const InternalNode *>(node)) {
-    levelReorder(internal->left, depth + 1);
-    levelReorder(internal->right, depth + 1);
+    treeToLevelOrder(internal->left, depth + 1);
+    treeToLevelOrder(internal->right, depth + 1);
   }
 }
 
