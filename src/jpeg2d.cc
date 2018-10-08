@@ -33,3 +33,17 @@ uint64_t fromBigEndian(uint64_t v) {
     return swapBytes(v);
   }
 }
+
+void printDimensions(uint64_t width, uint64_t height) {
+  std::cerr << long(width) << " " << long(height) << std::endl;
+}
+
+void printPairs(std::vector<std::vector<RunLengthPair>> &pairs) {
+  for (auto &v: pairs) {
+    for (auto &p: v) {
+      std::cerr << "(" << long(p.zeroes) << "," << long(p.amplitude) << ") ";
+    }
+    std::cerr << std::endl;
+  }
+  std::cerr << std::endl;
+}

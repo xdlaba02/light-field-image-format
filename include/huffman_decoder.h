@@ -20,7 +20,6 @@ public:
 private:
   std::array<uint8_t, 16> m_counts;
   std::vector<uint8_t> m_symbols;
-
 };
 
 #endif

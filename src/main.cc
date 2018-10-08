@@ -5,9 +5,9 @@
 #include <iostream>
 
 void print_usage(const char *argv0) {
-  std::cout << "Usage: " << std::endl;
-  std::cout << argv0 << " --encode <1..100> path/to/file.ppm" << std::endl;
-  std::cout << argv0 << " --decode path/to/file.jpeg2d" << std::endl;
+  std::cerr << "Usage: " << std::endl;
+  std::cerr << argv0 << " --encode <1..100> path/to/file.ppm" << std::endl;
+  std::cerr << argv0 << " --decode path/to/file.jpeg2d" << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     std::string filename(argv[3]);
 
     if (!loadPPM(filename, width, height, rgb)) {
-      std::cout << "Unable to open file \"" << filename << "\"" << std::endl;
+      std::cerr << "Unable to open file \"" << filename << "\"" << std::endl;
       return 1;
     }
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
 
     JPEG2DDecoder decoder;
     if (!decoder.load(filename)) {
-      std::cout << "Unable to open file \"" << filename << "\"" << std::endl;
+      std::cerr << "Unable to open file \"" << filename << "\"" << std::endl;
       return 1;
     }
 

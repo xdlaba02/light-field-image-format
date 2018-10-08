@@ -41,7 +41,7 @@ void HuffmanEncoder::constructTable() {
 
   uint16_t codeword = 0;
 
-  for (uint8_t i = 0; i < 16; i++) {
+  for (uint8_t i = 0; i < 15; i++) {
     for (auto &key: m_level_order_keys[i]) {
       std::bitset<16> bits(codeword);
       for (uint8_t k = 0; k < i; k++) {
@@ -80,10 +80,11 @@ void HuffmanEncoder::writeTable(std::ofstream &stream) {
 
 void HuffmanEncoder::print() {
   for (auto &pair: m_codewords) {
-    std::cout << std::bitset<8>(pair.first) << ": ";
+    std::cerr << std::bitset<8>(pair.first) << ": ";
     for (auto &&bit: pair.second) {
-      std::cout << bit;
+      std::cerr << bit;
     }
-    std::cout << std::endl;
+    std::cerr << std::endl;
   }
+  std::cerr << std::endl;
 }

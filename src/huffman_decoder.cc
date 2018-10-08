@@ -22,6 +22,10 @@ uint8_t HuffmanDecoder::decodeOne(std::vector<bool>::iterator &it) const {
   uint8_t index = 0;
   uint8_t count = 0;
 
+  if (code - count < first) {
+    return m_symbols[index + (code - first)];
+  }
+
   for (uint8_t len = 1; len < 16; len++) {
     code |= *it++;
     count = m_counts[len];
@@ -41,13 +45,14 @@ void HuffmanDecoder::print() {
   uint16_t codeword = 0;
   for (uint8_t i = 0; i < 16; i++) {
     for (uint8_t j = 0; j < m_counts[i]; j++) {
-      std::cout << std::bitset<8>(*it) << ": ";
+      std::cerr << std::bitset<8>(*it) << ": ";
       it++;
       for (uint8_t k = 0; k < i; k++) {
-        std::cout << std::bitset<16>(codeword)[15 - k];
+        std::cerr << std::bitset<16>(codeword)[15 - k];
       }
-      std::cout << std::endl;
+      std::cerr << std::endl;
       codeword = ((codeword >> (16 - i)) + 1) << (16 - i);
     }
   }
+  std::cerr << std::endl;
 }

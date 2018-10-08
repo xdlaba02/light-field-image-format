@@ -4,7 +4,6 @@
 #include "jpeg2d.h"
 #include "huffman_encoder.h"
 
-#include <vector>
 #include <string>
 
 class JPEG2DEncoder {
@@ -25,19 +24,19 @@ private:
   void RGBToYCbCr();
   void reorderToBlocks();
   void forwardDCT();
-  static void forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output);
   void quantize();
   void zigzagReorder();
   void diffEncodeDC();
   void runLengthEncodeAC();
-  static void runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output);
   void constructHuffmanEncoders();
   void huffmanEncode();
 
   static uint8_t huffmanClass(int8_t value);
   static uint8_t huffmanKey(RunLengthPair &pair);
 
-  void encodeAmplitude(int8_t amplitude, std::vector<bool> &output);
+  static void forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output);
+  static void runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output);
+  static void encodeAmplitude(int8_t amplitude, std::vector<bool> &output);
 
   uint64_t m_width;
   uint64_t m_height;

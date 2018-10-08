@@ -7,7 +7,7 @@ OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -Og -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -g
+CFLAGS = -Iinclude -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 LDFLAGS =
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
@@ -40,11 +40,11 @@ clean:
 run: encode decode
 
 encode: $(BINDIR)/$(TARGET)
-	./$< --encode 50 paprika.ppm
+	./$< --encode 50 ../foto.ppm 2>cerr1.txt
 
 decode: $(BINDIR)/$(TARGET) encode
-	./$< --decode paprika.ppm.jpeg2d
+	./$< --decode ../foto.ppm.jpeg2d 2>cerr2.txt
 
 valgrind: $(BINDIR)/$(TARGET)
-	valgrind ./$^ --encode 50 paprika.ppm
-	valgrind ./$^ --decode paprika.ppm.jpeg2d
+	valgrind --track-origins=yes ./$^ --encode 50 ../foto.ppm
+	valgrind --track-origins=yes ./$^ --decode ../foto.ppm.jpeg2d

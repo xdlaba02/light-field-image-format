@@ -197,20 +197,21 @@ void JPEG2DEncoder::forwardDCT() {
 }
 
 void JPEG2DEncoder::forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output) {
-  for (uint8_t k = 0; k < 8; k++) {
-    for (uint8_t l = 0; l < 8; l++) {
+  auto lambda = [](uint8_t val) { return val == 0 ? 1/sqrt(2) : 1; };
+
+  for (uint8_t v = 0; v < 8; v++) {
+    for (uint8_t u = 0; u < 8; u++) {
       double sum = 0;
 
-      for (uint8_t m = 0; m < 8; m++) {
-        for (uint8_t n = 0; n < 8; n++) {
-          double c1 = ((2 * m + 1) * k * PI) / 16;
-          double c2 = ((2 * n + 1) * l * PI) / 16;
-          sum += (input[m * 8 + n] - 128) * cos(c1) * cos(c2);
+      for (uint8_t y = 0; y < 8; y++) {
+        for (uint8_t x = 0; x < 8; x++) {
+          double c1 = ((2 * x + 1) * u * PI) / 16;
+          double c2 = ((2 * y + 1) * v * PI) / 16;
+          sum += (input[y * 8 + x] - 128) * cos(c1) * cos(c2);
         }
       }
 
-      auto lambda = [](uint8_t val) { return val == 0 ? 1/sqrt(2) : 1; };
-      output[k * 8 + l] = 0.25 * lambda(k) * lambda(l) * sum;
+      output[v * 8 + u] = 0.25 * lambda(u) * lambda(v) * sum;
     }
   }
 }
@@ -254,6 +255,10 @@ void JPEG2DEncoder::diffEncodeDC() {
     m_channel_Y_DC[i] = m_channel_Y_zigzag[i][0] - prev_Y_DC;
     m_channel_Cb_DC[i] = m_channel_Cb_zigzag[i][0] - prev_Cb_DC;
     m_channel_Cr_DC[i] = m_channel_Cr_zigzag[i][0] - prev_Cr_DC;
+
+    prev_Y_DC = m_channel_Y_zigzag[i][0];
+    prev_Cb_DC = m_channel_Cb_zigzag[i][0];
+    prev_Cr_DC = m_channel_Cr_zigzag[i][0];
   }
 }
 
@@ -363,7 +368,7 @@ void JPEG2DEncoder::encodeAmplitude(int8_t amplitude, std::vector<bool> &output)
   }
 
   std::bitset<8> bits(amplitude);
-  for (uint8_t i = 8 - huff_class; i < 8; i++) {
-    output.push_back(bits[i]);
+  for (uint8_t i = huff_class; i > 0; i--) {
+    output.push_back(bits[i - 1]);
   }
 }

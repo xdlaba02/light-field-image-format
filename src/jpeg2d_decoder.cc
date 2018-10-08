@@ -71,13 +71,13 @@ bool JPEG2DDecoder::load(const std::string filename) {
   m_huffman_decoder_chroma_DC.load(input);
   m_huffman_decoder_chroma_AC.load(input);
 
-  uint8_t buff = 0;
-
-  while (input.read(reinterpret_cast<char *>(&buff), 1)) {
+  char buff = 0;
+  while (input.read(&buff, 1)) {
     std::bitset<8> buff_bits(buff);
     for (uint8_t i = 0; i < 8; i++) {
-      m_jpeg2d_data.push_back(buff_bits[i]);
+      m_jpeg2d_data.push_back(buff_bits[7 - i]);
     }
+    buff = 0;
   }
 
   m_channel_Y_DC.resize(blockCount());
@@ -153,19 +153,19 @@ void JPEG2DDecoder::huffmanDecode() {
     do {
       pair = decodeValue(m_huffman_decoder_luma_AC, it);
       m_channel_Y_AC[i].push_back(pair);
-    } while ((pair.zeroes != 0) && (pair.amplitude != 0));
+    } while ((pair.zeroes != 0) || (pair.amplitude != 0));
 
     m_channel_Cb_DC[i] = decodeValue(m_huffman_decoder_chroma_DC, it).amplitude;
     do {
       pair = decodeValue(m_huffman_decoder_chroma_AC, it);
       m_channel_Cb_AC[i].push_back(pair);
-    } while ((pair.zeroes != 0) && (pair.amplitude != 0));
+    } while ((pair.zeroes != 0) || (pair.amplitude != 0));
 
     m_channel_Cr_DC[i] = decodeValue(m_huffman_decoder_chroma_DC, it).amplitude;
     do {
       pair = decodeValue(m_huffman_decoder_chroma_AC, it);
       m_channel_Cr_AC[i].push_back(pair);
-    } while ((pair.zeroes != 0) && (pair.amplitude != 0));
+    } while ((pair.zeroes != 0) || (pair.amplitude != 0));
   }
 }
 
@@ -195,9 +195,12 @@ void JPEG2DDecoder::diffDecodeDC() {
   int8_t prev_Cb_DC = 0;
   int8_t prev_Cr_DC = 0;
   for (uint64_t i = 0; i < blockCount(); i++) {
-    m_channel_Y_DC[i] = m_channel_Y_run_length_decoded[i][0] + prev_Y_DC;
-    m_channel_Cb_DC[i] = m_channel_Cb_run_length_decoded[i][0] + prev_Cb_DC;
-    m_channel_Cr_DC[i] = m_channel_Cr_run_length_decoded[i][0] + prev_Cr_DC;
+    m_channel_Y_run_length_decoded[i][0] = m_channel_Y_DC[i] + prev_Y_DC;
+    m_channel_Cb_run_length_decoded[i][0] = m_channel_Cb_DC[i] + prev_Cb_DC;
+    m_channel_Cr_run_length_decoded[i][0] = m_channel_Cr_DC[i] + prev_Cr_DC;
+    prev_Y_DC = m_channel_Y_run_length_decoded[i][0];
+    prev_Cb_DC = m_channel_Cb_run_length_decoded[i][0];
+    prev_Cr_DC = m_channel_Cr_run_length_decoded[i][0];
   }
 }
 
@@ -215,9 +218,9 @@ void JPEG2DDecoder::dezigzag() {
 
   for (uint64_t block = 0; block < blockCount(); block++) {
     for (uint8_t pixel = 0; pixel < 64; pixel++) {
-      m_channel_Y_unzigzaged[block][dezigzag_index_table[pixel]] = m_channel_Y_run_length_decoded[block][pixel];
-      m_channel_Cb_unzigzaged[block][dezigzag_index_table[pixel]] = m_channel_Cb_run_length_decoded[block][pixel];
-      m_channel_Cr_unzigzaged[block][dezigzag_index_table[pixel]] = m_channel_Cr_run_length_decoded[block][pixel];
+      m_channel_Y_unzigzaged[block][pixel] = m_channel_Y_run_length_decoded[block][dezigzag_index_table[pixel]];
+      m_channel_Cb_unzigzaged[block][pixel] = m_channel_Cb_run_length_decoded[block][dezigzag_index_table[pixel]];
+      m_channel_Cr_unzigzaged[block][pixel] = m_channel_Cr_run_length_decoded[block][dezigzag_index_table[pixel]];
     }
   }
 }
@@ -240,52 +243,37 @@ void JPEG2DDecoder::backwardDCT() {
   }
 }
 
-void JPEG2DDecoder::backwardDCTBlock(const Block<int8_t> &input, Block<double> &output) {
+void JPEG2DDecoder::backwardDCTBlock(const Block<double> &input, Block<uint8_t> &output) {
   auto lambda = [](uint8_t val) { return val == 0 ? 1/sqrt(2) : 1; };
 
-  for (uint8_t x = 0; x < 8; x++) {
-    for (uint8_t y = 0; y < 8; y++) {
+  for (uint8_t y = 0; y < 8; y++) {
+    for (uint8_t x = 0; x < 8; x++) {
       double sum = 0;
 
-      for (uint8_t u = 0; u < 8; u++) {
-        for (uint8_t v = 0; v < 8; v++) {
+      for (uint8_t v = 0; v < 8; v++) {
+        for (uint8_t u = 0; u < 8; u++) {
           double c1 = ((2 * x + 1) * u * PI) / 16;
           double c2 = ((2 * y + 1) * v * PI) / 16;
-          sum += input[u * 8 + v] * lambda(u) * lambda(v) * cos(c1) * cos(c2);
+          sum += input[v * 8 + u] * lambda(u) * lambda(v) * cos(c1) * cos(c2);
         }
       }
 
-      output[y * 8 + x] = 0.25 * sum;
+      output[y * 8 + x] = (0.25 * sum) + 128;
     }
   }
 }
 
 void JPEG2DDecoder::deblockize() {
-  for (uint64_t block_y = 0; block_y < ceil(m_height/8.0); block_y++) {
-    for (uint64_t block_x = 0; block_x < ceil(m_width/8.0); block_x++) {
-      uint64_t block_index = block_y * ceil(m_width/8.0) + block_x;
+  for (uint64_t image_y = 0; image_y < m_height; image_y++) {
+    for (uint64_t image_x = 0; image_x < m_width; image_x++) {
+      uint64_t block_x = image_x / 8;
+      uint64_t block_y = image_y / 8;
+      uint64_t pixel_x = image_x % 8;
+      uint64_t pixel_y = image_y % 8;
 
-      for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
-        for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
-          uint64_t image_x = (8 * block_x) + pixel_x;
-          uint64_t image_y = (8 * block_y) + pixel_y;
-
-          if (image_x > m_width - 1) {
-            break;
-          }
-
-          if (image_y > m_height - 1) {
-            break;
-          }
-
-          uint64_t input_pixel_index = (8 * pixel_y) + pixel_x;
-          uint64_t output_pixel_index = image_y * m_width + image_x;
-
-          m_channel_Y_deblockized[output_pixel_index] = m_channel_Y_detransformed[block_index][input_pixel_index];
-          m_channel_Cb_deblockized[output_pixel_index] = m_channel_Cb_detransformed[block_index][input_pixel_index];
-          m_channel_Cr_deblockized[output_pixel_index] = m_channel_Cr_detransformed[block_index][input_pixel_index];
-        }
-      }
+      m_channel_Y_deblockized[image_y * m_width + image_x] = m_channel_Y_detransformed[block_y * ceil(m_width/8.0) + block_x][pixel_y * 8 + pixel_x];
+      m_channel_Cb_deblockized[image_y * m_width + image_x] = m_channel_Cb_detransformed[block_y * ceil(m_width/8.0) + block_x][pixel_y * 8 + pixel_x];
+      m_channel_Cr_deblockized[image_y * m_width + image_x] = m_channel_Cr_detransformed[block_y * ceil(m_width/8.0) + block_x][pixel_y * 8 + pixel_x];
     }
   }
 }
@@ -304,7 +292,7 @@ void JPEG2DDecoder::YCbCrToRGB() {
 
 RunLengthPair JPEG2DDecoder::decodeValue(const HuffmanDecoder &decoder, std::vector<bool>::iterator &it) {
   uint8_t pair = decoder.decodeOne(it);
-  int8_t amp = decodeAmplitude(pair && 0x0f, it);
+  int8_t amp = decodeAmplitude(pair & 0x0f, it);
   return RunLengthPair(pair >> 4, amp);
 }
 
@@ -321,6 +309,7 @@ int8_t JPEG2DDecoder::decodeAmplitude(const uint8_t len, std::vector<bool>::iter
   }
 
   if (buffer < (1 << (len - 1))) {
+    buffer |= 0xff << len;
     buffer = ~buffer;
     buffer = -buffer;
   }
