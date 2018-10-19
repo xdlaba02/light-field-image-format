@@ -1,3 +1,9 @@
+/*******************************************************\
+* SOUBOR: main.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+* DATUM: 19. 10. 2018
+\*******************************************************/
+
 #include "jpeg2d.h"
 
 #include <iostream>

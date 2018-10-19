@@ -1,7 +1,12 @@
+/*******************************************************\
+* SOUBOR: jpeg2d_encoder.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+* DATUM: 19. 10. 2018
+\*******************************************************/
+
 #include "jpeg2d.h"
 #include "ppm.h"
 
-#include <iostream>
 #include <bitset>
 #include <fstream>
 #include <algorithm>
@@ -251,7 +256,9 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
     A[t-1].first = sum;
   }
 
-  A[n - 2].first = 0;
+  if (n >= 2) {
+    A[n - 2].first = 0;
+  }
 
   for (int64_t t = n - 2; t >= 1; t--) {
     A[t-1].first = A[A[t-1].first-1].first + 1;
@@ -292,7 +299,8 @@ map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint
 
   uint8_t codeword {};
   for (auto &pair: codelengths) {
-    bitset<8> code {codeword};
+    codewords[pair.second];
+
     for (uint8_t i = 0; i < prefix_ones; i++) {
       codewords[pair.second].push_back(1);
     }
@@ -300,7 +308,7 @@ map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint
     uint8_t len {static_cast<uint8_t>(pair.first - prefix_ones)};
 
     for (uint8_t k = 0; k < len; k++) {
-      codewords[pair.second].push_back(code[7 - k]);
+      codewords[pair.second].push_back(bitset<8>(codeword)[7 - k]);
     }
 
     codeword = ((codeword >> (8 - len)) + 1) << (8 - len);

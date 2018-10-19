@@ -1,3 +1,9 @@
+/*******************************************************\
+* SOUBOR: bitstream.h
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+* DATUM: 19. 10. 2018
+\*******************************************************/
+
 #ifndef BITSTREAM_H
 #define BITSTREAM_H
 
@@ -8,6 +14,9 @@
 
 using namespace std;
 
+/*******************************************************\
+* TODO komentar
+\*******************************************************/
 class Bitstream {
 public:
   Bitstream();
@@ -18,6 +27,9 @@ protected:
   int8_t m_accumulator;
 };
 
+/*******************************************************\
+* TODO komentar
+\*******************************************************/
 class IBitstream: public Bitstream {
 public:
   IBitstream(ifstream &stream);
@@ -31,6 +43,9 @@ private:
   ifstream &m_stream;
 };
 
+/*******************************************************\
+* TODO komentar
+\*******************************************************/
 class OBitstream: public Bitstream {
 public:
   OBitstream(ofstream &stream);

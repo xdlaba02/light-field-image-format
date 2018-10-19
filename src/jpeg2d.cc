@@ -1,3 +1,9 @@
+/*******************************************************\
+* SOUBOR: jpeg2d.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+* DATUM: 19. 10. 2018
+\*******************************************************/
+
 #include "jpeg2d.h"
 
 bool amIBigEndian() {
@@ -32,18 +38,4 @@ uint64_t fromBigEndian(uint64_t v) {
   else {
     return swapBytes(v);
   }
-}
-
-void printDimensions(uint64_t width, uint64_t height) {
-  std::cerr << long(width) << " " << long(height) << std::endl;
-}
-
-void printPairs(std::vector<std::vector<RunLengthPair>> &pairs) {
-  for (auto &v: pairs) {
-    for (auto &p: v) {
-      std::cerr << "(" << long(p.zeroes) << "," << long(p.amplitude) << ") ";
-    }
-    std::cerr << std::endl;
-  }
-  std::cerr << std::endl;
 }

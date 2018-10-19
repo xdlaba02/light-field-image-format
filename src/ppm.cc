@@ -1,3 +1,9 @@
+/*******************************************************\
+* SOUBOR: ppm.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+* DATUM: 19. 10. 2018
+\*******************************************************/
+
 #include "ppm.h"
 #include <vector>
 #include <iostream>

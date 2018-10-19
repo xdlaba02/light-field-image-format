@@ -1,3 +1,9 @@
+/*******************************************************\
+* SOUBOR: jpeg2d_decoder.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+* DATUM: 19. 10. 2018
+\*******************************************************/
+
 #include "jpeg2d.h"
 #include "ppm.h"
 
@@ -178,10 +184,6 @@ uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8
   uint16_t index {};
   uint16_t count {};
 
-  if (counts[0]) {
-    return 0;
-  }
-
   for (uint8_t len = 1; len < counts.size(); len++) {
     code |= stream.readBit();
     count = counts[len];
@@ -194,7 +196,7 @@ uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8
     code <<= 1;
   }
 
-  return 0;
+  return symbols.at(0);
 }
 
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
