@@ -1,63 +1,51 @@
-#include "ppm.h"
-#include "jpeg2d_encoder.h"
-#include "jpeg2d_decoder.h"
+#include "jpeg2d.h"
 
 #include <iostream>
 
+using namespace std;
+
 void print_usage(const char *argv0) {
-  std::cerr << "Usage: " << std::endl;
-  std::cerr << argv0 << " --encode <1..100> path/to/file.ppm" << std::endl;
-  std::cerr << argv0 << " --decode path/to/file.jpeg2d" << std::endl;
+  cerr << "Usage: " << endl;
+  cerr << argv0 << " --encode <1..100> path/to/input.ppm path/to/output.jpeg2d" << endl;
+  cerr << argv0 << " --decode path/to/input.jpeg2d path/to/output.ppm" << endl;
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 3) {
+  if (argc < 2) {
     print_usage(argv[0]);
-    return 1;
+    return -1;
   }
 
-  std::string type(argv[1]);
-
-  std::vector<uint8_t> rgb;
-  uint64_t width;
-  uint64_t height;
+  string type {argv[1]};
 
   if (type == "-e" || type == "--encode") {
-    uint8_t quality = stoi(std::string(argv[2]));
+    if (argc != 5) {
+      print_usage(argv[0]);
+      return -1;
+    }
+
+    int8_t quality {static_cast<int8_t>(atoi(argv[2]))};
     if ((quality < 1) || (quality > 100)) {
       print_usage(argv[0]);
-      return 1;
+      return -1;
     }
 
-    std::string filename(argv[3]);
-
-    if (!loadPPM(filename, width, height, rgb)) {
-      std::cerr << "Unable to open file \"" << filename << "\"" << std::endl;
-      return 1;
+    if (!PPM2JPEG2D(argv[3], argv[4], quality)) {
+      return -2;
     }
-
-    JPEG2DEncoder encoder(width, height, rgb.data(), quality);
-
-    encoder.run();
-    encoder.save(filename+".jpeg2d");
   }
   else if (type == "-d" || type == "--decode") {
-    std::string filename(argv[2]);
-
-    JPEG2DDecoder decoder;
-    if (!decoder.load(filename)) {
-      std::cerr << "Unable to open file \"" << filename << "\"" << std::endl;
-      return 1;
+    if (argc != 4) {
+      print_usage(argv[0]);
+      return -1;
     }
-
-    decoder.run(width, height, rgb);
-
-    savePPM(filename+".ppm", width, height, rgb);
-
+    if (!JPEG2D2PPM(argv[2], argv[3])) {
+      return -2;
+    }
   }
   else {
     print_usage(argv[0]);
-    return 1;
+    return -1;
   }
 
   return 0;

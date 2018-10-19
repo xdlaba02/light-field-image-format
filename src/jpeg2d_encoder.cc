@@ -1,132 +1,23 @@
-#include "jpeg2d_encoder.h"
+#include "jpeg2d.h"
+#include "ppm.h"
 
 #include <iostream>
 #include <bitset>
 #include <fstream>
+#include <algorithm>
 
-JPEG2DEncoder::JPEG2DEncoder(const uint64_t width, const uint64_t height, const uint8_t rgb_data[], const uint8_t quality):
-  m_width(width),
-  m_height(height),
-  m_quant_table_luma_scaled(),
-  m_quant_table_chroma_scaled(),
-  m_channel_R(pixelCount()),
-  m_channel_G(pixelCount()),
-  m_channel_B(pixelCount()),
-  m_channel_Y_raw(pixelCount()),
-  m_channel_Cb_raw(pixelCount()),
-  m_channel_Cr_raw(pixelCount()),
-  m_channel_Y_blocky(blockCount()),
-  m_channel_Cb_blocky(blockCount()),
-  m_channel_Cr_blocky(blockCount()),
-  m_channel_Y_transformed(blockCount()),
-  m_channel_Cb_transformed(blockCount()),
-  m_channel_Cr_transformed(blockCount()),
-  m_channel_Y_quantized(blockCount()),
-  m_channel_Cb_quantized(blockCount()),
-  m_channel_Cr_quantized(blockCount()),
-  m_channel_Y_zigzag(blockCount()),
-  m_channel_Cb_zigzag(blockCount()),
-  m_channel_Cr_zigzag(blockCount()),
-  m_channel_Y_DC(blockCount()),
-  m_channel_Cb_DC(blockCount()),
-  m_channel_Cr_DC(blockCount()),
-  m_channel_Y_AC(blockCount()),
-  m_channel_Cb_AC(blockCount()),
-  m_channel_Cr_AC(blockCount()),
-  m_huffman_encoder_luma_DC(),
-  m_huffman_encoder_luma_AC(),
-  m_huffman_encoder_chroma_DC(),
-  m_huffman_encoder_chroma_AC(),
-  m_jpeg2d_data() {
 
-  for (uint64_t i = 0; i < pixelCount(); i++) {
-    m_channel_R[i] = rgb_data[3 * i + 0];
-    m_channel_G[i] = rgb_data[3 * i + 1];
-    m_channel_B[i] = rgb_data[3 * i + 2];
+bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const uint8_t quality) {
+  vector<uint8_t> rgb_data {};
+  uint64_t width       {};
+  uint64_t height      {};
+
+  if (!loadPPM(input_filename, width, height, rgb_data)) {
+    return false;
   }
 
-  scaleQuantTables(quality);
-}
-
-JPEG2DEncoder::~JPEG2DEncoder() {}
-
-void JPEG2DEncoder::run() {
-  RGBToYCbCr();
-  reorderToBlocks();
-  forwardDCT();
-  quantize();
-  zigzagReorder();
-  diffEncodeDC();
-  runLengthEncodeAC();
-  constructHuffmanEncoders();
-  huffmanEncode();
-}
-
-bool JPEG2DEncoder::save(const std::string filename) {
-    std::ofstream output(filename);
-    if (output.fail()) {
-      return false;
-    }
-
-    output.write("JPEG-2D\n", 8);
-
-
-    uint64_t swapped_w = toBigEndian(m_width);
-    uint64_t swapped_h = toBigEndian(m_height);
-
-    output.write(reinterpret_cast<char *>(&swapped_w), 8);
-    output.write(reinterpret_cast<char *>(&swapped_h), 8);
-
-    output.write(reinterpret_cast<char *>(m_quant_table_luma_scaled.data()), 64);
-    output.write(reinterpret_cast<char *>(m_quant_table_chroma_scaled.data()), 64);
-
-    m_huffman_encoder_luma_DC.writeTable(output);
-    m_huffman_encoder_luma_AC.writeTable(output);
-    m_huffman_encoder_chroma_DC.writeTable(output);
-    m_huffman_encoder_chroma_AC.writeTable(output);
-
-    uint8_t i(0);
-    uint8_t acc(0);
-    for (auto &&bit: m_jpeg2d_data) {
-      if (i > 7) {
-        output.write(reinterpret_cast<char *>(&acc), sizeof(acc));
-        i = 0;
-        acc = 0;
-      }
-
-      acc |= bit << 7 - i;
-      i++;
-    }
-
-    if (i > 0) {
-      output.write(reinterpret_cast<char *>(&acc), sizeof(acc));
-    }
-
-    return true;
-}
-
-uint64_t JPEG2DEncoder::pixelCount() {
-  return m_width * m_height;
-}
-
-uint64_t JPEG2DEncoder::blockCount() {
-  return ceil(m_width / 8.0) * ceil(m_height / 8.0);
-}
-
-void JPEG2DEncoder::scaleQuantTables(uint8_t quality) {
-  //TODO luma chroma ruzne tabulky
-  const QuantTable universal_quant_table = {
-    16,11,10,16, 24, 40, 51, 61,
-    12,12,14,19, 26, 58, 60, 55,
-    14,13,16,24, 40, 57, 69, 56,
-    14,17,22,29, 51, 87, 80, 62,
-    18,22,37,56, 68,109,103, 77,
-    24,35,55,64, 81,104,113, 92,
-    49,64,78,87,103,121,120,101,
-    72,92,95,98,112,100,103, 99
-  };
-
-  double scaled_coef;
+  QuantTable quant_table {};
+  double scaled_coef     {};
   if (quality < 50) {
     scaled_coef = (5000.0 / quality) / 100;
   }
@@ -141,234 +32,340 @@ void JPEG2DEncoder::scaleQuantTables(uint8_t quality) {
       quant_value = 1;
     }
 
-    m_quant_table_luma_scaled[i] = quant_value;
-    m_quant_table_chroma_scaled[i] = quant_value;
+    quant_table[i] = quant_value;
   }
-}
 
-void JPEG2DEncoder::RGBToYCbCr() {
-  for (uint64_t i = 0; i < pixelCount(); i++) {
-    uint8_t R = m_channel_R[i];
-    uint8_t G = m_channel_G[i];
-    uint8_t B = m_channel_B[i];
+  uint64_t blocks_width  {static_cast<uint64_t>(ceil(width/8.0))};
+  uint64_t blocks_height {static_cast<uint64_t>(ceil(height/8.0))};
 
-    m_channel_Y_raw[i]  =          0.299 * R +    0.587 * G +    0.114 * B;
-    m_channel_Cb_raw[i] = 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
-    m_channel_Cr_raw[i] = 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
-  }
-}
+  int16_t prev_Y_DC  {};
+  int16_t prev_Cb_DC {};
+  int16_t prev_Cr_DC {};
 
-void JPEG2DEncoder::reorderToBlocks() {
-  for (uint64_t block_y = 0; block_y < ceil(m_height/8.0); block_y++) {
-    for (uint64_t block_x = 0; block_x < ceil(m_width/8.0); block_x++) {
-      uint64_t block_index = block_y * ceil(m_width/8.0) + block_x;
+  vector<int16_t>  Y_DC(blocks_width * blocks_height);
+  vector<int16_t> Cb_DC(blocks_width * blocks_height);
+  vector<int16_t> Cr_DC(blocks_width * blocks_height);
+
+  vector<vector<RunLengthPair>>  Y_AC(blocks_width * blocks_height);
+  vector<vector<RunLengthPair>> Cb_AC(blocks_width * blocks_height);
+  vector<vector<RunLengthPair>> Cr_AC(blocks_width * blocks_height);
+
+  map<uint8_t, uint64_t> weights_luma_AC   {};
+  map<uint8_t, uint64_t> weights_luma_DC   {};
+  map<uint8_t, uint64_t> weights_chroma_AC {};
+  map<uint8_t, uint64_t> weights_chroma_DC {};
+
+  for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
+    for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
+      uint64_t block_index = block_y * blocks_width + block_x;
+
+      Block<uint8_t> block_Y_raw  {};
+      Block<uint8_t> block_Cb_raw {};
+      Block<uint8_t> block_Cr_raw {};
 
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
-          uint64_t image_x = (8 * block_x) + pixel_x;
-          uint64_t image_y = (8 * block_y) + pixel_y;
+          uint64_t image_x {block_x * 8 + pixel_x};
+          uint64_t image_y {block_y * 8 + pixel_y};
 
-          if (image_x > m_width - 1) {
-            image_x = m_width - 1;
+          if (image_x > width - 1) {
+            image_x = width - 1;
           }
 
-          if (image_y > m_height - 1) {
-            image_y = m_height - 1;
+          if (image_y > height - 1) {
+            image_y = height - 1;
           }
 
-          uint64_t input_pixel_index = image_y * m_width + image_x;
-          uint64_t output_pixel_index = (8 * pixel_y) + pixel_x;
+          uint64_t input_pixel_index  {image_y * width + image_x};
+          uint64_t output_pixel_index {static_cast<uint64_t>(pixel_y * 8 + pixel_x)};
 
-          m_channel_Y_blocky[block_index][output_pixel_index] = m_channel_Y_raw[input_pixel_index];
-          m_channel_Cb_blocky[block_index][output_pixel_index] = m_channel_Cb_raw[input_pixel_index];
-          m_channel_Cr_blocky[block_index][output_pixel_index] = m_channel_Cr_raw[input_pixel_index];
-        }
-      }
-    }
-  }
-}
+          uint8_t R {rgb_data[3 * input_pixel_index + 0]};
+          uint8_t G {rgb_data[3 * input_pixel_index + 1]};
+          uint8_t B {rgb_data[3 * input_pixel_index + 2]};
 
-void JPEG2DEncoder::forwardDCT() {
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    forwardDCTBlock(m_channel_Y_blocky[i], m_channel_Y_transformed[i]);
-    forwardDCTBlock(m_channel_Cb_blocky[i], m_channel_Cb_transformed[i]);
-    forwardDCTBlock(m_channel_Cr_blocky[i], m_channel_Cr_transformed[i]);
-  }
-}
-
-void JPEG2DEncoder::forwardDCTBlock(const Block<uint8_t> &input, Block<double> &output) {
-  auto lambda = [](uint8_t val) { return val == 0 ? 1/sqrt(2) : 1; };
-
-  for (uint8_t v = 0; v < 8; v++) {
-    for (uint8_t u = 0; u < 8; u++) {
-      double sum = 0;
-
-      for (uint8_t y = 0; y < 8; y++) {
-        for (uint8_t x = 0; x < 8; x++) {
-          double c1 = ((2 * x + 1) * u * PI) / 16;
-          double c2 = ((2 * y + 1) * v * PI) / 16;
-          sum += (input[y * 8 + x] - 128) * cos(c1) * cos(c2);
+          block_Y_raw[output_pixel_index]  =          0.299 * R +    0.587 * G +    0.114 * B;
+          block_Cb_raw[output_pixel_index] = 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
+          block_Cr_raw[output_pixel_index] = 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
         }
       }
 
-      output[v * 8 + u] = 0.25 * lambda(u) * lambda(v) * sum;
+      Block<int16_t> block_Y_zigzag  {};
+      Block<int16_t> block_Cb_zigzag {};
+      Block<int16_t> block_Cr_zigzag {};
+
+      for (uint8_t v = 0; v < 8; v++) {
+        for (uint8_t u = 0; u < 8; u++) {
+          uint8_t pixel_index {static_cast<uint8_t>(v * 8 + u)};
+
+          double sumY  {};
+          double sumCb {};
+          double sumCr {};
+
+          for (uint8_t y = 0; y < 8; y++) {
+            for (uint8_t x = 0; x < 8; x++) {
+              uint8_t trans_pixel_index {static_cast<uint8_t>(y * 8 + x)};
+              double cosc1 {cos(((2 * x + 1) * u * JPEG2D_PI ) / 16)};
+              double cosc2 {cos(((2 * y + 1) * v * JPEG2D_PI ) / 16)};
+              sumY  += (block_Y_raw[trans_pixel_index] - 128) * cosc1 * cosc2;
+              sumCb += (block_Cb_raw[trans_pixel_index] - 128) * cosc1 * cosc2;
+              sumCr += (block_Cr_raw[trans_pixel_index] - 128) * cosc1 * cosc2;
+            }
+          }
+
+          double normU {u == 0 ? 1/sqrt(2) : 1};
+          double normV {v == 0 ? 1/sqrt(2) : 1};
+
+          double invariant_coef {0.25 * normU * normV / quant_table[pixel_index]};
+
+          block_Y_zigzag[zigzag_index_table[pixel_index]]  = round(invariant_coef * sumY);
+          block_Cb_zigzag[zigzag_index_table[pixel_index]] = round(invariant_coef * sumCb);
+          block_Cr_zigzag[zigzag_index_table[pixel_index]] = round(invariant_coef * sumCr);
+        }
+      }
+
+      runLengthDiffEncode(block_Y_zigzag, Y_DC[block_index], prev_Y_DC, Y_AC[block_index], weights_luma_DC, weights_luma_AC);
+      runLengthDiffEncode(block_Cb_zigzag, Cb_DC[block_index], prev_Cb_DC, Cb_AC[block_index], weights_chroma_DC, weights_chroma_AC);
+      runLengthDiffEncode(block_Cr_zigzag, Cr_DC[block_index], prev_Cr_DC, Cr_AC[block_index], weights_chroma_DC, weights_chroma_AC);
     }
   }
-}
 
-void JPEG2DEncoder::quantize() {
-  for (uint64_t block = 0; block < blockCount(); block++) {
-    for (uint8_t pixel = 0; pixel < 64; pixel++) {
-      m_channel_Y_quantized[block][pixel] = round(m_channel_Y_transformed[block][pixel] / m_quant_table_luma_scaled[pixel]);
-      m_channel_Cb_quantized[block][pixel] = round(m_channel_Cb_transformed[block][pixel] / m_quant_table_chroma_scaled[pixel]);
-      m_channel_Cr_quantized[block][pixel] = round(m_channel_Cr_transformed[block][pixel] / m_quant_table_chroma_scaled[pixel]);
+  vector<pair<uint64_t, uint8_t>> codelengths_luma_DC   = huffmanGetCodelengths(weights_luma_DC);
+  vector<pair<uint64_t, uint8_t>> codelengths_luma_AC   = huffmanGetCodelengths(weights_luma_AC);
+  vector<pair<uint64_t, uint8_t>> codelengths_chroma_DC = huffmanGetCodelengths(weights_chroma_DC);
+  vector<pair<uint64_t, uint8_t>> codelengths_chroma_AC = huffmanGetCodelengths(weights_chroma_AC);
+
+  map<uint8_t, Codeword> huffcodes_luma_DC   = huffmanGenerateCodewords(codelengths_luma_DC);
+  map<uint8_t, Codeword> huffcodes_luma_AC   = huffmanGenerateCodewords(codelengths_luma_AC);
+  map<uint8_t, Codeword> huffcodes_chroma_DC = huffmanGenerateCodewords(codelengths_chroma_DC);
+  map<uint8_t, Codeword> huffcodes_chroma_AC = huffmanGenerateCodewords(codelengths_chroma_AC);
+
+  ofstream output(output_filename);
+  if (output.fail()) {
+    return false;
+  }
+
+  output.write("JPEG-2D\n", 8);
+
+  uint64_t swapped_w {toBigEndian(width)};
+  uint64_t swapped_h {toBigEndian(height)};
+
+  output.write(reinterpret_cast<char *>(&swapped_w), 8);
+  output.write(reinterpret_cast<char *>(&swapped_h), 8);
+
+  output.write(reinterpret_cast<char *>(quant_table.data()), 64);
+  output.write(reinterpret_cast<char *>(quant_table.data()), 64);
+
+  writeHuffmanTable(codelengths_luma_DC, output);
+  writeHuffmanTable(codelengths_luma_AC, output);
+  writeHuffmanTable(codelengths_chroma_DC, output);
+  writeHuffmanTable(codelengths_chroma_AC, output);
+
+  OBitstream bitstream(output);
+
+  for (uint64_t i = 0; i < blocks_width * blocks_height; i++) {
+    encodeOnePair({0, Y_DC[i]}, huffcodes_luma_DC, bitstream);
+    for (auto &pair: Y_AC[i]) {
+      encodeOnePair(pair, huffcodes_luma_AC, bitstream);
+    }
+
+    encodeOnePair({0, Cb_DC[i]}, huffcodes_chroma_DC, bitstream);
+    for (auto &pair: Cb_AC[i]) {
+      encodeOnePair(pair, huffcodes_chroma_AC, bitstream);
+    }
+
+    encodeOnePair({0, Cr_DC[i]}, huffcodes_chroma_DC, bitstream);
+    for (auto &pair: Cr_AC[i]) {
+      encodeOnePair(pair, huffcodes_chroma_AC, bitstream);
     }
   }
+
+  bitstream.flush();
+
+  return true;
 }
 
-void JPEG2DEncoder::zigzagReorder() {
-  const uint8_t zigzag_index_table[] = {
-     0,  1,  8, 16,  9,  2,  3, 10,
-    17, 24, 32, 25, 18, 11,  4,  5,
-    12, 19, 26, 33, 40, 48, 41, 34,
-    27, 20, 13,  6,  7, 14, 21, 28,
-    35, 42, 49, 56, 57, 50, 43, 36,
-    29, 22, 15, 23, 30, 37, 44, 51,
-    58, 59, 52, 45, 38, 31, 39, 46,
-    53, 60, 61, 54, 47, 55, 62, 63
-  };
+void runLengthDiffEncode(const Block<int16_t> &block_zigzag, int16_t &DC, int16_t &prev_DC, vector<RunLengthPair> &AC, map<uint8_t, uint64_t> &weights_DC, map<uint8_t, uint64_t> &weights_AC) {
+  uint8_t zeroes {};
+  for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+    if (pixel_index == 0) {
+      DC = block_zigzag[pixel_index] - prev_DC;
+      prev_DC = block_zigzag[pixel_index];
 
-  for (uint64_t block = 0; block < blockCount(); block++) {
-    for (uint8_t pixel = 0; pixel < 64; pixel++) {
-      m_channel_Y_zigzag[block][pixel] = m_channel_Y_quantized[block][zigzag_index_table[pixel]];
-      m_channel_Cb_zigzag[block][pixel] = m_channel_Cb_quantized[block][zigzag_index_table[pixel]];
-      m_channel_Cr_zigzag[block][pixel] = m_channel_Cr_quantized[block][zigzag_index_table[pixel]];
-    }
-  }
-}
-
-void JPEG2DEncoder::diffEncodeDC() {
-  int8_t prev_Y_DC = 0;
-  int8_t prev_Cb_DC = 0;
-  int8_t prev_Cr_DC = 0;
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    m_channel_Y_DC[i] = m_channel_Y_zigzag[i][0] - prev_Y_DC;
-    m_channel_Cb_DC[i] = m_channel_Cb_zigzag[i][0] - prev_Cb_DC;
-    m_channel_Cr_DC[i] = m_channel_Cr_zigzag[i][0] - prev_Cr_DC;
-
-    prev_Y_DC = m_channel_Y_zigzag[i][0];
-    prev_Cb_DC = m_channel_Cb_zigzag[i][0];
-    prev_Cr_DC = m_channel_Cr_zigzag[i][0];
-  }
-}
-
-void JPEG2DEncoder::runLengthEncodeAC() {
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    runLengthEncodeACBlock(m_channel_Y_zigzag[i], m_channel_Y_AC[i]);
-    runLengthEncodeACBlock(m_channel_Cb_zigzag[i], m_channel_Cb_AC[i]);
-    runLengthEncodeACBlock(m_channel_Cr_zigzag[i], m_channel_Cr_AC[i]);
-  }
-}
-
-void JPEG2DEncoder::runLengthEncodeACBlock(const Block<int8_t> &input, std::vector<RunLengthPair> &output) {
-  uint8_t zeroes = 0;
-  for (uint8_t i = 1; i < 64; i++) {
-    if (input[i] == 0) {
-      zeroes++;
+      weights_DC[huffmanSymbol({0, DC})]++;
     }
     else {
-      while (zeroes >= 16) {
-        output.push_back(RunLengthPair(15, 0));
-        zeroes -= 16;
+      if (block_zigzag[pixel_index] == 0) {
+        zeroes++;
       }
-      output.push_back(RunLengthPair(zeroes, input[i]));
-      zeroes = 0;
+      else {
+        while (zeroes >= 16) {
+          AC.push_back({15, 0});
+          zeroes -= 16;
+
+          weights_AC[huffmanSymbol({15, 0})]++;
+        }
+        RunLengthPair pair = {zeroes, block_zigzag[pixel_index]};
+
+        AC.push_back(pair);
+        zeroes = 0;
+
+        weights_AC[huffmanSymbol(pair)]++;
+      }
     }
   }
-  output.push_back(RunLengthPair(0, 0));
+  AC.push_back({0, 0});
+
+  weights_AC[huffmanSymbol({0, 0})]++;
 }
 
-void JPEG2DEncoder::constructHuffmanEncoders() {
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    m_huffman_encoder_luma_DC.incrementKey(huffmanClass(m_channel_Y_DC[i]));
-    m_huffman_encoder_chroma_DC.incrementKey(huffmanClass(m_channel_Cb_DC[i]));
-    m_huffman_encoder_chroma_DC.incrementKey(huffmanClass(m_channel_Cr_DC[i]));
+vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_t> &weights) {
+  // SOURCE: http://hjemmesider.diku.dk/~jyrki/Paper/WADS95.pdf
+  vector<pair<uint64_t, uint8_t>> A {};
 
-    for (auto &pair: m_channel_Y_AC[i]) {
-      m_huffman_encoder_luma_AC.incrementKey(huffmanKey(pair));
-    }
+  A.reserve(weights.size());
 
-    for (auto &pair: m_channel_Cb_AC[i]) {
-      m_huffman_encoder_chroma_AC.incrementKey(huffmanKey(pair));
-    }
-
-    for (auto &pair: m_channel_Cr_AC[i]) {
-      m_huffman_encoder_chroma_AC.incrementKey(huffmanKey(pair));
-    }
+  for (auto &pair: weights) {
+    A.push_back({pair.second, pair.first});
   }
 
-  m_huffman_encoder_luma_AC.constructTable();
-  m_huffman_encoder_luma_DC.constructTable();
+  sort(A.begin(), A.end());
 
-  m_huffman_encoder_chroma_DC.constructTable();
-  m_huffman_encoder_chroma_AC.constructTable();
+  uint64_t n {A.size()};
+
+  uint64_t s {1};
+  uint64_t r {1};
+
+  for (uint64_t t = 1; t <= n - 1; t++) {
+    uint64_t sum {};
+    for (uint8_t i = 0; i < 2; i++) {
+      if ((s > n) || ((r < t) && (A[r-1].first < A[s-1].first))) {
+        sum += A[r-1].first;
+        A[r-1].first = t;
+        r++;
+      }
+      else {
+        sum += A[s-1].first;
+        s++;
+      }
+    }
+    A[t-1].first = sum;
+  }
+
+  A[n - 2].first = 0;
+
+  for (int64_t t = n - 2; t >= 1; t--) {
+    A[t-1].first = A[A[t-1].first-1].first + 1;
+  }
+
+  int64_t a {1};
+  int64_t u {0};
+  uint64_t d {0};
+  uint64_t t {n - 1};
+  uint64_t x {n};
+
+  while (a > 0) {
+    while ((t >= 1) && (A[t-1].first == d)) {
+      u++;
+      t--;
+    }
+    while (a > u) {
+      A[x-1].first = d;
+      x--;
+      a--;
+    }
+    a = 2*u;
+    d++;
+    u = 0;
+  }
+
+  sort(A.begin(), A.end());
+
+  return A;
 }
 
-void JPEG2DEncoder::huffmanEncode() {
-  for (uint64_t i = 0; i < blockCount(); i++) {
-    m_huffman_encoder_luma_DC.encode(huffmanClass(m_channel_Y_DC[i]), m_jpeg2d_data);
-    encodeAmplitude(m_channel_Y_DC[i], m_jpeg2d_data);
+map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint8_t>> &codelengths) {
+  map<uint8_t, Codeword> codewords {};
 
-    for (auto &pair: m_channel_Y_AC[i]) {
-      m_huffman_encoder_luma_AC.encode(huffmanKey(pair), m_jpeg2d_data);
-      encodeAmplitude(pair.amplitude, m_jpeg2d_data);
+  // TODO PROVE ME
+
+  uint8_t prefix_ones {};
+
+  uint8_t codeword {};
+  for (auto &pair: codelengths) {
+    bitset<8> code {codeword};
+    for (uint8_t i = 0; i < prefix_ones; i++) {
+      codewords[pair.second].push_back(1);
     }
 
-    m_huffman_encoder_chroma_DC.encode(huffmanClass(m_channel_Cb_DC[i]), m_jpeg2d_data);
-    encodeAmplitude(m_channel_Cb_DC[i], m_jpeg2d_data);
+    uint8_t len {static_cast<uint8_t>(pair.first - prefix_ones)};
 
-    for (auto &pair: m_channel_Cb_AC[i]) {
-      m_huffman_encoder_chroma_AC.encode(huffmanKey(pair), m_jpeg2d_data);
-      encodeAmplitude(pair.amplitude, m_jpeg2d_data);
+    for (uint8_t k = 0; k < len; k++) {
+      codewords[pair.second].push_back(code[7 - k]);
     }
 
-    m_huffman_encoder_chroma_DC.encode(huffmanClass(m_channel_Cr_DC[i]), m_jpeg2d_data);
-    encodeAmplitude(m_channel_Cr_DC[i], m_jpeg2d_data);
-
-    for (auto &pair: m_channel_Cr_AC[i]) {
-      m_huffman_encoder_chroma_AC.encode(huffmanKey(pair), m_jpeg2d_data);
-      encodeAmplitude(pair.amplitude, m_jpeg2d_data);
+    codeword = ((codeword >> (8 - len)) + 1) << (8 - len);
+    while (codeword > 127) {
+      prefix_ones++;
+      codeword <<= 1;
     }
+  }
+
+  return codewords;
+}
+
+void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstream &stream) {
+  if (codelengths.empty()) {
+    return;
+  }
+
+  uint8_t codelengths_cnt {static_cast<uint8_t>(codelengths.back().first + 1)};
+  stream.write(reinterpret_cast<char *>(&codelengths_cnt), sizeof(char));
+  auto it {codelengths.begin()};
+  for (uint8_t i = 0; i < codelengths_cnt; i++) {
+    uint16_t leaves {};
+    while ((it < codelengths.end()) && ((*it).first == i)) {
+      leaves++;
+      it++;
+    }
+    stream.write(reinterpret_cast<char *>(&leaves), sizeof(char));
+  }
+  for (auto &pair: codelengths) {
+    stream.write(reinterpret_cast<const char *>(&pair.second), sizeof(char));
   }
 }
 
-uint8_t JPEG2DEncoder::huffmanClass(int8_t value) {
-  if (value < 0) {
-    value = -value;
+void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream) {
+  uint8_t huff_class {huffmanClass(pair.amplitude)};
+  uint8_t symbol     {huffmanSymbol(pair)};
+
+  stream.write(table.at(symbol));
+
+  int16_t amplitude = pair.amplitude;
+  if (amplitude < 0) {
+    amplitude = -amplitude;
+    amplitude = ~amplitude;
   }
 
-  int huff_class = 0;
-  while (value > 0) {
-    value = value >> 1;
+  for (int8_t i = huff_class - 1; i >= 0; i--) {
+    stream.writeBit((amplitude & (1 << i)) >> i);
+  }
+}
+
+
+uint8_t huffmanClass(int16_t amplitude) {
+  if (amplitude < 0) {
+    amplitude = -amplitude;
+  }
+
+  uint8_t huff_class = 0;
+  while (amplitude > 0) {
+    amplitude = amplitude >> 1;
     huff_class++;
   }
 
   return huff_class;
 }
 
-uint8_t JPEG2DEncoder::huffmanKey(RunLengthPair &pair) {
+uint8_t huffmanSymbol(const RunLengthPair &pair) {
   return pair.zeroes << 4 | huffmanClass(pair.amplitude);
-}
-
-void JPEG2DEncoder::encodeAmplitude(int8_t amplitude, std::vector<bool> &output) {
-  uint8_t huff_class = huffmanClass(amplitude);
-  if (amplitude < 0) {
-    amplitude = -amplitude;
-    amplitude = ~amplitude;
-  }
-
-  std::bitset<8> bits(amplitude);
-  for (uint8_t i = huff_class; i > 0; i--) {
-    output.push_back(bits[i - 1]);
-  }
 }

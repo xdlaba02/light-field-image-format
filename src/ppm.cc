@@ -2,7 +2,7 @@
 #include <vector>
 #include <iostream>
 
-bool loadPPM(const std::string filename, uint64_t &width, uint64_t &height, std::vector<uint8_t> &data) {
+bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, std::vector<uint8_t> &data) {
   std::ifstream input(filename);
   if (input.fail()) {
     return false;
@@ -14,33 +14,22 @@ bool loadPPM(const std::string filename, uint64_t &width, uint64_t &height, std:
     return false;
   }
 
-  uint64_t data_size = width * height * 3 * (depth > 255 ? 2 : 1);
-  std::vector<uint8_t> tmp(data_size);
-
-  input.read(reinterpret_cast<char *>(tmp.data()), data_size);
-  if (input.fail()) {
+  if (depth != 255) {
     return false;
   }
+  else {
+    data.resize(width * height * 3);
+    input.read(reinterpret_cast<char *>(data.data()), data.size());
+  }
 
-  data.reserve(width * height * 3);
-
-  for (uint64_t i = 0; i < width * height * 3; i++) {
-    uint64_t byteValue;
-
-    if (depth > 255) {
-      byteValue = reinterpret_cast<uint16_t *>(tmp.data())[i] * 255 / depth;
-    }
-    else {
-      byteValue = reinterpret_cast<uint8_t *>(tmp.data())[i] * 255 / depth;
-    }
-
-    data[i] = byteValue;
+  if (input.fail()) {
+    return false;
   }
 
   return true;
 }
 
-bool savePPM(const std::string filename, const uint64_t width, const uint64_t height, std::vector<uint8_t> &data) {
+bool savePPM(const char *filename, const uint64_t width, const uint64_t height, std::vector<uint8_t> &data) {
   std::ofstream output(filename);
   if (output.fail()) {
     return false;
@@ -51,7 +40,7 @@ bool savePPM(const std::string filename, const uint64_t width, const uint64_t he
   output << height << std::endl;
   output << "255" << std::endl;
 
-  output.write(reinterpret_cast<char *>(data.data()), width * height * 3);
+  output.write(reinterpret_cast<char *>(data.data()), data.size());
   if (output.fail()) {
     return false;
   }

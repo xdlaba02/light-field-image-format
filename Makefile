@@ -32,19 +32,7 @@ $(BINDIR):
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-.PHONY: clean run encode decode valgrind
+.PHONY: clean
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore*
-
-run: encode decode
-
-encode: $(BINDIR)/$(TARGET)
-	./$< --encode 50 ../foto.ppm 2>cerr1.txt
-
-decode: $(BINDIR)/$(TARGET) encode
-	./$< --decode ../foto.ppm.jpeg2d 2>cerr2.txt
-
-valgrind: $(BINDIR)/$(TARGET)
-	valgrind --track-origins=yes ./$^ --encode 50 ../foto.ppm
-	valgrind --track-origins=yes ./$^ --decode ../foto.ppm.jpeg2d

@@ -18,8 +18,8 @@ enum State {
   STATE_END
 };
 
-bool loadPPM(const std::string filename, uint64_t &width, uint64_t &height, std::vector<uint8_t> &data);
-bool savePPM(const std::string filename, const uint64_t width, const uint64_t height, std::vector<uint8_t> &data);
+bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, std::vector<uint8_t> &data);
+bool savePPM(const char *filename, const uint64_t width, const uint64_t height, std::vector<uint8_t> &data);
 
 void skipUntilEol(std::ifstream &input);
 bool parseHeader(std::ifstream &input, uint64_t &width, uint64_t &height, uint32_t &depth);
