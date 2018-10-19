@@ -14,8 +14,6 @@
 #include <numeric>
 #include <algorithm>
 
-using namespace std;
-
 bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
   ifstream input(input_filename);
   if (input.fail()) {
@@ -29,14 +27,14 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
     return false;
   }
 
-  uint64_t swapped_w {};
-  uint64_t swapped_h {};
+  uint64_t raw_width  {};
+  uint64_t raw_height {};
 
-  input.read(reinterpret_cast<char *>(&swapped_w), sizeof(uint64_t));
-  input.read(reinterpret_cast<char *>(&swapped_h), sizeof(uint64_t));
+  input.read(reinterpret_cast<char *>(&raw_width), sizeof(uint64_t));
+  input.read(reinterpret_cast<char *>(&raw_height), sizeof(uint64_t));
 
-  uint64_t width  {fromBigEndian(swapped_w)};
-  uint64_t height {fromBigEndian(swapped_h)};
+  uint64_t width  = fromBigEndian(raw_width);
+  uint64_t height = fromBigEndian(raw_height);
 
   QuantTable quant_table_luma   {};
   QuantTable quant_table_chroma {};
@@ -49,8 +47,8 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
   vector<uint8_t> huff_counts_chroma_DC {};
   vector<uint8_t> huff_counts_chroma_AC {};
 
-  vector<uint8_t> huff_symbols_luma_DC {};
-  vector<uint8_t> huff_symbols_luma_AC {};
+  vector<uint8_t> huff_symbols_luma_DC   {};
+  vector<uint8_t> huff_symbols_luma_AC   {};
   vector<uint8_t> huff_symbols_chroma_DC {};
   vector<uint8_t> huff_symbols_chroma_AC {};
 
@@ -59,12 +57,12 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
   readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
   readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
 
-  uint64_t blocks_width  {static_cast<uint64_t>(ceil(width/8.0))};
-  uint64_t blocks_height {static_cast<uint64_t>(ceil(height/8.0))};
+  uint64_t blocks_width  = ceil(width/8.0);
+  uint64_t blocks_height = ceil(height/8.0);
 
-  int16_t prev_Y_DC  {};
-  int16_t prev_Cb_DC {};
-  int16_t prev_Cr_DC {};
+  int16_t prev_Y_DC  = 0;
+  int16_t prev_Cb_DC = 0;
+  int16_t prev_Cr_DC = 0;
 
   vector<uint8_t> rgb_data(width * height * 3);
 
@@ -90,13 +88,13 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
 
           for (uint8_t v = 0; v < 8; v++) {
             for (uint8_t u = 0; u < 8; u++) {
-              uint8_t trans_pixel_index {static_cast<uint8_t>(v * 8 + u)};
+              uint8_t trans_pixel_index = v * 8 + u;
 
-              double normU {u == 0 ? 1/sqrt(2) : 1};
-              double normV {v == 0 ? 1/sqrt(2) : 1};
+              double normU = (u == 0 ? 1/sqrt(2) : 1);
+              double normV = (v == 0 ? 1/sqrt(2) : 1);
 
-              double cosc1 {cos(((2 * x + 1) * u * JPEG2D_PI) / 16)};
-              double cosc2 {cos(((2 * y + 1) * v * JPEG2D_PI) / 16)};
+              double cosc1 = cos(((2 * x + 1) * u * JPEG2D_PI) / 16);
+              double cosc2 = cos(((2 * y + 1) * v * JPEG2D_PI) / 16);
 
               sumY += block_Y[trans_pixel_index] * normU * normV * cosc1 * cosc2;
               sumCb += block_Cb[trans_pixel_index] * normU * normV * cosc1 * cosc2;
@@ -108,17 +106,17 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
           uint8_t Cb = clamp((0.25 * sumCb) + 128, 0.0, 255.0);
           uint8_t Cr = clamp((0.25 * sumCr) + 128, 0.0, 255.0);
 
-          uint64_t real_pixel_x {block_x * 8 + x};
+          uint64_t real_pixel_x = block_x * 8 + x;
           if (real_pixel_x >= width) {
             continue;
           }
 
-          uint64_t real_pixel_y {block_y * 8 + y};
+          uint64_t real_pixel_y = block_y * 8 + y;
           if (real_pixel_y >= height) {
             continue;
           }
 
-          uint64_t real_pixel_index {real_pixel_y * width + real_pixel_x};
+          uint64_t real_pixel_index = real_pixel_y * width + real_pixel_x;
 
           rgb_data[3 * real_pixel_index + 0] = clamp(Y + 1.402                            * (Cr - 128), 0.0, 255.0);
           rgb_data[3 * real_pixel_index + 1] = clamp(Y - 0.344136 * (Cb - 128) - 0.714136 * (Cr - 128), 0.0, 255.0);
@@ -128,7 +126,6 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
     }
   }
 
-
   if (!savePPM(output_filename, width, height, rgb_data)) {
     return false;
   }
@@ -137,7 +134,7 @@ bool JPEG2D2PPM(const char *input_filename, const char *output_filename) {
 }
 
 void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &symbols_DC, const vector<uint8_t> &counts_AC, const vector<uint8_t> &symbols_AC, const QuantTable &quant_table, int16_t &prev_DC, Block<int16_t> &block, IBitstream &bitstream) {
-  uint8_t index {};
+  uint8_t index = 0;
 
   Block<int16_t> zigzag {};
 
@@ -164,10 +161,9 @@ void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &symbo
 }
 
 void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstream &stream) {
-  uint8_t codelengths_cnt {};
-  stream.read(reinterpret_cast<char *>(&codelengths_cnt), sizeof(char));
-  counts.resize(codelengths_cnt);
+  counts.resize(stream.get());
   stream.read(reinterpret_cast<char *>(counts.data()), counts.size());
+
   symbols.resize(accumulate(counts.begin(), counts.end(), 0, std::plus<uint8_t>()));
   stream.read(reinterpret_cast<char *>(symbols.data()), symbols.size());
 }
@@ -179,10 +175,10 @@ RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t>
 }
 
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
-  uint16_t code  {};
-  uint16_t first {};
-  uint16_t index {};
-  uint16_t count {};
+  uint16_t code  = 0;
+  uint16_t first = 0;
+  uint16_t index = 0;
+  uint16_t count = 0;
 
   for (uint8_t len = 1; len < counts.size(); len++) {
     code |= stream.readBit();
@@ -200,7 +196,7 @@ uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8
 }
 
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
-  int16_t amplitude {};
+  int16_t amplitude = 0;
 
   if (length != 0) {
     for (uint8_t i = 0; i < length; i++) {
@@ -214,5 +210,6 @@ int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
       amplitude = -amplitude;
     }
   }
+  
   return amplitude;
 }

@@ -7,7 +7,7 @@
 #include "jpeg2d.h"
 
 bool amIBigEndian() {
-  uint16_t test = 1;
+  uint16_t test {1};
   return reinterpret_cast<char *>(&test)[0] == 0;
 }
 

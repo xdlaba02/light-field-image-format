@@ -29,7 +29,7 @@ vector<bool> IBitstream::read(const uint64_t size) {
 
 bool IBitstream::readBit() {
   if (m_index <= 0) {
-    m_stream.read(reinterpret_cast<char *>(&m_accumulator), sizeof(char));
+    m_accumulator = m_stream.get();
     m_index = 8;
   }
 
@@ -61,7 +61,7 @@ void OBitstream::writeBit(const bool bit) {
 
 void OBitstream::flush() {
   if (m_index > 0) {
-    m_stream.write(reinterpret_cast<char *>(&m_accumulator), sizeof(m_accumulator));
+    m_stream.put(m_accumulator);
     m_index = 0;
     m_accumulator = 0;
   }

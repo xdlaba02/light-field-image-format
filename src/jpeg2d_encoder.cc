@@ -11,7 +11,6 @@
 #include <fstream>
 #include <algorithm>
 
-
 bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const uint8_t quality) {
   vector<uint8_t> rgb_data {};
   uint64_t width       {};
@@ -21,6 +20,9 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
     return false;
   }
 
+  /*******************************************************\
+  * Scale kvantizacni tabulky.
+  \*******************************************************/
   QuantTable quant_table {};
   double scaled_coef     {};
   if (quality < 50) {
@@ -40,8 +42,9 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
     quant_table[i] = quant_value;
   }
 
-  uint64_t blocks_width  {static_cast<uint64_t>(ceil(width/8.0))};
-  uint64_t blocks_height {static_cast<uint64_t>(ceil(height/8.0))};
+
+  uint64_t blocks_width  = ceil(width/8.0);
+  uint64_t blocks_height = ceil(height/8.0);
 
   int16_t prev_Y_DC  {};
   int16_t prev_Cb_DC {};
@@ -60,6 +63,12 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
   map<uint8_t, uint64_t> weights_chroma_AC {};
   map<uint8_t, uint64_t> weights_chroma_DC {};
 
+  /*******************************************************\
+  * Vsechny bloky prevede AC koeficienty do podoby
+    RunLength dvojic, DC koeficienty ulozi jako diference.
+  * Do prislusnych map pocita county jednotlivych klicu,
+    ktere se nasledne vyuziji pri huffmanove kodovani.
+  \*******************************************************/
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
       uint64_t block_index = block_y * blocks_width + block_x;
@@ -68,11 +77,19 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
       Block<uint8_t> block_Cb_raw {};
       Block<uint8_t> block_Cr_raw {};
 
+      /*******************************************************\
+      * Z RGB dat vytahne jeden blok pro kazdy kanal z YCbCr.
+      \*******************************************************/
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
-          uint64_t image_x {block_x * 8 + pixel_x};
-          uint64_t image_y {block_y * 8 + pixel_y};
 
+          uint64_t image_x = block_x * 8 + pixel_x;
+          uint64_t image_y = block_y * 8 + pixel_y;
+
+          /*******************************************************\
+          * V pripade, ze velikost obrazku neni nasobek osmi,
+            se blok doplni z krajnich pixelu.
+          \*******************************************************/
           if (image_x > width - 1) {
             image_x = width - 1;
           }
@@ -81,13 +98,17 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
             image_y = height - 1;
           }
 
-          uint64_t input_pixel_index  {image_y * width + image_x};
-          uint64_t output_pixel_index {static_cast<uint64_t>(pixel_y * 8 + pixel_x)};
 
-          uint8_t R {rgb_data[3 * input_pixel_index + 0]};
-          uint8_t G {rgb_data[3 * input_pixel_index + 1]};
-          uint8_t B {rgb_data[3 * input_pixel_index + 2]};
+          uint64_t input_pixel_index  = image_y * width + image_x;
+          uint64_t output_pixel_index = pixel_y * 8 + pixel_x;
 
+          uint8_t R = rgb_data[3 * input_pixel_index + 0];
+          uint8_t G = rgb_data[3 * input_pixel_index + 1];
+          uint8_t B = rgb_data[3 * input_pixel_index + 2];
+
+          /*******************************************************\
+          * Prevede z RGB na YCbCr.
+          \*******************************************************/
           block_Y_raw[output_pixel_index]  =          0.299 * R +    0.587 * G +    0.114 * B;
           block_Cb_raw[output_pixel_index] = 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
           block_Cr_raw[output_pixel_index] = 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
@@ -98,9 +119,14 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
       Block<int16_t> block_Cb_zigzag {};
       Block<int16_t> block_Cr_zigzag {};
 
+      /*******************************************************\
+      * Provede doprednou cosinovu transformaci.
+      * Blok kvantizuje kvantizacni tabulkou.
+      * Preskupi data do zigzag poradi.
+      \*******************************************************/
       for (uint8_t v = 0; v < 8; v++) {
         for (uint8_t u = 0; u < 8; u++) {
-          uint8_t pixel_index {static_cast<uint8_t>(v * 8 + u)};
+          uint8_t pixel_index = v * 8 + u;
 
           double sumY  {};
           double sumCb {};
@@ -108,9 +134,11 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
 
           for (uint8_t y = 0; y < 8; y++) {
             for (uint8_t x = 0; x < 8; x++) {
-              uint8_t trans_pixel_index {static_cast<uint8_t>(y * 8 + x)};
-              double cosc1 {cos(((2 * x + 1) * u * JPEG2D_PI ) / 16)};
-              double cosc2 {cos(((2 * y + 1) * v * JPEG2D_PI ) / 16)};
+              uint8_t trans_pixel_index = y * 8 + x;
+
+              double cosc1 = cos(((2 * x + 1) * u * JPEG2D_PI ) / 16);
+              double cosc2 = cos(((2 * y + 1) * v * JPEG2D_PI ) / 16);
+
               sumY  += (block_Y_raw[trans_pixel_index] - 128) * cosc1 * cosc2;
               sumCb += (block_Cb_raw[trans_pixel_index] - 128) * cosc1 * cosc2;
               sumCr += (block_Cr_raw[trans_pixel_index] - 128) * cosc1 * cosc2;
@@ -120,7 +148,7 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
           double normU {u == 0 ? 1/sqrt(2) : 1};
           double normV {v == 0 ? 1/sqrt(2) : 1};
 
-          double invariant_coef {0.25 * normU * normV / quant_table[pixel_index]};
+          double invariant_coef = 0.25 * normU * normV / quant_table[pixel_index];
 
           block_Y_zigzag[zigzag_index_table[pixel_index]]  = round(invariant_coef * sumY);
           block_Cb_zigzag[zigzag_index_table[pixel_index]] = round(invariant_coef * sumCb);
@@ -151,14 +179,14 @@ bool PPM2JPEG2D(const char *input_filename, const char *output_filename, const u
 
   output.write("JPEG-2D\n", 8);
 
-  uint64_t swapped_w {toBigEndian(width)};
-  uint64_t swapped_h {toBigEndian(height)};
+  uint64_t swapped_w = toBigEndian(width);
+  uint64_t swapped_h = toBigEndian(height);
 
-  output.write(reinterpret_cast<char *>(&swapped_w), 8);
-  output.write(reinterpret_cast<char *>(&swapped_h), 8);
+  output.write(reinterpret_cast<char *>(&swapped_w), sizeof(uint64_t));
+  output.write(reinterpret_cast<char *>(&swapped_h), sizeof(uint64_t));
 
-  output.write(reinterpret_cast<char *>(quant_table.data()), 64);
-  output.write(reinterpret_cast<char *>(quant_table.data()), 64);
+  output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
+  output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
   writeHuffmanTable(codelengths_luma_DC, output);
   writeHuffmanTable(codelengths_luma_AC, output);
@@ -209,7 +237,7 @@ void runLengthDiffEncode(const Block<int16_t> &block_zigzag, int16_t &DC, int16_
 
           weights_AC[huffmanSymbol({15, 0})]++;
         }
-        RunLengthPair pair = {zeroes, block_zigzag[pixel_index]};
+        RunLengthPair pair {zeroes, block_zigzag[pixel_index]};
 
         AC.push_back(pair);
         zeroes = 0;
@@ -224,7 +252,6 @@ void runLengthDiffEncode(const Block<int16_t> &block_zigzag, int16_t &DC, int16_
 }
 
 vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_t> &weights) {
-  // SOURCE: http://hjemmesider.diku.dk/~jyrki/Paper/WADS95.pdf
   vector<pair<uint64_t, uint8_t>> A {};
 
   A.reserve(weights.size());
@@ -235,13 +262,15 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
 
   sort(A.begin(), A.end());
 
-  uint64_t n {A.size()};
+  // SOURCE: http://hjemmesider.diku.dk/~jyrki/Paper/WADS95.pdf
 
-  uint64_t s {1};
-  uint64_t r {1};
+  uint64_t n = A.size();
+
+  uint64_t s = 1;
+  uint64_t r = 1;
 
   for (uint64_t t = 1; t <= n - 1; t++) {
-    uint64_t sum {};
+    uint64_t sum = 0;
     for (uint8_t i = 0; i < 2; i++) {
       if ((s > n) || ((r < t) && (A[r-1].first < A[s-1].first))) {
         sum += A[r-1].first;
@@ -264,11 +293,11 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
     A[t-1].first = A[A[t-1].first-1].first + 1;
   }
 
-  int64_t a {1};
-  int64_t u {0};
-  uint64_t d {0};
-  uint64_t t {n - 1};
-  uint64_t x {n};
+  int64_t a  = 1;
+  int64_t u  = 0;
+  uint64_t d = 0;
+  uint64_t t = n - 1;
+  uint64_t x = n;
 
   while (a > 0) {
     while ((t >= 1) && (A[t-1].first == d)) {
@@ -280,7 +309,7 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
       x--;
       a--;
     }
-    a = 2*u;
+    a = 2 * u;
     d++;
     u = 0;
   }
@@ -295,7 +324,7 @@ map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint
 
   // TODO PROVE ME
 
-  uint8_t prefix_ones {};
+  uint8_t prefix_ones = 0;
 
   uint8_t codeword {};
   for (auto &pair: codelengths) {
@@ -305,7 +334,7 @@ map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint
       codewords[pair.second].push_back(1);
     }
 
-    uint8_t len {static_cast<uint8_t>(pair.first - prefix_ones)};
+    uint8_t len = pair.first - prefix_ones;
 
     for (uint8_t k = 0; k < len; k++) {
       codewords[pair.second].push_back(bitset<8>(codeword)[7 - k]);
@@ -322,29 +351,27 @@ map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint
 }
 
 void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstream &stream) {
-  if (codelengths.empty()) {
-    return;
-  }
+  uint8_t codelengths_cnt = codelengths.back().first + 1;
+  stream.put(codelengths_cnt);
 
-  uint8_t codelengths_cnt {static_cast<uint8_t>(codelengths.back().first + 1)};
-  stream.write(reinterpret_cast<char *>(&codelengths_cnt), sizeof(char));
-  auto it {codelengths.begin()};
+  auto it = codelengths.begin();
   for (uint8_t i = 0; i < codelengths_cnt; i++) {
-    uint16_t leaves {};
+    uint16_t leaves = 0;
     while ((it < codelengths.end()) && ((*it).first == i)) {
       leaves++;
       it++;
     }
-    stream.write(reinterpret_cast<char *>(&leaves), sizeof(char));
+    stream.put(leaves);
   }
+
   for (auto &pair: codelengths) {
-    stream.write(reinterpret_cast<const char *>(&pair.second), sizeof(char));
+    stream.put(pair.second);
   }
 }
 
 void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream) {
-  uint8_t huff_class {huffmanClass(pair.amplitude)};
-  uint8_t symbol     {huffmanSymbol(pair)};
+  uint8_t huff_class = huffmanClass(pair.amplitude);
+  uint8_t symbol     = huffmanSymbol(pair);
 
   stream.write(table.at(symbol));
 
