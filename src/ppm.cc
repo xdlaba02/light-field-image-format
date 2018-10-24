@@ -5,10 +5,9 @@
 \*******************************************************/
 
 #include "ppm.h"
-#include <vector>
 #include <iostream>
 
-bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uint8_t> &data) {
+bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data) {
   ifstream input(filename);
   if (input.fail()) {
     return false;
@@ -24,8 +23,9 @@ bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uin
     return false;
   }
   else {
-    data.resize(width * height * 3);
-    input.read(reinterpret_cast<char *>(data.data()), data.size());
+    auto original_size = rgb_data.size();
+    rgb_data.resize(original_size + width * height * 3);
+    input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), rgb_data.size() - original_size);
   }
 
   if (input.fail()) {
@@ -35,7 +35,7 @@ bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uin
   return true;
 }
 
-bool savePPM(const char *filename, const uint64_t width, const uint64_t height, vector<uint8_t> &data) {
+bool savePPM(const string &&filename, const uint64_t width, const uint64_t height, const uint8_t *rgb_data) {
   ofstream output(filename);
   if (output.fail()) {
     return false;
@@ -46,7 +46,7 @@ bool savePPM(const char *filename, const uint64_t width, const uint64_t height, 
   output << height << endl;
   output << "255" << endl;
 
-  output.write(reinterpret_cast<char *>(data.data()), data.size());
+  output.write(reinterpret_cast<const char *>(rgb_data), width * height * 3);
   if (output.fail()) {
     return false;
   }

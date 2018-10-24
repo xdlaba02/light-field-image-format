@@ -34,13 +34,13 @@ enum State {
   do bufferu data.
 * Velikosti obrazku ulozi do prommene width a height.
 \*******************************************************/
-bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uint8_t> &data);
+bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data);
 
 /*******************************************************\
 * Funkce vytvori ppm soubor filename a ulozi do nej
   rgb data.
 \*******************************************************/
-bool savePPM(const char *filename, const uint64_t width, const uint64_t height, vector<uint8_t> &data);
+bool savePPM(const string &&filename, const uint64_t width, const uint64_t height, const uint8_t *rgb_data);
 
 /*******************************************************\
 * Funkce ve streamu preskoci na prvni znak za koncem
