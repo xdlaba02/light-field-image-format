@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 
 bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, const uint64_t w, const uint64_t h, const uint64_t ix, const uint64_t iy, const uint8_t quality) {
   /*******************************************************\
@@ -53,7 +54,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   * Do prislusnych map pocita county jednotlivych klicu,
     ktere se nasledne vyuziji pri huffmanove kodovani.
   \*******************************************************/
-
+ 
   for (uint64_t block_z = 0; block_z < blocks_depth; block_z++) {
     for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
       for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
@@ -111,7 +112,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
         for (uint8_t w = 0; w < 8; w++) {
           for (uint8_t v = 0; v < 8; v++) {
             for (uint8_t u = 0; u < 8; u++) {
-              uint8_t pixel_index = w*8*8 + v*8 + u;
+              uint16_t pixel_index = w*8*8 + v*8 + u;
 
               double sumY  = 0;
               double sumCb = 0;
@@ -145,7 +146,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
               double invariant_coef = 0.25 * normU * normV * normW / quant_table[pixel_index];
 
-              uint64_t zigzag_index = zigzagIndexTable<3>(pixel_index);
+              uint16_t zigzag_index = zigzagIndexTable<3>(pixel_index);
 
               block_Y_zigzag[zigzag_index]  = round(invariant_coef * sumY);
               block_Cb_zigzag[zigzag_index] = round(invariant_coef * sumCb);

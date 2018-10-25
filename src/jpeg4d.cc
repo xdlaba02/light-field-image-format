@@ -122,7 +122,7 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
             for (uint8_t iu = 0; iu < 8; iu++) {
               for (uint8_t v = 0; v < 8; v++) {
                 for (uint8_t u = 0; u < 8; u++) {
-                  uint8_t pixel_index = iv*8*8*8 + iu*8*8 + v*8 + u;
+                  uint16_t pixel_index = iv*8*8*8 + iu*8*8 + v*8 + u;
 
                   double sumY  = 0;
                   double sumCb = 0;
@@ -161,7 +161,7 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
                   double invariant_coef = 0.25 * normU * normV * normIU * normIV / quant_table[pixel_index];
 
-                  uint64_t zigzag_index = zigzagIndexTable<4>(pixel_index);
+                  uint16_t zigzag_index = zigzagIndexTable<4>(pixel_index);
 
                   block_Y_zigzag[zigzag_index]  = round(invariant_coef * sumY);
                   block_Cb_zigzag[zigzag_index] = round(invariant_coef * sumCb);
