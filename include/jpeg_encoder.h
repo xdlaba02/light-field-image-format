@@ -49,8 +49,8 @@ void scaleQuantTable(const uint8_t quality, QuantTable<D> &quant_table) {
 
 template<uint8_t D>
 void runLengthDiffEncode(const Block<int16_t, D> &block_zigzag, int16_t &DC, int16_t &prev_DC, vector<RunLengthPair> &AC, map<uint8_t, uint64_t> &weights_DC, map<uint8_t, uint64_t> &weights_AC) {
-  uint8_t zeroes {};
-  for (uint8_t pixel_index = 0; pixel_index < block_zigzag.size(); pixel_index++) {
+  uint16_t zeroes {};
+  for (uint16_t pixel_index = 0; pixel_index < block_zigzag.size(); pixel_index++) {
     if (pixel_index == 0) {
       DC = block_zigzag[pixel_index] - prev_DC;
       prev_DC = block_zigzag[pixel_index];
@@ -68,7 +68,7 @@ void runLengthDiffEncode(const Block<int16_t, D> &block_zigzag, int16_t &DC, int
 
           weights_AC[huffmanSymbol({15, 0})]++;
         }
-        RunLengthPair pair {zeroes, block_zigzag[pixel_index]};
+        RunLengthPair pair {static_cast<uint8_t>(zeroes), block_zigzag[pixel_index]};
 
         AC.push_back(pair);
         zeroes = 0;

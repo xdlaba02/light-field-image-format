@@ -9,6 +9,7 @@
 #include "jpeg.h"
 #include "jpeg_encoder.h"
 #include "jpeg_decoder.h"
+#include "dct.h"
 
 #include <algorithm>
 #include <cstring>
@@ -22,7 +23,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   scaleQuantTable<2>(quality, quant_table);
 
   uint64_t width = w;
-  uint64_t height = h * ix * iy;
+  uint64_t height = h * iy * ix;
 
   uint64_t blocks_width  = ceil(width/8.0);
   uint64_t blocks_height = ceil(height/8.0);
@@ -53,18 +54,18 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     ktere se nasledne vyuziji pri huffmanove kodovani.
   \*******************************************************/
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
+    cerr << "Block " << long(block_y * blocks_width) << " of " << long(blocks_cnt) << endl;
+
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
       uint64_t block_index = block_y * blocks_width + block_x;
 
-      Block<uint8_t, 2> block_Y_raw  {};
-      Block<uint8_t, 2> block_Cb_raw {};
-      Block<uint8_t, 2> block_Cr_raw {};
+      Block<uint8_t, 2> block_R  {};
+      Block<uint8_t, 2> block_G  {};
+      Block<uint8_t, 2> block_B  {};
 
-      /*******************************************************\
-      * Z RGB dat vytahne jeden blok pro kazdy kanal z YCbCr.
-      \*******************************************************/
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
+          uint8_t output_pixel_index = pixel_y*8 + pixel_x;
 
           uint64_t image_x = block_x * 8 + pixel_x;
           uint64_t image_y = block_y * 8 + pixel_y;
@@ -81,69 +82,68 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
             image_y = height - 1;
           }
 
-
           uint64_t input_pixel_index  = image_y*width + image_x;
-          uint64_t output_pixel_index = pixel_y*8 + pixel_x;
 
-          uint8_t R = rgb_data[3 * input_pixel_index + 0];
-          uint8_t G = rgb_data[3 * input_pixel_index + 1];
-          uint8_t B = rgb_data[3 * input_pixel_index + 2];
-
-          /*******************************************************\
-          * Prevede z RGB na YCbCr.
-          \*******************************************************/
-          block_Y_raw[output_pixel_index]  =          0.299 * R +    0.587 * G +    0.114 * B;
-          block_Cb_raw[output_pixel_index] = 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
-          block_Cr_raw[output_pixel_index] = 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
+          block_R[output_pixel_index] = rgb_data[3 * input_pixel_index + 0];
+          block_G[output_pixel_index] = rgb_data[3 * input_pixel_index + 1];
+          block_B[output_pixel_index] = rgb_data[3 * input_pixel_index + 2];
         }
+      }
+
+      Block<uint8_t, 2> block_Y  {};
+      Block<uint8_t, 2> block_Cb {};
+      Block<uint8_t, 2> block_Cr {};
+
+      /*******************************************************\
+      * Konvertuje RGB na YCbCr
+      \*******************************************************/
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        uint8_t R = block_R[pixel_index];
+        uint8_t G = block_G[pixel_index];
+        uint8_t B = block_B[pixel_index];
+
+        block_Y[pixel_index]  =          0.299 * R +    0.587 * G +    0.114 * B;
+        block_Cb[pixel_index] = 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
+        block_Cr[pixel_index] = 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
+      }
+
+      Block<int8_t, 2> block_Y_shifted  {};
+      Block<int8_t, 2> block_Cb_shifted {};
+      Block<int8_t, 2> block_Cr_shifted {};
+
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        block_Y_shifted[pixel_index] = block_Y[pixel_index] - 128;
+        block_Cb_shifted[pixel_index] = block_Cb[pixel_index] - 128;
+        block_Cr_shifted[pixel_index] = block_Cr[pixel_index] - 128;
+      }
+
+      Block<double, 2> block_Y_transformed  {};
+      Block<double, 2> block_Cb_transformed {};
+      Block<double, 2> block_Cr_transformed {};
+
+      dct2(block_Y_shifted, block_Y_transformed);
+      dct2(block_Cb_shifted, block_Cb_transformed);
+      dct2(block_Cr_shifted, block_Cr_transformed);
+
+      Block<int16_t, 2> block_Y_quantized  {};
+      Block<int16_t, 2> block_Cb_quantized {};
+      Block<int16_t, 2> block_Cr_quantized {};
+
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        block_Y_quantized[pixel_index]  = block_Y_transformed[pixel_index] * 0.25 / quant_table[pixel_index];
+        block_Cb_quantized[pixel_index] = block_Cb_transformed[pixel_index] * 0.25 / quant_table[pixel_index];
+        block_Cr_quantized[pixel_index] = block_Cr_transformed[pixel_index] * 0.25 / quant_table[pixel_index];
       }
 
       Block<int16_t, 2> block_Y_zigzag  {};
       Block<int16_t, 2> block_Cb_zigzag {};
       Block<int16_t, 2> block_Cr_zigzag {};
 
-      /*******************************************************\
-      * Provede doprednou cosinovu transformaci.
-      * Blok kvantizuje kvantizacni tabulkou.
-      * Preskupi data do zigzag poradi.
-      \*******************************************************/
-      for (uint8_t v = 0; v < 8; v++) {
-        for (uint8_t u = 0; u < 8; u++) {
-          uint8_t pixel_index = v*8 + u;
-
-          double sumY  = 0;
-          double sumCb = 0;
-          double sumCr = 0;
-
-          for (uint8_t y = 0; y < 8; y++) {
-            double cosc2 = cos(((2 * y + 1) * v * JPEG_PI ) / 16);
-
-            for (uint8_t x = 0; x < 8; x++) {
-              double cosc1 = cos(((2 * x + 1) * u * JPEG_PI ) / 16);
-
-              uint8_t trans_pixel_index = y*8 + x;
-
-              int8_t Y_val_shifted  = block_Y_raw[trans_pixel_index] - 128;
-              int8_t Cb_val_shifted = block_Cb_raw[trans_pixel_index] - 128;
-              int8_t Cr_val_shifted = block_Cr_raw[trans_pixel_index] - 128;
-
-              sumY  +=  Y_val_shifted * cosc1 * cosc2;
-              sumCb += Cb_val_shifted * cosc1 * cosc2;
-              sumCr += Cr_val_shifted * cosc1 * cosc2;
-            }
-          }
-
-          double normU {u == 0 ? 1/sqrt(2) : 1};
-          double normV {v == 0 ? 1/sqrt(2) : 1};
-
-          double invariant_coef = 0.25 * normU * normV / quant_table[pixel_index];
-
-          uint64_t zigzag_index = zigzagIndexTable<2>(pixel_index);
-
-          block_Y_zigzag[zigzag_index]  = round(invariant_coef * sumY);
-          block_Cb_zigzag[zigzag_index] = round(invariant_coef * sumCb);
-          block_Cr_zigzag[zigzag_index] = round(invariant_coef * sumCr);
-        }
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        uint8_t zigzag_index = zigzagIndexTable<2>(pixel_index);
+        block_Y_zigzag[zigzag_index]  = block_Y_quantized[pixel_index];
+        block_Cb_zigzag[zigzag_index] = block_Cb_quantized[pixel_index];
+        block_Cb_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
       }
 
       runLengthDiffEncode<2>(block_Y_zigzag, Y_DC[block_index], prev_Y_DC, Y_AC[block_index], weights_luma_DC, weights_luma_AC);
@@ -240,7 +240,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   iy = fromBigEndian(raw_iy);
 
   uint64_t width = w;
-  uint64_t height = h * ix * iy;
+  uint64_t height = h * iy * ix;
 
   QuantTable<2> quant_table_luma   {};
   QuantTable<2> quant_table_chroma {};
@@ -275,6 +275,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   IBitstream bitstream(input);
 
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
+    cerr << "Block " << long(block_y * blocks_width) << " of " << long(blocks_width * blocks_height) << endl;
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
 
       Block<int16_t, 2> block_Y  {};
@@ -294,14 +295,13 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
           for (uint8_t v = 0; v < 8; v++) {
             double cosc2 = cos(((2 * y + 1) * v * JPEG_PI) / 16);
+            double normV = (v == 0 ? 1/sqrt(2) : 1);
 
             for (uint8_t u = 0; u < 8; u++) {
               double cosc1 = cos(((2 * x + 1) * u * JPEG_PI) / 16);
+              double normU = (u == 0 ? 1/sqrt(2) : 1);
 
               uint8_t trans_pixel_index = v * 8 + u;
-
-              double normU = (u == 0 ? 1/sqrt(2) : 1);
-              double normV = (v == 0 ? 1/sqrt(2) : 1);
 
               sumY += block_Y[trans_pixel_index] * normU * normV * cosc1 * cosc2;
               sumCb += block_Cb[trans_pixel_index] * normU * normV * cosc1 * cosc2;

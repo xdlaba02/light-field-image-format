@@ -25,10 +25,20 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   uint64_t images_x = ix;
   uint64_t images_y = iy;
 
+  cerr << "Width " << long(width) << endl;
+  cerr << "Height " << long(height) << endl;
+  cerr << "Images X " << long(images_x) << endl;
+  cerr << "Images Y " << long(images_x) << endl;
+
   uint64_t blocks_width  = ceil(width/8.0);
   uint64_t blocks_height = ceil(height/8.0);
   uint64_t blocks_images_x = ceil(images_x/8.0);
   uint64_t blocks_images_y = ceil(images_y/8.0);
+
+  cerr << "Blocks w " << long(blocks_width) << endl;
+  cerr << "Blocks h " << long(blocks_height) << endl;
+  cerr << "Blocks ix " << long(blocks_images_x) << endl;
+  cerr << "Blocks iy " << long(blocks_images_y) << endl;
 
   uint64_t blocks_cnt = blocks_width * blocks_height * blocks_images_x * blocks_images_y;
 
@@ -61,6 +71,8 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
         for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
           uint64_t block_index = block_iy*blocks_width*blocks_height*blocks_images_x + block_ix*blocks_width*blocks_height + block_y*blocks_width + block_x;
+
+          cerr << "Blocks index " << long(block_index) << " out of " << long(blocks_cnt) << endl;
 
           Block<uint8_t, 4> block_Y_raw  {};
           Block<uint8_t, 4> block_Cb_raw {};
@@ -140,7 +152,7 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
                         for (uint8_t x = 0; x < 8; x++) {
                           double cosc1 = cos(((2 * x + 1) * u * JPEG_PI ) / 16);
 
-                          uint8_t trans_pixel_index = iy*8*8*8 + ix*8*8 + y*8 + x;
+                          uint16_t trans_pixel_index = iy*8*8*8 + ix*8*8 + y*8 + x;
 
                           int8_t Y_val_shifted  = block_Y_raw[trans_pixel_index] - 128;
                           int8_t Cb_val_shifted = block_Cb_raw[trans_pixel_index] - 128;
@@ -340,7 +352,7 @@ bool JPEG4DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
                         for (uint8_t u = 0; u < 8; u++) {
                           double cosc1 = cos(((2 * x + 1) * u * JPEG_PI) / 16);
 
-                          uint8_t trans_pixel_index = iv*8*8*8 + iu*8*8 + v*8 + u;
+                          uint16_t trans_pixel_index = iv*8*8*8 + iu*8*8 + v*8 + u;
 
                           double normU = (u == 0 ? 1/sqrt(2) : 1);
                           double normV = (v == 0 ? 1/sqrt(2) : 1);

@@ -25,9 +25,17 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   uint64_t height = h;
   uint64_t depth = ix * iy;
 
+  cerr << "Width " << long(width) << endl;
+  cerr << "Height " << long(height) << endl;
+  cerr << "Depth " << long(depth) << endl;
+
   uint64_t blocks_width  = ceil(width/8.0);
   uint64_t blocks_height = ceil(height/8.0);
-  uint64_t blocks_depth = ceil(height/8.0);
+  uint64_t blocks_depth = ceil(depth/8.0);
+
+  cerr << "Blocks w " << long(blocks_width) << endl;
+  cerr << "Blocks h " << long(blocks_height) << endl;
+  cerr << "Blocks d " << long(blocks_depth) << endl;
 
   uint64_t blocks_cnt = blocks_width * blocks_height * blocks_depth;
 
@@ -54,8 +62,9 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   * Do prislusnych map pocita county jednotlivych klicu,
     ktere se nasledne vyuziji pri huffmanove kodovani.
   \*******************************************************/
- 
+
   for (uint64_t block_z = 0; block_z < blocks_depth; block_z++) {
+    cerr << "Blocks index " << long(block_z*blocks_width*blocks_height) << " out of " << long(blocks_cnt) << endl;
     for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
       for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
         uint64_t block_index = block_z*blocks_width*blocks_height + block_y*blocks_width + block_x;
@@ -127,7 +136,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
                   for (uint8_t x = 0; x < 8; x++) {
                     double cosc1 = cos(((2 * x + 1) * u * JPEG_PI ) / 16);
 
-                    uint8_t trans_pixel_index = z*8*8 + y*8 + x;
+                    uint16_t trans_pixel_index = z*8*8 + y*8 + x;
 
                     int8_t Y_val_shifted  = block_Y_raw[trans_pixel_index] - 128;
                     int8_t Cb_val_shifted = block_Cb_raw[trans_pixel_index] - 128;
@@ -288,6 +297,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   IBitstream bitstream(input);
 
   for (uint64_t block_z = 0; block_z < blocks_depth; block_z++) {
+    cerr << "Blocks index " << long(block_z*blocks_width*blocks_height) << " out of " << long(blocks_width*blocks_height*blocks_depth) << endl;
     for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
       for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
 
@@ -316,8 +326,8 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
                   for (uint8_t u = 0; u < 8; u++) {
                     double cosc1 = cos(((2 * x + 1) * u * JPEG_PI) / 16);
 
-                    uint8_t trans_pixel_index = w*8*8 + v*8 + u;
 
+                    uint16_t trans_pixel_index = w*8*8 + v*8 + u;
                     double normU = (u == 0 ? 1/sqrt(2) : 1);
                     double normV = (v == 0 ? 1/sqrt(2) : 1);
                     double normW = (w == 0 ? 1/sqrt(2) : 1);

@@ -47,7 +47,7 @@ void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &symbo
     index++;
   }
 
-  for (uint8_t i = 0; i < block.size(); i++) {
+  for (uint16_t i = 0; i < block.size(); i++) {
     uint16_t zigzag_index = zigzagIndexTable<D>(i);
     int16_t value = zigzag_block[zigzag_index];
     block[i] = value * quant_table[i];
