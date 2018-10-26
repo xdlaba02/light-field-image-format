@@ -20,7 +20,33 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   * Scale kvantizacni tabulky.
   \*******************************************************/
   QuantTable<2> quant_table {};
-  scaleQuantTable<2>(quality, quant_table);
+
+  cerr << "CONSTRUCTING QUANT TABLE" << endl;
+
+  // teoreticky by se dala generovat optimalni kvantizacni tabulka z jiz vygenerovanych koeficientu
+  constructQuantTable<2>(quality, quant_table);
+
+  for (uint8_t y = 0; y < 8; y++) {
+    for (uint8_t x = 0; x < 8; x++) {
+      cerr << long(quant_table[y*8+x]) << " ";
+    }
+    cerr << endl;
+  }
+  cerr << endl;
+
+  ZigzagTable<2> zigzag_table {};
+
+  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
+
+  constructZigzagTable<2>(quant_table, zigzag_table);
+
+  for (uint8_t y = 0; y < 8; y++) {
+    for (uint8_t x = 0; x < 8; x++) {
+      cerr << long(zigzag_table[y*8+x]) << " ";
+    }
+    cerr << endl;
+  }
+  cerr << endl;
 
   uint64_t width = w;
   uint64_t height = h * iy * ix;
@@ -42,11 +68,6 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   vector<vector<RunLengthPair>> Cb_AC(blocks_cnt);
   vector<vector<RunLengthPair>> Cr_AC(blocks_cnt);
 
-  map<uint8_t, uint64_t> weights_luma_AC   {};
-  map<uint8_t, uint64_t> weights_luma_DC   {};
-  map<uint8_t, uint64_t> weights_chroma_AC {};
-  map<uint8_t, uint64_t> weights_chroma_DC {};
-
   /*******************************************************\
   * Vsechny bloky prevede AC koeficienty do podoby
     RunLength dvojic, DC koeficienty ulozi jako diference.
@@ -54,8 +75,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     ktere se nasledne vyuziji pri huffmanove kodovani.
   \*******************************************************/
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
-    cerr << "Block " << long(block_y * blocks_width) << " of " << long(blocks_cnt) << endl;
-
+    cerr << "BLOCK " << long(block_y * blocks_width) << " OUT OF " << long(blocks_cnt) << endl;
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
       uint64_t block_index = block_y * blocks_width + block_x;
 
@@ -65,7 +85,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
-          uint8_t output_pixel_index = pixel_y*8 + pixel_x;
+          uint8_t pixel_index = pixel_y*8 + pixel_x;
 
           uint64_t image_x = block_x * 8 + pixel_x;
           uint64_t image_y = block_y * 8 + pixel_y;
@@ -84,9 +104,9 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
           uint64_t input_pixel_index  = image_y*width + image_x;
 
-          block_R[output_pixel_index] = rgb_data[3 * input_pixel_index + 0];
-          block_G[output_pixel_index] = rgb_data[3 * input_pixel_index + 1];
-          block_B[output_pixel_index] = rgb_data[3 * input_pixel_index + 2];
+          block_R[pixel_index] = rgb_data[3 * input_pixel_index + 0];
+          block_G[pixel_index] = rgb_data[3 * input_pixel_index + 1];
+          block_B[pixel_index] = rgb_data[3 * input_pixel_index + 2];
         }
       }
 
@@ -121,9 +141,13 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       Block<double, 2> block_Cb_transformed {};
       Block<double, 2> block_Cr_transformed {};
 
-      dct2(block_Y_shifted, block_Y_transformed);
-      dct2(block_Cb_shifted, block_Cb_transformed);
-      dct2(block_Cr_shifted, block_Cr_transformed);
+      auto fdct = [](Block<int8_t, 2> &block_shifted, Block<double, 2> &block_transformed){
+        fdct2([&](uint8_t x, uint8_t y){ return block_shifted[y*8 + x]; }, [&](uint8_t x, uint8_t y) -> double & { return block_transformed[y*8 + x]; });
+      };
+
+      fdct(block_Y_shifted, block_Y_transformed);
+      fdct(block_Cb_shifted, block_Cb_transformed);
+      fdct(block_Cr_shifted, block_Cr_transformed);
 
       Block<int16_t, 2> block_Y_quantized  {};
       Block<int16_t, 2> block_Cb_quantized {};
@@ -140,17 +164,30 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       Block<int16_t, 2> block_Cr_zigzag {};
 
       for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
-        uint8_t zigzag_index = zigzagIndexTable<2>(pixel_index);
+        uint8_t zigzag_index = zigzag_table[pixel_index];
         block_Y_zigzag[zigzag_index]  = block_Y_quantized[pixel_index];
         block_Cb_zigzag[zigzag_index] = block_Cb_quantized[pixel_index];
         block_Cb_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
       }
 
-      runLengthDiffEncode<2>(block_Y_zigzag, Y_DC[block_index], prev_Y_DC, Y_AC[block_index], weights_luma_DC, weights_luma_AC);
-      runLengthDiffEncode<2>(block_Cb_zigzag, Cb_DC[block_index], prev_Cb_DC, Cb_AC[block_index], weights_chroma_DC, weights_chroma_AC);
-      runLengthDiffEncode<2>(block_Cr_zigzag, Cr_DC[block_index], prev_Cr_DC, Cr_AC[block_index], weights_chroma_DC, weights_chroma_AC);
+      runLengthDiffEncode<2>(block_Y_zigzag,  Y_DC[block_index],  Y_AC[block_index],  prev_Y_DC);
+      runLengthDiffEncode<2>(block_Cb_zigzag, Cb_DC[block_index], Cb_AC[block_index], prev_Cb_DC);
+      runLengthDiffEncode<2>(block_Cr_zigzag, Cr_DC[block_index], Cr_AC[block_index], prev_Cr_DC);
     }
   }
+
+  map<uint8_t, uint64_t> weights_luma_DC   {};
+  map<uint8_t, uint64_t> weights_chroma_DC {};
+  map<uint8_t, uint64_t> weights_luma_AC   {};
+  map<uint8_t, uint64_t> weights_chroma_AC {};
+
+  huffmanGetWeightsDC(Y_DC,  weights_luma_DC);
+  huffmanGetWeightsDC(Cb_DC, weights_chroma_DC);
+  huffmanGetWeightsDC(Cr_DC, weights_chroma_DC);
+
+  huffmanGetWeightsAC(Y_AC,  weights_luma_AC);
+  huffmanGetWeightsAC(Cb_AC, weights_chroma_AC);
+  huffmanGetWeightsAC(Cr_AC, weights_chroma_AC);
 
   vector<pair<uint64_t, uint8_t>> codelengths_luma_DC   = huffmanGetCodelengths(weights_luma_DC);
   vector<pair<uint64_t, uint8_t>> codelengths_luma_AC   = huffmanGetCodelengths(weights_luma_AC);
@@ -180,7 +217,6 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   output.write(reinterpret_cast<char *>(&raw_iy), sizeof(uint64_t));
 
   output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
-  output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
   writeHuffmanTable(codelengths_luma_DC, output);
   writeHuffmanTable(codelengths_luma_AC, output);
@@ -190,26 +226,19 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   OBitstream bitstream(output);
 
   for (uint64_t i = 0; i < blocks_cnt; i++) {
-    encodeOnePair({0, Y_DC[i]}, huffcodes_luma_DC, bitstream);
-    for (auto &pair: Y_AC[i]) {
-      encodeOnePair(pair, huffcodes_luma_AC, bitstream);
-    }
-
-    encodeOnePair({0, Cb_DC[i]}, huffcodes_chroma_DC, bitstream);
-    for (auto &pair: Cb_AC[i]) {
-      encodeOnePair(pair, huffcodes_chroma_AC, bitstream);
-    }
-
-    encodeOnePair({0, Cr_DC[i]}, huffcodes_chroma_DC, bitstream);
-    for (auto &pair: Cr_AC[i]) {
-      encodeOnePair(pair, huffcodes_chroma_AC, bitstream);
-    }
+    writeOneBlock(Y_DC[i],  Y_AC[i],  huffcodes_luma_DC, huffcodes_luma_AC, bitstream);
+    writeOneBlock(Cb_DC[i], Cb_AC[i], huffcodes_chroma_DC, huffcodes_chroma_AC, bitstream);
+    writeOneBlock(Cr_DC[i], Cr_AC[i], huffcodes_chroma_DC, huffcodes_chroma_AC, bitstream);
   }
 
   bitstream.flush();
-
   return true;
 }
+
+
+
+
+
 
 bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t &ix, uint64_t &iy, vector<uint8_t> &rgb_data) {
   ifstream input(input_filename);
@@ -217,10 +246,13 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
     return false;
   }
 
+  cerr << "READING MAGIC NUMBER" << endl;
+
   char magic_number[8] {};
 
   input.read(magic_number, 8);
   if (strncmp(magic_number, "JPEG-2D\n", 8) != 0) {
+    cerr << "MAGIC NUMBER NOT OK" << endl;
     return false;
   }
 
@@ -228,6 +260,8 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   uint64_t raw_h  {};
   uint64_t raw_ix {};
   uint64_t raw_iy {};
+
+  cerr << "READING IMAGE DIMENSIONS" << endl;
 
   input.read(reinterpret_cast<char *>(&raw_w), sizeof(uint64_t));
   input.read(reinterpret_cast<char *>(&raw_h), sizeof(uint64_t));
@@ -242,11 +276,25 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   uint64_t width = w;
   uint64_t height = h * iy * ix;
 
-  QuantTable<2> quant_table_luma   {};
-  QuantTable<2> quant_table_chroma {};
+  QuantTable<2> quant_table   {};
 
-  input.read(reinterpret_cast<char *>(quant_table_luma.data()), quant_table_luma.size());
-  input.read(reinterpret_cast<char *>(quant_table_chroma.data()), quant_table_luma.size());
+  cerr << "READING QUANT TABLES" << endl;
+
+  input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
+
+  ZigzagTable<2> zigzag_table {};
+
+  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
+
+  constructZigzagTable<2>(quant_table, zigzag_table);
+
+  for (uint8_t y = 0; y < 8; y++) {
+    for (uint8_t x = 0; x < 8; x++) {
+      cerr << long(zigzag_table[y*8+x]) << " ";
+    }
+    cerr << endl;
+  }
+  cerr << endl;
 
   vector<uint8_t> huff_counts_luma_DC   {};
   vector<uint8_t> huff_counts_luma_AC   {};
@@ -275,59 +323,105 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   IBitstream bitstream(input);
 
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
-    cerr << "Block " << long(block_y * blocks_width) << " of " << long(blocks_width * blocks_height) << endl;
+    cerr << "BLOCK " << long(block_y * blocks_width) << " OUT OF " << long(blocks_width * blocks_height) << endl;
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
 
-      Block<int16_t, 2> block_Y  {};
-      Block<int16_t, 2> block_Cb {};
-      Block<int16_t, 2> block_Cr {};
+      int16_t Y_DC  {};
+      int16_t Cb_DC {};
+      int16_t Cr_DC {};
 
-      readOneBlock<2>(huff_counts_luma_DC, huff_symbols_luma_DC, huff_counts_luma_AC, huff_symbols_luma_AC, quant_table_luma, prev_Y_DC, block_Y, bitstream);
-      readOneBlock<2>(huff_counts_chroma_DC, huff_symbols_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_AC, quant_table_chroma, prev_Cb_DC, block_Cb, bitstream);
-      readOneBlock<2>(huff_counts_chroma_DC, huff_symbols_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_AC, quant_table_chroma, prev_Cr_DC, block_Cr, bitstream);
+      vector<RunLengthPair>  Y_AC {};
+      vector<RunLengthPair> Cb_AC {};
+      vector<RunLengthPair> Cr_AC {};
 
-      for (uint8_t y = 0; y < 8; y++) {
-        for (uint8_t x = 0; x < 8; x++) {
+      readOneBlock(huff_counts_luma_DC,   huff_counts_luma_AC,   huff_symbols_luma_DC,   huff_symbols_luma_AC,   Y_DC,  Y_AC,  bitstream);
+      readOneBlock(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, Cb_DC, Cb_AC, bitstream);
+      readOneBlock(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, Cr_DC, Cr_AC, bitstream);
 
-          double sumY  = 0;
-          double sumCb = 0;
-          double sumCr = 0;
+      Block<int16_t, 2> block_Y_raw  {};
+      Block<int16_t, 2> block_Cb_raw {};
+      Block<int16_t, 2> block_Cr_raw {};
 
-          for (uint8_t v = 0; v < 8; v++) {
-            double cosc2 = cos(((2 * y + 1) * v * JPEG_PI) / 16);
-            double normV = (v == 0 ? 1/sqrt(2) : 1);
+      runLengthDiffDecode<2>(Y_DC,  Y_AC,  prev_Y_DC,  block_Y_raw);
+      runLengthDiffDecode<2>(Cb_DC, Cb_AC, prev_Cb_DC, block_Cb_raw);
+      runLengthDiffDecode<2>(Cr_DC, Cr_AC, prev_Cr_DC, block_Cr_raw);
 
-            for (uint8_t u = 0; u < 8; u++) {
-              double cosc1 = cos(((2 * x + 1) * u * JPEG_PI) / 16);
-              double normU = (u == 0 ? 1/sqrt(2) : 1);
+      Block<int16_t, 2> block_Y_dezigzaged  {};
+      Block<int16_t, 2> block_Cb_dezigzaged {};
+      Block<int16_t, 2> block_Cr_dezigzaged {};
 
-              uint8_t trans_pixel_index = v * 8 + u;
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        uint16_t zigzag_index = zigzag_table[pixel_index];
+        block_Y_dezigzaged[pixel_index]  = block_Y_raw[zigzag_index];
+        block_Cb_dezigzaged[pixel_index] = block_Cb_raw[zigzag_index];
+        block_Cr_dezigzaged[pixel_index] = block_Cr_raw[zigzag_index];
+      }
 
-              sumY += block_Y[trans_pixel_index] * normU * normV * cosc1 * cosc2;
-              sumCb += block_Cb[trans_pixel_index] * normU * normV * cosc1 * cosc2;
-              sumCr += block_Cr[trans_pixel_index] * normU * normV * cosc1 * cosc2;
-            }
-          }
+      Block<double, 2> block_Y_dequantized  {};
+      Block<double, 2> block_Cb_dequantized {};
+      Block<double, 2> block_Cr_dequantized {};
 
-          uint8_t Y  = clamp((0.25 * sumY) + 128, 0.0, 255.0);
-          uint8_t Cb = clamp((0.25 * sumCb) + 128, 0.0, 255.0);
-          uint8_t Cr = clamp((0.25 * sumCr) + 128, 0.0, 255.0);
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        block_Y_dequantized[pixel_index]  = block_Y_dezigzaged[pixel_index] * 0.25 * quant_table[pixel_index];
+        block_Cb_dequantized[pixel_index] = block_Cb_dezigzaged[pixel_index] * 0.25 * quant_table[pixel_index];
+        block_Cr_dequantized[pixel_index] = block_Cr_dezigzaged[pixel_index] * 0.25 * quant_table[pixel_index];
+      }
 
-          uint64_t real_pixel_x = block_x*8 + x;
+      Block<double, 2> block_Y_detransformed  {};
+      Block<double, 2> block_Cb_detransformed {};
+      Block<double, 2> block_Cr_detransformed {};
+
+      auto idct = [](Block<double, 2> &block_dequantized, Block<double, 2> &block_detransformed){
+        idct2([&](uint8_t x, uint8_t y){ return block_dequantized[y*8 + x]; }, [&](uint8_t x, uint8_t y) -> double & { return block_detransformed[y*8 + x]; });
+      };
+
+      idct(block_Y_dequantized, block_Y_detransformed);
+      idct(block_Cb_dequantized, block_Cb_detransformed);
+      idct(block_Cr_dequantized, block_Cr_detransformed);
+
+      Block<double, 2> block_Y_deshifted  {};
+      Block<double, 2> block_Cb_deshifted {};
+      Block<double, 2> block_Cr_deshifted {};
+
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        block_Y_deshifted[pixel_index]  = block_Y_detransformed[pixel_index]  + 128;
+        block_Cb_deshifted[pixel_index] = block_Cb_detransformed[pixel_index] + 128;
+        block_Cr_deshifted[pixel_index] = block_Cr_detransformed[pixel_index] + 128;
+      }
+
+      Block<uint8_t, 2> block_R {};
+      Block<uint8_t, 2> block_G {};
+      Block<uint8_t, 2> block_B {};
+
+      /*******************************************************\
+      * Konvertuje RGB na YCbCr
+      \*******************************************************/
+      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+        double Y  = block_Y_deshifted[pixel_index];
+        double Cb = block_Cb_deshifted[pixel_index];
+        double Cr = block_Cr_deshifted[pixel_index];
+
+        block_R[pixel_index] = clamp(Y + 1.402                            * (Cr - 128), 0.0, 255.0);
+        block_G[pixel_index] = clamp(Y - 0.344136 * (Cb - 128) - 0.714136 * (Cr - 128), 0.0, 255.0);
+        block_B[pixel_index] = clamp(Y + 1.772    * (Cb - 128)                        , 0.0, 255.0);
+      }
+
+      for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
+        for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
+          uint64_t real_pixel_x = block_x*8 + pixel_x;
           if (real_pixel_x >= width) {
             continue;
           }
 
-          uint64_t real_pixel_y = block_y*8 + y;
+          uint64_t real_pixel_y = block_y*8 + pixel_y;
           if (real_pixel_y >= height) {
             continue;
           }
 
           uint64_t real_pixel_index = real_pixel_y * width + real_pixel_x;
-
-          rgb_data[3 * real_pixel_index + 0] = clamp(Y + 1.402                            * (Cr - 128), 0.0, 255.0);
-          rgb_data[3 * real_pixel_index + 1] = clamp(Y - 0.344136 * (Cb - 128) - 0.714136 * (Cr - 128), 0.0, 255.0);
-          rgb_data[3 * real_pixel_index + 2] = clamp(Y + 1.772    * (Cb - 128)                        , 0.0, 255.0);
+          rgb_data[3 * real_pixel_index + 0] = block_R[pixel_y*8 + pixel_x];
+          rgb_data[3 * real_pixel_index + 1] = block_G[pixel_y*8 + pixel_x];
+          rgb_data[3 * real_pixel_index + 2] = block_B[pixel_y*8 + pixel_x];
         }
       }
     }

@@ -1,3 +1,5 @@
+#if FALSE
+
 /*******************************************************\
 * SOUBOR: jpeg3d.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
@@ -372,3 +374,5 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   return true;
 }
+
+#endif

@@ -10,9 +10,9 @@
 #include "jpeg.h"
 #include "bitstream.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -24,33 +24,19 @@ uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8
 
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream);
 
+void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &counts_AC, const vector<uint8_t> &symbols_DC, const vector<uint8_t> &symbols_AC, int16_t &DC, vector<RunLengthPair> &AC, IBitstream &bitstream);
+
 template<uint8_t D>
-void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &symbols_DC, const vector<uint8_t> &counts_AC, const vector<uint8_t> &symbols_AC, const QuantTable<D> &quant_table, int16_t &prev_DC, Block<int16_t, D> &block, IBitstream &bitstream) {
-  uint16_t index = 0;
+void runLengthDiffDecode(const int16_t DC, const vector<RunLengthPair> &AC, int16_t &prev_DC, Block<int16_t, D> &block) {
+  block[0] = DC + prev_DC;
+  prev_DC = block[0];
 
-  Block<int16_t, D> zigzag_block {};
+  uint16_t index = 1;
 
-  int16_t DC = decodeOnePair(counts_DC, symbols_DC, bitstream).amplitude;
-  zigzag_block[0] = DC + prev_DC;
-  prev_DC = zigzag_block[0];
-  index++;
-
-  while (true) {
-    RunLengthPair pair = decodeOnePair(counts_AC, symbols_AC, bitstream);
-
-    if ((pair.zeroes == 0) && (pair.amplitude == 0)) {
-      break;
-    }
-
-    index += pair.zeroes;
-    zigzag_block[index] = pair.amplitude;
+  for (uint64_t i = 0; i < AC.size() - 1; i++) {
+    index += AC[i].zeroes;
+    block[index] = AC[i].amplitude;
     index++;
-  }
-
-  for (uint16_t i = 0; i < block.size(); i++) {
-    uint16_t zigzag_index = zigzagIndexTable<D>(i);
-    int16_t value = zigzag_block[zigzag_index];
-    block[i] = value * quant_table[i];
   }
 }
 

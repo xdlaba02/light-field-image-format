@@ -61,3 +61,14 @@ int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
 
   return amplitude;
 }
+
+void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &counts_AC, const vector<uint8_t> &symbols_DC, const vector<uint8_t> &symbols_AC, int16_t &DC, vector<RunLengthPair> &AC, IBitstream &bitstream) {
+  DC = decodeOnePair(counts_DC, symbols_DC, bitstream).amplitude;
+
+  RunLengthPair pair {};
+
+  do {
+    pair = decodeOnePair(counts_AC, symbols_AC, bitstream);
+    AC.push_back(pair);
+  } while((pair.zeroes != 0) || (pair.amplitude != 0));
+}

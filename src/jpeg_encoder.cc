@@ -13,6 +13,20 @@
 
 using namespace std;
 
+void huffmanGetWeightsDC(const vector<int16_t> &DC, map<uint8_t, uint64_t> &weights_DC) {
+  for (int16_t amp: DC) {
+    weights_DC[huffmanSymbol({0, amp})]++;
+  }
+}
+
+void huffmanGetWeightsAC(const vector<vector<RunLengthPair>> &AC, map<uint8_t, uint64_t> &weights_AC) {
+  for (auto &vec: AC) {
+    for (auto &pair: vec) {
+      weights_AC[huffmanSymbol({pair.zeroes, pair.amplitude})]++;
+    }
+  }
+}
+
 vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_t> &weights) {
   vector<pair<uint64_t, uint8_t>> A {};
 
@@ -145,6 +159,13 @@ void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &tabl
 
   for (int8_t i = huff_class - 1; i >= 0; i--) {
     stream.writeBit((amplitude & (1 << i)) >> i);
+  }
+}
+
+void writeOneBlock(const int16_t DC, const vector<RunLengthPair> &AC, const map<uint8_t, Codeword> &huffcodes_DC, const map<uint8_t, Codeword> &huffcodes_AC, OBitstream &bitstream) {
+  encodeOnePair({0, DC}, huffcodes_DC, bitstream);
+  for (auto &pair: AC) {
+    encodeOnePair(pair, huffcodes_AC, bitstream);
   }
 }
 

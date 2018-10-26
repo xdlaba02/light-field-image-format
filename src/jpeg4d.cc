@@ -1,3 +1,5 @@
+#if FALSE
+
 /*******************************************************\
 * SOUBOR: jpeg4d.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
@@ -409,3 +411,5 @@ bool JPEG4DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   return true;
 }
+
+#endif
