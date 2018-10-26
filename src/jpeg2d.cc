@@ -11,34 +11,39 @@
 #include "jpeg_decoder.h"
 #include "dct.h"
 
-#include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <ctime>
+
+#include <iostream>
+#include <iomanip>
+
+#include <algorithm>
 
 bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, const uint64_t w, const uint64_t h, const uint64_t ix, const uint64_t iy, const uint8_t quality) {
   clock_t clock_start {};
+  cerr << fixed << setprecision(3);
+
   /*******************************************************\
   * Scale kvantizacni tabulky.
   \*******************************************************/
   QuantTable<2> quant_table {};
 
-  cerr << "CONSTRUCTING QUANTIZATION TABLE: ";
+  cerr << "CONSTRUCTING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
   // teoreticky by se dala generovat optimalni kvantizacni tabulka z jiz vygenerovanych koeficientu
   constructQuantTable<2>(quality, quant_table);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   ZigzagTable<2> zigzag_table {};
 
-  cerr << "CONSTRUCTING ZIGZAG TABLE: ";
+  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
   clock_start = clock();
 
   constructZigzagTable<2>(quant_table, zigzag_table);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t width = w;
   uint64_t height = h * iy * ix;
@@ -60,7 +65,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   vector<vector<RunLengthPair>> Cb_AC(blocks_cnt);
   vector<vector<RunLengthPair>> Cr_AC(blocks_cnt);
 
-  cerr << "TRANSFORMING AND RUNLENGHT ENCODING BLOCKS. THIS MAY TAKE A WHILE: ";
+  cerr << "TRANSFORMING AND RUNLENGHT ENCODING BLOCKS" << endl;
   clock_start = clock();
 
   /*******************************************************\
@@ -70,6 +75,9 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     ktere se nasledne vyuziji pri huffmanove kodovani.
   \*******************************************************/
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
+    if (!(block_y % (iy*ix))) {
+      cerr << "#";
+    }
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
       uint64_t block_index = block_y * blocks_width + block_x;
 
@@ -79,7 +87,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
-          uint8_t pixel_index = pixel_y*8 + pixel_x;
+          uint16_t pixel_index = pixel_y*8 + pixel_x;
 
           uint64_t image_x = block_x * 8 + pixel_x;
           uint64_t image_y = block_y * 8 + pixel_y;
@@ -111,7 +119,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       /*******************************************************\
       * Konvertuje RGB na YCbCr
       \*******************************************************/
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
         uint8_t R = block_R[pixel_index];
         uint8_t G = block_G[pixel_index];
         uint8_t B = block_B[pixel_index];
@@ -125,7 +133,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       Block<int8_t, 2> block_Cb_shifted {};
       Block<int8_t, 2> block_Cr_shifted {};
 
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
         block_Y_shifted[pixel_index] = block_Y[pixel_index] - 128;
         block_Cb_shifted[pixel_index] = block_Cb[pixel_index] - 128;
         block_Cr_shifted[pixel_index] = block_Cr[pixel_index] - 128;
@@ -147,8 +155,8 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       Block<int16_t, 2> block_Cb_quantized {};
       Block<int16_t, 2> block_Cr_quantized {};
 
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
-        block_Y_quantized[pixel_index]  = block_Y_transformed[pixel_index] * 0.25 / quant_table[pixel_index];
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
+        block_Y_quantized[pixel_index]  = block_Y_transformed[pixel_index]  * 0.25 / quant_table[pixel_index];
         block_Cb_quantized[pixel_index] = block_Cb_transformed[pixel_index] * 0.25 / quant_table[pixel_index];
         block_Cr_quantized[pixel_index] = block_Cr_transformed[pixel_index] * 0.25 / quant_table[pixel_index];
       }
@@ -157,8 +165,8 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       Block<int16_t, 2> block_Cb_zigzag {};
       Block<int16_t, 2> block_Cr_zigzag {};
 
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
-        uint8_t zigzag_index = zigzag_table[pixel_index];
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
+        uint16_t zigzag_index = zigzag_table[pixel_index];
         block_Y_zigzag[zigzag_index]  = block_Y_quantized[pixel_index];
         block_Cb_zigzag[zigzag_index] = block_Cb_quantized[pixel_index];
         block_Cb_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
@@ -169,15 +177,16 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       runLengthDiffEncode<2>(block_Cr_zigzag, Cr_DC[block_index], Cr_AC[block_index], prev_Cr_DC);
     }
   }
+  cerr << " ";
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   map<uint8_t, uint64_t> weights_luma_DC   {};
   map<uint8_t, uint64_t> weights_chroma_DC {};
   map<uint8_t, uint64_t> weights_luma_AC   {};
   map<uint8_t, uint64_t> weights_chroma_AC {};
 
-  cerr << "COUNTING RUNLENGTH PAIR WEIGHTS: ";
+  cerr << "COUNTING RUNLENGTH PAIR WEIGHTS" << endl;
   clock_start = clock();
 
   huffmanGetWeightsDC(Y_DC,  weights_luma_DC);
@@ -188,9 +197,9 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   huffmanGetWeightsAC(Cb_AC, weights_chroma_AC);
   huffmanGetWeightsAC(Cr_AC, weights_chroma_AC);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "GENERATING HUFFMAN CODE LENGTHS: ";
+  cerr << "GENERATING HUFFMAN CODE LENGTHS" << endl;
   clock_start = clock();
 
   vector<pair<uint64_t, uint8_t>> codelengths_luma_DC   = huffmanGetCodelengths(weights_luma_DC);
@@ -198,9 +207,9 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   vector<pair<uint64_t, uint8_t>> codelengths_chroma_DC = huffmanGetCodelengths(weights_chroma_DC);
   vector<pair<uint64_t, uint8_t>> codelengths_chroma_AC = huffmanGetCodelengths(weights_chroma_AC);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "GENERATING HUFFMAN CODEWORDS: ";
+  cerr << "GENERATING HUFFMAN CODEWORDS" << endl;
   clock_start = clock();
 
   map<uint8_t, Codeword> huffcodes_luma_DC   = huffmanGenerateCodewords(codelengths_luma_DC);
@@ -208,9 +217,9 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   map<uint8_t, Codeword> huffcodes_chroma_DC = huffmanGenerateCodewords(codelengths_chroma_DC);
   map<uint8_t, Codeword> huffcodes_chroma_AC = huffmanGenerateCodewords(codelengths_chroma_AC);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "OPENING OUTPUT FILE TO WRITE: ";
+  cerr << "OPENING OUTPUT FILE TO WRITE" << endl;
   clock_start = clock();
 
   ofstream output(output_filename);
@@ -218,21 +227,21 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     return false;
   }
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "WRITING MAGIC NUMBER: ";
+  cerr << "WRITING MAGIC NUMBER" << endl;
   clock_start = clock();
 
   output.write("JPEG-2D\n", 8);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t raw_w = toBigEndian(w);
   uint64_t raw_h = toBigEndian(h);
   uint64_t raw_ix = toBigEndian(ix);
   uint64_t raw_iy = toBigEndian(iy);
 
-  cerr << "WRITING IMAGE DIMENSIONS: ";
+  cerr << "WRITING IMAGE DIMENSIONS" << endl;
   clock_start = clock();
 
   output.write(reinterpret_cast<char *>(&raw_w), sizeof(uint64_t));
@@ -240,16 +249,16 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   output.write(reinterpret_cast<char *>(&raw_ix), sizeof(uint64_t));
   output.write(reinterpret_cast<char *>(&raw_iy), sizeof(uint64_t));
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "WRITING QUANTIZATION TABLE: ";
+  cerr << "WRITING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
   output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "WRITING HUFFMAN TABLES: ";
+  cerr << "WRITING HUFFMAN TABLES" << endl;
   clock_start = clock();
 
   writeHuffmanTable(codelengths_luma_DC, output);
@@ -257,11 +266,11 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   writeHuffmanTable(codelengths_chroma_DC, output);
   writeHuffmanTable(codelengths_chroma_AC, output);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   OBitstream bitstream(output);
 
-  cerr << "HUFFMAN ENCODING AND WRITING BLOCKS: ";
+  cerr << "HUFFMAN ENCODING AND WRITING BLOCKS" << endl;
   clock_start = clock();
 
   for (uint64_t i = 0; i < blocks_cnt; i++) {
@@ -270,14 +279,14 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     writeOneBlock(Cr_DC[i], Cr_AC[i], huffcodes_chroma_DC, huffcodes_chroma_AC, bitstream);
   }
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  cerr << "FLUSHING OUTPUT: ";
+  cerr << "FLUSHING OUTPUT" << endl;
   clock_start = clock();
 
   bitstream.flush();
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   return true;
 }
 
@@ -288,12 +297,19 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
 bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t &ix, uint64_t &iy, vector<uint8_t> &rgb_data) {
   clock_t clock_start {};
+  cerr << fixed << setprecision(3);
+
+  cerr << "OPENING INPUT FILE" << endl;
+  clock_start = clock();
+
   ifstream input(input_filename);
   if (input.fail()) {
     return false;
   }
 
-  cerr << "READING MAGIC NUMBER: ";
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+
+  cerr << "READING MAGIC NUMBER" << endl;
   clock_start = clock();
 
   char magic_number[8] {};
@@ -303,14 +319,14 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
     return false;
   }
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t raw_w  {};
   uint64_t raw_h  {};
   uint64_t raw_ix {};
   uint64_t raw_iy {};
 
-  cerr << "READING IMAGE DIMENSIONS: ";
+  cerr << "READING IMAGE DIMENSIONS" << endl;
   clock_start = clock();
 
   input.read(reinterpret_cast<char *>(&raw_w), sizeof(uint64_t));
@@ -323,28 +339,28 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   ix = fromBigEndian(raw_ix);
   iy = fromBigEndian(raw_iy);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t width = w;
   uint64_t height = h * iy * ix;
 
   QuantTable<2> quant_table   {};
 
-  cerr << "READING QUANTIZATION TABLES: ";
+  cerr << "READING QUANTIZATION TABLES" << endl;
   clock_start = clock();
 
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   ZigzagTable<2> zigzag_table {};
 
-  cerr << "CONSTRUCTING ZIGZAG TABLE: ";
+  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
   clock_start = clock();
 
   constructZigzagTable<2>(quant_table, zigzag_table);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   vector<uint8_t> huff_counts_luma_DC   {};
   vector<uint8_t> huff_counts_luma_AC   {};
@@ -356,7 +372,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   vector<uint8_t> huff_symbols_chroma_DC {};
   vector<uint8_t> huff_symbols_chroma_AC {};
 
-  cerr << "READING HUFFMAN TABLES: ";
+  cerr << "READING HUFFMAN TABLES" << endl;
   clock_start = clock();
 
   readHuffmanTable(huff_counts_luma_DC, huff_symbols_luma_DC, input);
@@ -364,7 +380,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
   readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t blocks_width  = ceil(width/8.0);
   uint64_t blocks_height = ceil(height/8.0);
@@ -373,19 +389,22 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   int16_t prev_Cb_DC = 0;
   int16_t prev_Cr_DC = 0;
 
-  cerr << "RESIZING RGB BUFFER: ";
+  cerr << "RESIZING RGB BUFFER" << endl;
   clock_start = clock();
 
   rgb_data.resize(width * height * 3);
 
-  cerr << clock() - clock_start << endl;
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   IBitstream bitstream(input);
 
-  cerr << "DECODING BLOCKS. THIS MAY TAKE A WHILE: ";
+  cerr << "DECODING BLOCKS" << endl;
   clock_start = clock();
 
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
+    if (!(block_y % (iy*ix))) {
+      cerr << "#";
+    }
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
 
       int16_t Y_DC  {};
@@ -412,7 +431,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
       Block<int16_t, 2> block_Cb_dezigzaged {};
       Block<int16_t, 2> block_Cr_dezigzaged {};
 
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
         uint16_t zigzag_index = zigzag_table[pixel_index];
         block_Y_dezigzaged[pixel_index]  = block_Y_raw[zigzag_index];
         block_Cb_dezigzaged[pixel_index] = block_Cb_raw[zigzag_index];
@@ -423,8 +442,8 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
       Block<double, 2> block_Cb_dequantized {};
       Block<double, 2> block_Cr_dequantized {};
 
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
-        block_Y_dequantized[pixel_index]  = block_Y_dezigzaged[pixel_index] * 0.25 * quant_table[pixel_index];
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
+        block_Y_dequantized[pixel_index]  = block_Y_dezigzaged[pixel_index]  * 0.25 * quant_table[pixel_index];
         block_Cb_dequantized[pixel_index] = block_Cb_dezigzaged[pixel_index] * 0.25 * quant_table[pixel_index];
         block_Cr_dequantized[pixel_index] = block_Cr_dezigzaged[pixel_index] * 0.25 * quant_table[pixel_index];
       }
@@ -445,7 +464,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
       Block<double, 2> block_Cb_deshifted {};
       Block<double, 2> block_Cr_deshifted {};
 
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
         block_Y_deshifted[pixel_index]  = block_Y_detransformed[pixel_index]  + 128;
         block_Cb_deshifted[pixel_index] = block_Cb_detransformed[pixel_index] + 128;
         block_Cr_deshifted[pixel_index] = block_Cr_detransformed[pixel_index] + 128;
@@ -458,7 +477,7 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
       /*******************************************************\
       * Konvertuje RGB na YCbCr
       \*******************************************************/
-      for (uint8_t pixel_index = 0; pixel_index < 64; pixel_index++) {
+      for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
         double Y  = block_Y_deshifted[pixel_index];
         double Cb = block_Cb_deshifted[pixel_index];
         double Cr = block_Cr_deshifted[pixel_index];
@@ -470,6 +489,8 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
       for (uint8_t pixel_y = 0; pixel_y < 8; pixel_y++) {
         for (uint8_t pixel_x = 0; pixel_x < 8; pixel_x++) {
+          uint16_t pixel_index = pixel_y*8 + pixel_x;
+
           uint64_t real_pixel_x = block_x*8 + pixel_x;
           if (real_pixel_x >= width) {
             continue;
@@ -481,15 +502,17 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
           }
 
           uint64_t real_pixel_index = real_pixel_y * width + real_pixel_x;
-          rgb_data[3 * real_pixel_index + 0] = block_R[pixel_y*8 + pixel_x];
-          rgb_data[3 * real_pixel_index + 1] = block_G[pixel_y*8 + pixel_x];
-          rgb_data[3 * real_pixel_index + 2] = block_B[pixel_y*8 + pixel_x];
+          rgb_data[3 * real_pixel_index + 0] = block_R[pixel_index];
+          rgb_data[3 * real_pixel_index + 1] = block_G[pixel_index];
+          rgb_data[3 * real_pixel_index + 2] = block_B[pixel_index];
         }
       }
     }
   }
 
-  cerr << clock() - clock_start << endl;
+  cerr << " ";
+
+  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   return true;
 }

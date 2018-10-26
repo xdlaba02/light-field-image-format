@@ -83,8 +83,6 @@ int main(int argc, char *argv[]) {
 
     count_y = (argc - 6)/count_x;
 
-
-
     if (!loadMultiplePPMs(argc - 6, argv + 6, width, height, rgb_data)) {
       return -2;
     }
@@ -96,15 +94,15 @@ int main(int argc, char *argv[]) {
         return -3;
       }
     }
-    else if (method == "3D") {/*
+    else if (method == "3D") {
       if (!RGBtoJPEG3D(output_filename, rgb_data, width, height, count_x, count_y, quality)) {
         return -3;
-      }*/
+      }
     }
-    else if (method == "4D") {/*
+    else if (method == "4D") {
       if (!RGBtoJPEG4D(output_filename, rgb_data, width, height, count_x, count_y, quality)) {
         return -3;
-      }*/
+      }
     }
     else {
       print_usage(argv[0]);
@@ -125,15 +123,15 @@ int main(int argc, char *argv[]) {
         return -2;
       }
     }
-    else if (method == "3D") {/*
+    else if (method == "3D") {
       if (!JPEG3DtoRGB(argv[4], width, height, count_x, count_y, rgb_data)) {
         return -2;
-      }*/
+      }
     }
-    else if (method == "4D") {/*
+    else if (method == "4D") {
       if (!JPEG4DtoRGB(argv[4], width, height, count_x, count_y, rgb_data)) {
         return -2;
-      }*/
+      }
     }
     else {
       print_usage(argv[0]);
