@@ -14,39 +14,31 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <ctime>
 
 bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, const uint64_t w, const uint64_t h, const uint64_t ix, const uint64_t iy, const uint8_t quality) {
+  clock_t clock_start {};
   /*******************************************************\
   * Scale kvantizacni tabulky.
   \*******************************************************/
   QuantTable<2> quant_table {};
 
-  cerr << "CONSTRUCTING QUANT TABLE" << endl;
+  cerr << "CONSTRUCTING QUANTIZATION TABLE: ";
+  clock_start = clock();
 
   // teoreticky by se dala generovat optimalni kvantizacni tabulka z jiz vygenerovanych koeficientu
   constructQuantTable<2>(quality, quant_table);
 
-  for (uint8_t y = 0; y < 8; y++) {
-    for (uint8_t x = 0; x < 8; x++) {
-      cerr << long(quant_table[y*8+x]) << " ";
-    }
-    cerr << endl;
-  }
-  cerr << endl;
+  cerr << clock() - clock_start << endl;
 
   ZigzagTable<2> zigzag_table {};
 
-  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
+  cerr << "CONSTRUCTING ZIGZAG TABLE: ";
+  clock_start = clock();
 
   constructZigzagTable<2>(quant_table, zigzag_table);
 
-  for (uint8_t y = 0; y < 8; y++) {
-    for (uint8_t x = 0; x < 8; x++) {
-      cerr << long(zigzag_table[y*8+x]) << " ";
-    }
-    cerr << endl;
-  }
-  cerr << endl;
+  cerr << clock() - clock_start << endl;
 
   uint64_t width = w;
   uint64_t height = h * iy * ix;
@@ -68,6 +60,9 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   vector<vector<RunLengthPair>> Cb_AC(blocks_cnt);
   vector<vector<RunLengthPair>> Cr_AC(blocks_cnt);
 
+  cerr << "TRANSFORMING AND RUNLENGHT ENCODING BLOCKS. THIS MAY TAKE A WHILE: ";
+  clock_start = clock();
+
   /*******************************************************\
   * Vsechny bloky prevede AC koeficienty do podoby
     RunLength dvojic, DC koeficienty ulozi jako diference.
@@ -75,7 +70,6 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     ktere se nasledne vyuziji pri huffmanove kodovani.
   \*******************************************************/
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
-    cerr << "BLOCK " << long(block_y * blocks_width) << " OUT OF " << long(blocks_cnt) << endl;
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
       uint64_t block_index = block_y * blocks_width + block_x;
 
@@ -176,10 +170,15 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     }
   }
 
+  cerr << clock() - clock_start << endl;
+
   map<uint8_t, uint64_t> weights_luma_DC   {};
   map<uint8_t, uint64_t> weights_chroma_DC {};
   map<uint8_t, uint64_t> weights_luma_AC   {};
   map<uint8_t, uint64_t> weights_chroma_AC {};
+
+  cerr << "COUNTING RUNLENGTH PAIR WEIGHTS: ";
+  clock_start = clock();
 
   huffmanGetWeightsDC(Y_DC,  weights_luma_DC);
   huffmanGetWeightsDC(Cb_DC, weights_chroma_DC);
@@ -189,41 +188,81 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   huffmanGetWeightsAC(Cb_AC, weights_chroma_AC);
   huffmanGetWeightsAC(Cr_AC, weights_chroma_AC);
 
+  cerr << clock() - clock_start << endl;
+
+  cerr << "GENERATING HUFFMAN CODE LENGTHS: ";
+  clock_start = clock();
+
   vector<pair<uint64_t, uint8_t>> codelengths_luma_DC   = huffmanGetCodelengths(weights_luma_DC);
   vector<pair<uint64_t, uint8_t>> codelengths_luma_AC   = huffmanGetCodelengths(weights_luma_AC);
   vector<pair<uint64_t, uint8_t>> codelengths_chroma_DC = huffmanGetCodelengths(weights_chroma_DC);
   vector<pair<uint64_t, uint8_t>> codelengths_chroma_AC = huffmanGetCodelengths(weights_chroma_AC);
+
+  cerr << clock() - clock_start << endl;
+
+  cerr << "GENERATING HUFFMAN CODEWORDS: ";
+  clock_start = clock();
 
   map<uint8_t, Codeword> huffcodes_luma_DC   = huffmanGenerateCodewords(codelengths_luma_DC);
   map<uint8_t, Codeword> huffcodes_luma_AC   = huffmanGenerateCodewords(codelengths_luma_AC);
   map<uint8_t, Codeword> huffcodes_chroma_DC = huffmanGenerateCodewords(codelengths_chroma_DC);
   map<uint8_t, Codeword> huffcodes_chroma_AC = huffmanGenerateCodewords(codelengths_chroma_AC);
 
+  cerr << clock() - clock_start << endl;
+
+  cerr << "OPENING OUTPUT FILE TO WRITE: ";
+  clock_start = clock();
+
   ofstream output(output_filename);
   if (output.fail()) {
     return false;
   }
 
+  cerr << clock() - clock_start << endl;
+
+  cerr << "WRITING MAGIC NUMBER: ";
+  clock_start = clock();
+
   output.write("JPEG-2D\n", 8);
+
+  cerr << clock() - clock_start << endl;
 
   uint64_t raw_w = toBigEndian(w);
   uint64_t raw_h = toBigEndian(h);
   uint64_t raw_ix = toBigEndian(ix);
   uint64_t raw_iy = toBigEndian(iy);
 
+  cerr << "WRITING IMAGE DIMENSIONS: ";
+  clock_start = clock();
+
   output.write(reinterpret_cast<char *>(&raw_w), sizeof(uint64_t));
   output.write(reinterpret_cast<char *>(&raw_h), sizeof(uint64_t));
   output.write(reinterpret_cast<char *>(&raw_ix), sizeof(uint64_t));
   output.write(reinterpret_cast<char *>(&raw_iy), sizeof(uint64_t));
 
+  cerr << clock() - clock_start << endl;
+
+  cerr << "WRITING QUANTIZATION TABLE: ";
+  clock_start = clock();
+
   output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
+
+  cerr << clock() - clock_start << endl;
+
+  cerr << "WRITING HUFFMAN TABLES: ";
+  clock_start = clock();
 
   writeHuffmanTable(codelengths_luma_DC, output);
   writeHuffmanTable(codelengths_luma_AC, output);
   writeHuffmanTable(codelengths_chroma_DC, output);
   writeHuffmanTable(codelengths_chroma_AC, output);
 
+  cerr << clock() - clock_start << endl;
+
   OBitstream bitstream(output);
+
+  cerr << "HUFFMAN ENCODING AND WRITING BLOCKS: ";
+  clock_start = clock();
 
   for (uint64_t i = 0; i < blocks_cnt; i++) {
     writeOneBlock(Y_DC[i],  Y_AC[i],  huffcodes_luma_DC, huffcodes_luma_AC, bitstream);
@@ -231,7 +270,14 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     writeOneBlock(Cr_DC[i], Cr_AC[i], huffcodes_chroma_DC, huffcodes_chroma_AC, bitstream);
   }
 
+  cerr << clock() - clock_start << endl;
+
+  cerr << "FLUSHING OUTPUT: ";
+  clock_start = clock();
+
   bitstream.flush();
+
+  cerr << clock() - clock_start << endl;
   return true;
 }
 
@@ -241,27 +287,31 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
 
 bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t &ix, uint64_t &iy, vector<uint8_t> &rgb_data) {
+  clock_t clock_start {};
   ifstream input(input_filename);
   if (input.fail()) {
     return false;
   }
 
-  cerr << "READING MAGIC NUMBER" << endl;
+  cerr << "READING MAGIC NUMBER: ";
+  clock_start = clock();
 
   char magic_number[8] {};
 
   input.read(magic_number, 8);
   if (strncmp(magic_number, "JPEG-2D\n", 8) != 0) {
-    cerr << "MAGIC NUMBER NOT OK" << endl;
     return false;
   }
+
+  cerr << clock() - clock_start << endl;
 
   uint64_t raw_w  {};
   uint64_t raw_h  {};
   uint64_t raw_ix {};
   uint64_t raw_iy {};
 
-  cerr << "READING IMAGE DIMENSIONS" << endl;
+  cerr << "READING IMAGE DIMENSIONS: ";
+  clock_start = clock();
 
   input.read(reinterpret_cast<char *>(&raw_w), sizeof(uint64_t));
   input.read(reinterpret_cast<char *>(&raw_h), sizeof(uint64_t));
@@ -273,28 +323,28 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   ix = fromBigEndian(raw_ix);
   iy = fromBigEndian(raw_iy);
 
+  cerr << clock() - clock_start << endl;
+
   uint64_t width = w;
   uint64_t height = h * iy * ix;
 
   QuantTable<2> quant_table   {};
 
-  cerr << "READING QUANT TABLES" << endl;
+  cerr << "READING QUANTIZATION TABLES: ";
+  clock_start = clock();
 
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
+  cerr << clock() - clock_start << endl;
+
   ZigzagTable<2> zigzag_table {};
 
-  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
+  cerr << "CONSTRUCTING ZIGZAG TABLE: ";
+  clock_start = clock();
 
   constructZigzagTable<2>(quant_table, zigzag_table);
 
-  for (uint8_t y = 0; y < 8; y++) {
-    for (uint8_t x = 0; x < 8; x++) {
-      cerr << long(zigzag_table[y*8+x]) << " ";
-    }
-    cerr << endl;
-  }
-  cerr << endl;
+  cerr << clock() - clock_start << endl;
 
   vector<uint8_t> huff_counts_luma_DC   {};
   vector<uint8_t> huff_counts_luma_AC   {};
@@ -306,10 +356,15 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   vector<uint8_t> huff_symbols_chroma_DC {};
   vector<uint8_t> huff_symbols_chroma_AC {};
 
+  cerr << "READING HUFFMAN TABLES: ";
+  clock_start = clock();
+
   readHuffmanTable(huff_counts_luma_DC, huff_symbols_luma_DC, input);
   readHuffmanTable(huff_counts_luma_AC, huff_symbols_luma_AC, input);
   readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
   readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
+
+  cerr << clock() - clock_start << endl;
 
   uint64_t blocks_width  = ceil(width/8.0);
   uint64_t blocks_height = ceil(height/8.0);
@@ -318,12 +373,19 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   int16_t prev_Cb_DC = 0;
   int16_t prev_Cr_DC = 0;
 
+  cerr << "RESIZING RGB BUFFER: ";
+  clock_start = clock();
+
   rgb_data.resize(width * height * 3);
+
+  cerr << clock() - clock_start << endl;
 
   IBitstream bitstream(input);
 
+  cerr << "DECODING BLOCKS. THIS MAY TAKE A WHILE: ";
+  clock_start = clock();
+
   for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
-    cerr << "BLOCK " << long(block_y * blocks_width) << " OUT OF " << long(blocks_width * blocks_height) << endl;
     for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
 
       int16_t Y_DC  {};
@@ -426,6 +488,8 @@ bool JPEG2DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
       }
     }
   }
+
+  cerr << clock() - clock_start << endl;
 
   return true;
 }
