@@ -31,8 +31,6 @@ using QuantTable = Block<uint8_t, D>;
 template<uint8_t D>
 using ZigzagTable = Block<uint16_t, D>;
 
-const double JPEG_PI = 4 * atan(1);
-
 struct RunLengthPair {
   uint8_t zeroes;
   int16_t amplitude;

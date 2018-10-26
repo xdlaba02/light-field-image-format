@@ -34,7 +34,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   // teoreticky by se dala generovat optimalni kvantizacni tabulka z jiz vygenerovanych koeficientu
   constructQuantTable<3>(quality, quant_table);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   ZigzagTable<3> zigzag_table {};
 
@@ -43,7 +43,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
   constructZigzagTable<3>(quant_table, zigzag_table);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t width = w;
   uint64_t height = h;
@@ -78,11 +78,12 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   \*******************************************************/
   for (uint64_t block_z = 0; block_z < blocks_depth; block_z++) {
     for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
-      if (!(block_y % (ix))) {
-        cerr << "#";
-      }
       for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
         uint64_t block_index = block_z*blocks_width*blocks_height + block_y * blocks_width + block_x;
+
+        if (!(block_index % (blocks_cnt/50))) {
+          cerr << "#";
+        }
 
         Block<uint8_t, 3> block_R  {};
         Block<uint8_t, 3> block_G  {};
@@ -149,12 +150,12 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
           block_Cr_shifted[pixel_index] = block_Cr[pixel_index] - 128;
         }
 
-        Block<double, 3> block_Y_transformed  {};
-        Block<double, 3> block_Cb_transformed {};
-        Block<double, 3> block_Cr_transformed {};
+        Block<float, 3> block_Y_transformed  {};
+        Block<float, 3> block_Cb_transformed {};
+        Block<float, 3> block_Cr_transformed {};
 
-        auto fdct = [](Block<int8_t, 3> &block_shifted, Block<double, 3> &block_transformed) {
-          fdct3([&](uint8_t x, uint8_t y, uint8_t z){ return block_shifted[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> double & { return block_transformed[z*8*8 + y*8 + x]; });
+        auto fdct = [](Block<int8_t, 3> &block_shifted, Block<float, 3> &block_transformed) {
+          fdct3([&](uint8_t x, uint8_t y, uint8_t z){ return block_shifted[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> float & { return block_transformed[z*8*8 + y*8 + x]; });
         };
 
         fdct(block_Y_shifted, block_Y_transformed);
@@ -191,7 +192,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
 
   cerr << " ";
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   map<uint8_t, uint64_t> weights_luma_DC   {};
   map<uint8_t, uint64_t> weights_chroma_DC {};
@@ -209,7 +210,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   huffmanGetWeightsAC(Cb_AC, weights_chroma_AC);
   huffmanGetWeightsAC(Cr_AC, weights_chroma_AC);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "GENERATING HUFFMAN CODE LENGTHS" << endl;
   clock_start = clock();
@@ -219,7 +220,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   vector<pair<uint64_t, uint8_t>> codelengths_chroma_DC = huffmanGetCodelengths(weights_chroma_DC);
   vector<pair<uint64_t, uint8_t>> codelengths_chroma_AC = huffmanGetCodelengths(weights_chroma_AC);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "GENERATING HUFFMAN CODEWORDS" << endl;
   clock_start = clock();
@@ -229,7 +230,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   map<uint8_t, Codeword> huffcodes_chroma_DC = huffmanGenerateCodewords(codelengths_chroma_DC);
   map<uint8_t, Codeword> huffcodes_chroma_AC = huffmanGenerateCodewords(codelengths_chroma_AC);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "OPENING OUTPUT FILE TO WRITE" << endl;
   clock_start = clock();
@@ -239,14 +240,14 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     return false;
   }
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "WRITING MAGIC NUMBER" << endl;
   clock_start = clock();
 
   output.write("JPEG-3D\n", 8);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t raw_w = toBigEndian(w);
   uint64_t raw_h = toBigEndian(h);
@@ -261,14 +262,14 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   output.write(reinterpret_cast<char *>(&raw_ix), sizeof(uint64_t));
   output.write(reinterpret_cast<char *>(&raw_iy), sizeof(uint64_t));
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "WRITING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
   output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "WRITING HUFFMAN TABLES" << endl;
   clock_start = clock();
@@ -278,7 +279,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   writeHuffmanTable(codelengths_chroma_DC, output);
   writeHuffmanTable(codelengths_chroma_AC, output);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   OBitstream bitstream(output);
 
@@ -291,14 +292,14 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
     writeOneBlock(Cr_DC[i], Cr_AC[i], huffcodes_chroma_DC, huffcodes_chroma_AC, bitstream);
   }
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "FLUSHING OUTPUT" << endl;
   clock_start = clock();
 
   bitstream.flush();
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   return true;
 }
 
@@ -319,7 +320,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
     return false;
   }
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   cerr << "READING MAGIC NUMBER" << endl;
   clock_start = clock();
@@ -331,7 +332,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
     return false;
   }
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t raw_w  {};
   uint64_t raw_h  {};
@@ -351,7 +352,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   ix = fromBigEndian(raw_ix);
   iy = fromBigEndian(raw_iy);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t width = w;
   uint64_t height = h;
@@ -364,7 +365,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   ZigzagTable<3> zigzag_table {};
 
@@ -373,7 +374,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   constructZigzagTable<3>(quant_table, zigzag_table);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   vector<uint8_t> huff_counts_luma_DC   {};
   vector<uint8_t> huff_counts_luma_AC   {};
@@ -393,11 +394,13 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
   readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   uint64_t blocks_width  = ceil(width/8.0);
   uint64_t blocks_height = ceil(height/8.0);
   uint64_t blocks_depth = ceil(depth/8.0);
+
+  uint64_t blocks_cnt = blocks_width * blocks_height * blocks_depth;
 
   int16_t prev_Y_DC  = 0;
   int16_t prev_Cb_DC = 0;
@@ -408,7 +411,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   rgb_data.resize(width * height * depth * 3);
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   IBitstream bitstream(input);
 
@@ -417,10 +420,12 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   for (uint64_t block_z = 0; block_z < blocks_depth; block_z++) {
     for (uint64_t block_y = 0; block_y < blocks_height; block_y++) {
-      if (!(block_y % (ix))) {
-        cerr << "#";
-      }
       for (uint64_t block_x = 0; block_x < blocks_width; block_x++) {
+        uint64_t block_index = block_z*blocks_width*blocks_height + block_y * blocks_width + block_x;
+
+        if (!(block_index % (blocks_cnt/50))) {
+          cerr << "#";
+        }
 
         int16_t Y_DC  {};
         int16_t Cb_DC {};
@@ -453,9 +458,9 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
           block_Cr_dezigzaged[pixel_index] = block_Cr_raw[zigzag_index];
         }
 
-        Block<double, 3> block_Y_dequantized  {};
-        Block<double, 3> block_Cb_dequantized {};
-        Block<double, 3> block_Cr_dequantized {};
+        Block<float, 3> block_Y_dequantized  {};
+        Block<float, 3> block_Cb_dequantized {};
+        Block<float, 3> block_Cr_dequantized {};
 
         for (uint16_t pixel_index = 0; pixel_index < 8*8*8; pixel_index++) {
           block_Y_dequantized[pixel_index]  = block_Y_dezigzaged[pixel_index]  * 0.125 * quant_table[pixel_index];
@@ -463,21 +468,21 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
           block_Cr_dequantized[pixel_index] = block_Cr_dezigzaged[pixel_index] * 0.125 * quant_table[pixel_index];
         }
 
-        Block<double, 3> block_Y_detransformed  {};
-        Block<double, 3> block_Cb_detransformed {};
-        Block<double, 3> block_Cr_detransformed {};
+        Block<float, 3> block_Y_detransformed  {};
+        Block<float, 3> block_Cb_detransformed {};
+        Block<float, 3> block_Cr_detransformed {};
 
-        auto idct = [](Block<double, 3> &block_dequantized, Block<double, 3> &block_detransformed){
-          idct3([&](uint8_t x, uint8_t y, uint8_t z){ return block_dequantized[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> double & { return block_detransformed[z*8*8 + y*8 + x]; });
+        auto idct = [](Block<float, 3> &block_dequantized, Block<float, 3> &block_detransformed){
+          idct3([&](uint8_t x, uint8_t y, uint8_t z){ return block_dequantized[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> float & { return block_detransformed[z*8*8 + y*8 + x]; });
         };
 
         idct(block_Y_dequantized, block_Y_detransformed);
         idct(block_Cb_dequantized, block_Cb_detransformed);
         idct(block_Cr_dequantized, block_Cr_detransformed);
 
-        Block<double, 3> block_Y_deshifted  {};
-        Block<double, 3> block_Cb_deshifted {};
-        Block<double, 3> block_Cr_deshifted {};
+        Block<float, 3> block_Y_deshifted  {};
+        Block<float, 3> block_Cb_deshifted {};
+        Block<float, 3> block_Cr_deshifted {};
 
         for (uint16_t pixel_index = 0; pixel_index < 8*8*8; pixel_index++) {
           block_Y_deshifted[pixel_index]  = block_Y_detransformed[pixel_index]  + 128;
@@ -493,9 +498,9 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
         * Konvertuje RGB na YCbCr
         \*******************************************************/
         for (uint16_t pixel_index = 0; pixel_index < 8*8*8; pixel_index++) {
-          double Y  = block_Y_deshifted[pixel_index];
-          double Cb = block_Cb_deshifted[pixel_index];
-          double Cr = block_Cr_deshifted[pixel_index];
+          float Y  = block_Y_deshifted[pixel_index];
+          float Cb = block_Cb_deshifted[pixel_index];
+          float Cr = block_Cr_deshifted[pixel_index];
 
           block_R[pixel_index] = clamp(Y + 1.402                            * (Cr - 128), 0.0, 255.0);
           block_G[pixel_index] = clamp(Y - 0.344136 * (Cb - 128) - 0.714136 * (Cr - 128), 0.0, 255.0);
@@ -535,7 +540,7 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   cerr << " ";
 
-  cerr << static_cast<double>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
   return true;
 }

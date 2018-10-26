@@ -39,7 +39,7 @@ void constructQuantTable(const uint8_t quality, QuantTable<D> &quant_table) {
   72,92,95,98,112,100,103, 99
   */
 
-  double scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
+  float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
 
   for (uint16_t i = 0; i < quant_table.size(); i++) {
     uint8_t x = i % 8;
@@ -47,13 +47,13 @@ void constructQuantTable(const uint8_t quality, QuantTable<D> &quant_table) {
     uint8_t xi = i / (8*8);
     uint8_t yi = i / (8*8*8);
 
-    double radius = sqrt(x*x + y*y + xi*xi + yi*yi);
+    float radius = sqrt(x*x + y*y + xi*xi + yi*yi);
 
-    double quant_value = (radius+1) * max(max(x, y), max(xi, yi));
+    float quant_value = (radius+1) * max(max(x, y), max(xi, yi));
     quant_value += 10;
 
     quant_value *= scale_coef;
-    quant_table[i] = clamp(quant_value, 1.0, 128.0);
+    quant_table[i] = clamp(quant_value, 1.f, 128.f);
   }
 }
 
