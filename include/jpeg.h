@@ -40,7 +40,10 @@ template<uint8_t D>
 void constructZigzagTable(const QuantTable<D> &quant_table, ZigzagTable<D> &zigzag_table) {
   Block<pair<uint8_t, uint16_t>, D> srt {};
 
-  for (uint16_t i = 0; i < pow(8, D); i++) {
+  // DC koeficient musí být vždycky první
+  srt[0] = {0, 0};
+
+  for (uint16_t i = 1; i < pow(8, D); i++) {
     srt[i] = {quant_table[i], i};
   }
 

@@ -180,7 +180,7 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
           uint16_t zigzag_index = zigzag_table[pixel_index];
           block_Y_zigzag[zigzag_index]  = block_Y_quantized[pixel_index];
           block_Cb_zigzag[zigzag_index] = block_Cb_quantized[pixel_index];
-          block_Cb_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
+          block_Cr_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
         }
 
         runLengthDiffEncode<3>(block_Y_zigzag,  Y_DC[block_index],  Y_AC[block_index],  prev_Y_DC);

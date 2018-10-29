@@ -190,7 +190,7 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
             uint16_t zigzag_index = zigzag_table[pixel_index];
             block_Y_zigzag[zigzag_index]  = block_Y_quantized[pixel_index];
             block_Cb_zigzag[zigzag_index] = block_Cb_quantized[pixel_index];
-            block_Cb_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
+            block_Cr_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
           }
 
           runLengthDiffEncode<4>(block_Y_zigzag,  Y_DC[block_index],  Y_AC[block_index],  prev_Y_DC);
@@ -413,7 +413,7 @@ bool JPEG4DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   uint64_t blocks_images_x = ceil(images_x/8.0);
   uint64_t blocks_images_y = ceil(images_y/8.0);
 
-  uint64_t blocks_cnt = blocks_w idth * blocks_height * blocks_images_x * blocks_images_y;
+  uint64_t blocks_cnt = blocks_width * blocks_height * blocks_images_x * blocks_images_y;
 
   int16_t prev_Y_DC  = 0;
   int16_t prev_Cb_DC = 0;

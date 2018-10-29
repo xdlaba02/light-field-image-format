@@ -132,7 +132,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
       Block<int8_t, 2> block_Cr_shifted {};
 
       for (uint16_t pixel_index = 0; pixel_index < 8*8; pixel_index++) {
-        block_Y_shifted[pixel_index] = block_Y[pixel_index] - 128;
+        block_Y_shifted[pixel_index] = block_Y[pixel_index]   - 128;
         block_Cb_shifted[pixel_index] = block_Cb[pixel_index] - 128;
         block_Cr_shifted[pixel_index] = block_Cr[pixel_index] - 128;
       }
@@ -167,7 +167,7 @@ bool RGBtoJPEG2D(const char *output_filename, const vector<uint8_t> &rgb_data, c
         uint16_t zigzag_index = zigzag_table[pixel_index];
         block_Y_zigzag[zigzag_index]  = block_Y_quantized[pixel_index];
         block_Cb_zigzag[zigzag_index] = block_Cb_quantized[pixel_index];
-        block_Cb_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
+        block_Cr_zigzag[zigzag_index] = block_Cr_quantized[pixel_index];
       }
 
       runLengthDiffEncode<2>(block_Y_zigzag,  Y_DC[block_index],  Y_AC[block_index],  prev_Y_DC);
