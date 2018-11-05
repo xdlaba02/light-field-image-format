@@ -10,18 +10,6 @@
 
 using namespace std;
 
-uint8_t RGBtoY(uint8_t R, uint8_t G, uint8_t B) {
-  return          0.299 * R +    0.587 * G +    0.114 * B;
-}
-
-uint8_t RGBtoCb(uint8_t R, uint8_t G, uint8_t B) {
-  return 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
-}
-
-uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
-  return 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
-}
-
 void huffmanGetWeights(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights_AC, map<uint8_t, uint64_t> &weights_DC) {
   for (auto &vec: pairvecs) {
     weights_DC[huffmanSymbol(vec[0])]++;

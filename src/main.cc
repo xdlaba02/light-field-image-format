@@ -4,10 +4,10 @@
 * DATUM: 19. 10. 2018
 \*******************************************************/
 
-#include "jpeg2d.h"
-#include "jpeg3d.h"
-#include "jpeg4d.h"
+#include "jpeg_encoder.h"
+#include "jpeg_decoder.h"
 #include "ppm.h"
+#include "dct.h"
 
 #include <iostream>
 
@@ -90,17 +90,17 @@ int main(int argc, char *argv[]) {
     const char *output_filename {argv[5]};
 
     if (method == "2D") {
-      if (!RGBtoJPEG2D(output_filename, rgb_data, width, height, count_x, count_y, quality)) {
+      if (!RGBtoJPEG<2>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
     else if (method == "3D") {
-      if (!RGBtoJPEG3D(output_filename, rgb_data, width, height, count_x, count_y, quality)) {
+      if (!RGBtoJPEG<3>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
     else if (method == "4D") {
-      if (!RGBtoJPEG4D(output_filename, rgb_data, width, height, count_x, count_y, quality)) {
+      if (!RGBtoJPEG<4>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
@@ -117,19 +117,21 @@ int main(int argc, char *argv[]) {
 
     const string method(argv[2]);
 
+    vector<uint64_t> dimensions(4);
+
     const string output_filename(argv[3]);
     if (method == "2D") {
-      if (!JPEG2DtoRGB(argv[4], width, height, count_x, count_y, rgb_data)) {
+      if (!JPEGtoRGB<2>(argv[4], dimensions, rgb_data)) {
         return -2;
       }
     }
     else if (method == "3D") {
-      if (!JPEG3DtoRGB(argv[4], width, height, count_x, count_y, rgb_data)) {
+      if (!JPEGtoRGB<3>(argv[4], dimensions, rgb_data)) {
         return -2;
       }
     }
     else if (method == "4D") {
-      if (!JPEG4DtoRGB(argv[4], width, height, count_x, count_y, rgb_data)) {
+      if (!JPEGtoRGB<4>(argv[4], dimensions, rgb_data)) {
         return -2;
       }
     }
@@ -137,6 +139,11 @@ int main(int argc, char *argv[]) {
       print_usage(argv[0]);
       return -1;
     }
+
+    width = dimensions[0];
+    height = dimensions[1];
+    count_x = dimensions[2];
+    count_y = dimensions[3];
 
     for (uint64_t y = 0; y < count_y; y++) {
       for (uint64_t x = 0; x < count_x; x++) {

@@ -10,17 +10,12 @@
 #include "jpeg.h"
 #include "dct.h"
 #include "bitstream.h"
-#include "constmath.h"
 
 #include <map>
 #include <algorithm>
 #include <numeric>
 #include <iostream>
 #include <iomanip>
-
-uint8_t RGBtoY(uint8_t R, uint8_t G, uint8_t B);
-uint8_t RGBtoCb(uint8_t R, uint8_t G, uint8_t B);
-uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B);
 
 void huffmanGetWeights(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights_AC, map<uint8_t, uint64_t> &weights_DC);
 
@@ -35,8 +30,20 @@ void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &tabl
 uint8_t huffmanClass(int16_t amplitude);
 uint8_t huffmanSymbol(const RunLengthPair &pair);
 
+inline uint8_t RGBtoY(uint8_t R, uint8_t G, uint8_t B) {
+  return          0.299 * R +    0.587 * G +    0.114 * B;
+}
+
+inline uint8_t RGBtoCb(uint8_t R, uint8_t G, uint8_t B) {
+  return 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
+}
+
+inline uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
+  return 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
+}
+
 template<uint8_t D>
-QuantTable<D> constructQuantTable(const uint8_t quality) {
+inline QuantTable<D> constructQuantTable(const uint8_t quality) {
   QuantTable<D> quant_table {};
 
   /* WIKI TABLE
@@ -52,11 +59,11 @@ QuantTable<D> constructQuantTable(const uint8_t quality) {
 
   float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
 
-  for (uint16_t i = 0; i < quant_table.size(); i++) {
+  for (uint64_t i = 0; i < quant_table.size(); i++) {
     uint8_t x  =  i % constpow(8, 1);
     uint8_t y  = (i % constpow(8, 2)) / constpow(8, 1);
     uint8_t xi = (i % constpow(8, 3)) / constpow(8, 2);
-    uint8_t yi =  i                                     / constpow(8, 3);
+    uint8_t yi =  i                   / constpow(8, 3);
 
     float radius = sqrt(x*x + y*y + xi*xi + yi*yi);
 
@@ -70,8 +77,8 @@ QuantTable<D> constructQuantTable(const uint8_t quality) {
   return quant_table;
 }
 
-template <typename FUNC>
-vector<uint8_t> convertRGB(const vector<uint8_t> &rgb_data, FUNC &&function) {
+template <typename F>
+inline vector<uint8_t> convertRGB(const vector<uint8_t> &rgb_data, F &&function) {
   uint64_t pixels_cnt = rgb_data.size()/3;
 
   vector<uint8_t> data(pixels_cnt);
@@ -88,7 +95,7 @@ vector<uint8_t> convertRGB(const vector<uint8_t> &rgb_data, FUNC &&function) {
 }
 
 template<uint8_t D>
-vector<Block<uint8_t, D>> convertToBlocks(const vector<uint8_t> &data, const array<uint64_t, D> &dims) {
+inline vector<Block<uint8_t, D>> convertToBlocks(const vector<uint8_t> &data, const array<uint64_t, D> &dims) {
   array<uint64_t, D> block_dims {};
   uint64_t blocks_cnt = 1;
 
@@ -183,7 +190,7 @@ vector<Block<float, D>> transformBlocks(const vector<Block<int8_t, D>> &blocks) 
 }
 
 template<uint8_t D>
-vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &blocks, const QuantTable<D> quant_table) {
+inline vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &blocks, const QuantTable<D> &quant_table) {
   vector<Block<int16_t, D>> blocks_quantized(blocks.size());
 
   for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
@@ -191,7 +198,7 @@ vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &blocks, 
     Block<int16_t, D>     &block_quantized  = blocks_quantized[block_index];
 
     for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_quantized[pixel_index]  = block[pixel_index] * constpow(sqrt(0.25), D) / quant_table[pixel_index];
+      block_quantized[pixel_index] = (block[pixel_index] * constpow(sqrt(0.25), D)) / quant_table[pixel_index];
     }
   }
 
@@ -199,7 +206,7 @@ vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &blocks, 
 }
 
 template<uint8_t D>
-vector<Block<int16_t, D>> zigzagBlocks(const vector<Block<int16_t, D>> &blocks, const ZigzagTable<D> zigzag_table) {
+inline vector<Block<int16_t, D>> zigzagBlocks(const vector<Block<int16_t, D>> &blocks, const ZigzagTable<D> &zigzag_table) {
   vector<Block<int16_t, D>> blocks_zigzaged(blocks.size());
 
   for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
@@ -215,7 +222,7 @@ vector<Block<int16_t, D>> zigzagBlocks(const vector<Block<int16_t, D>> &blocks, 
 }
 
 template<uint8_t D>
-vector<vector<RunLengthPair>> runLenghtDiffEncodeBlocks(const vector<Block<int16_t, D>> &blocks) {
+inline vector<vector<RunLengthPair>> runLenghtDiffEncodeBlocks(const vector<Block<int16_t, D>> &blocks) {
   vector<vector<RunLengthPair>> runlengths(blocks.size());
 
   int16_t prev_DC = 0;
@@ -250,7 +257,7 @@ vector<vector<RunLengthPair>> runLenghtDiffEncodeBlocks(const vector<Block<int16
 
 
 template<uint8_t D>
-bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_data, const array<uint64_t, 4> &src_dimensions, const array<uint64_t, D> &dimensions, const uint8_t quality) {
+inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_data, const array<uint64_t, 4> &&src_dimensions, const uint8_t quality) {
   static_assert(D <= 4);
 
   clock_t clock_start {};
@@ -279,6 +286,17 @@ bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_data, con
   cerr << "COVERTING TO BLOCKS" << endl;
   clock_start = clock();
 
+  array<uint64_t, D> dimensions {};
+
+  for (uint64_t i = 0; i < src_dimensions.size(); i++) {
+    if (i >= D) {
+      dimensions[D-1] *= src_dimensions[i];
+    }
+    else {
+      dimensions[i] = src_dimensions[i];
+    }
+  }
+
   vector<Block<uint8_t, D>> blocks_Y  = convertToBlocks<D>(Y_data,  dimensions);
   vector<Block<uint8_t, D>> blocks_Cb = convertToBlocks<D>(Cb_data, dimensions);
   vector<Block<uint8_t, D>> blocks_Cr = convertToBlocks<D>(Cr_data, dimensions);
@@ -296,8 +314,27 @@ bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_data, con
   clock_start = clock();
 
   vector<Block<float, D>> blocks_Y_transformed  = transformBlocks<D>(blocks_Y_shifted);
+  cerr << "#";
+
+  Block<double, D> qtable {};
+
+  for (auto &block: blocks_Y_transformed) {
+    for (uint64_t i = 0; i < block.size(); i++) {
+      qtable[i] += abs(block[i]) / blocks_Y_transformed.size();
+    }
+  }
+
+  for (uint64_t i = 0; i < qtable.size(); i++) {
+    if (i % 8 == 0) {
+      cerr << endl;
+    }
+    cerr << long(qtable[i]) << ", ";
+  }
+  
   vector<Block<float, D>> blocks_Cb_transformed = transformBlocks<D>(blocks_Cb_shifted);
+  cerr << "#";
   vector<Block<float, D>> blocks_Cr_transformed = transformBlocks<D>(blocks_Cr_shifted);
+  cerr << "# ";
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "QUANTIZING" << endl;
@@ -369,7 +406,7 @@ bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_data, con
   clock_start = clock();
 
   output.write("JPEG-", 5);
-  output << D;
+  output.put('0' + D);
   output.write("D\n", 2);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;

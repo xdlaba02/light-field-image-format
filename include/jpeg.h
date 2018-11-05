@@ -8,6 +8,7 @@
 #define JPEG_H
 
 #include "constmath.h"
+#include "endian.h"
 
 #include <cstdint>
 #include <array>
@@ -41,13 +42,13 @@ ZigzagTable<D> constructZigzagTable(const QuantTable<D> &quant_table) {
   // DC koeficient musí být vždycky první
   srt[0] = {0, 0};
 
-  for (uint16_t i = 1; i < constpow(8, D); i++) {
+  for (uint64_t i = 1; i < constpow(8, D); i++) {
     srt[i] = {quant_table[i], i};
   }
 
   stable_sort(srt.begin(), srt.end());
 
-  for (uint16_t i = 0; i < constpow(8, D); i++) {
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
     zigzag_table[srt[i].second] = i;
   }
 

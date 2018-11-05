@@ -25,11 +25,12 @@ inline void fdct<1>(function<float(uint64_t)> &&input, function<float &(uint64_t
   for (uint8_t x = 0; x < 8; x++) {
     output(0) += input(x);
   }
-  output(0) *= 1/sqrt(2);
+
+  output(0) /= sqrt(2);
 
   for (uint8_t u = 1; u < 8; u++) {
     for (uint8_t x = 0; x < 8; x++) {
-      output(u) +=  input(x) * cos(((2 * x + 1) * u * M_PI ) / 16);
+      output(u) += input(x) * cos(((2 * x + 1) * u * M_PI ) / 16);
     }
   }
 }
@@ -48,7 +49,7 @@ inline void idct(function<float(uint64_t)> &&input, function<float &(uint64_t)> 
 template <>
 inline void idct<1>(function<float(uint64_t)> &&input, function<float &(uint64_t)> &&output) {
   for (uint8_t x = 0; x < 8; x++) {
-    output(x) = input(0) * 1/sqrt(2);
+    output(x) = input(0) / sqrt(2);
 
     for (uint8_t u = 1; u < 8; u++) {
       output(x) += input(u) * cos(((2 * x + 1) * u * M_PI) / 16);
