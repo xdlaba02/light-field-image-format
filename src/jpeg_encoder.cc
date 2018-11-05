@@ -5,24 +5,28 @@
 \*******************************************************/
 
 #include "jpeg_encoder.h"
-#include "bitstream.h"
 
 #include <bitset>
-#include <algorithm>
-#include <fstream>
 
 using namespace std;
 
-void huffmanGetWeightsDC(const vector<int16_t> &DC, map<uint8_t, uint64_t> &weights_DC) {
-  for (int16_t amp: DC) {
-    weights_DC[huffmanSymbol({0, amp})]++;
-  }
+uint8_t RGBtoY(uint8_t R, uint8_t G, uint8_t B) {
+  return          0.299 * R +    0.587 * G +    0.114 * B;
 }
 
-void huffmanGetWeightsAC(const vector<vector<RunLengthPair>> &AC, map<uint8_t, uint64_t> &weights_AC) {
-  for (auto &vec: AC) {
-    for (auto &pair: vec) {
-      weights_AC[huffmanSymbol({pair.zeroes, pair.amplitude})]++;
+uint8_t RGBtoCb(uint8_t R, uint8_t G, uint8_t B) {
+  return 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
+}
+
+uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
+  return 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
+}
+
+void huffmanGetWeights(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights_AC, map<uint8_t, uint64_t> &weights_DC) {
+  for (auto &vec: pairvecs) {
+    weights_DC[huffmanSymbol(vec[0])]++;
+    for (uint64_t i = 1; i < vec.size(); i++) {
+      weights_AC[huffmanSymbol(vec[i])]++;
     }
   }
 }
@@ -145,6 +149,15 @@ void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstr
   }
 }
 
+void encodePairs(const vector<vector<RunLengthPair>> &pairvecs, const map<uint8_t, Codeword> &huffcodes_AC, const map<uint8_t, Codeword> &huffcodes_DC, OBitstream &bitstream) {
+  for (auto &vec: pairvecs) {
+    encodeOnePair(vec[0], huffcodes_DC, bitstream);
+    for (uint64_t i = 1; i < vec.size(); i++) {
+      encodeOnePair(vec[i], huffcodes_AC, bitstream);
+    }
+  }
+}
+
 void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream) {
   uint8_t huff_class = huffmanClass(pair.amplitude);
   uint8_t symbol     = huffmanSymbol(pair);
@@ -161,14 +174,6 @@ void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &tabl
     stream.writeBit((amplitude & (1 << i)) >> i);
   }
 }
-
-void writeOneBlock(const int16_t DC, const vector<RunLengthPair> &AC, const map<uint8_t, Codeword> &huffcodes_DC, const map<uint8_t, Codeword> &huffcodes_AC, OBitstream &bitstream) {
-  encodeOnePair({0, DC}, huffcodes_DC, bitstream);
-  for (auto &pair: AC) {
-    encodeOnePair(pair, huffcodes_AC, bitstream);
-  }
-}
-
 
 uint8_t huffmanClass(int16_t amplitude) {
   if (amplitude < 0) {

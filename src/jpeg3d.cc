@@ -4,6 +4,8 @@
 * DATUM: 26. 10. 2018
 \*******************************************************/
 
+#if FALSE
+
 #include "jpeg3d.h"
 #include "endian.h"
 #include "jpeg.h"
@@ -23,25 +25,16 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   clock_t clock_start {};
   cerr << fixed << setprecision(3);
 
-  /*******************************************************\
-  * Scale kvantizacni tabulky.
-  \*******************************************************/
-  QuantTable<3> quant_table {};
-
   cerr << "CONSTRUCTING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
-  // teoreticky by se dala generovat optimalni kvantizacni tabulka z jiz vygenerovanych koeficientu
-  constructQuantTable<3>(quality, quant_table);
+  QuantTable<3> quant_table = constructQuantTable<3>(quality);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-
-  ZigzagTable<3> zigzag_table {};
-
   cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
   clock_start = clock();
 
-  constructZigzagTable<3>(quant_table, zigzag_table);
+  ZigzagTable<3> zigzag_table = constructZigzagTable<3>(quant_table);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
@@ -154,13 +147,19 @@ bool RGBtoJPEG3D(const char *output_filename, const vector<uint8_t> &rgb_data, c
         Block<float, 3> block_Cb_transformed {};
         Block<float, 3> block_Cr_transformed {};
 
+        /*
+
         auto fdct = [](Block<int8_t, 3> &block_shifted, Block<float, 3> &block_transformed) {
           fdct3([&](uint8_t x, uint8_t y, uint8_t z){ return block_shifted[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> float & { return block_transformed[z*8*8 + y*8 + x]; });
         };
 
+
+
         fdct(block_Y_shifted, block_Y_transformed);
         fdct(block_Cb_shifted, block_Cb_transformed);
         fdct(block_Cr_shifted, block_Cr_transformed);
+
+        */
 
         Block<int16_t, 3> block_Y_quantized  {};
         Block<int16_t, 3> block_Cb_quantized {};
@@ -367,12 +366,10 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
-  ZigzagTable<3> zigzag_table {};
-
   cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
   clock_start = clock();
 
-  constructZigzagTable<3>(quant_table, zigzag_table);
+  ZigzagTable<3> zigzag_table = constructZigzagTable<3>(quant_table);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
@@ -439,13 +436,9 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
         readOneBlock(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, Cb_DC, Cb_AC, bitstream);
         readOneBlock(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, Cr_DC, Cr_AC, bitstream);
 
-        Block<int16_t, 3> block_Y_raw  {};
-        Block<int16_t, 3> block_Cb_raw {};
-        Block<int16_t, 3> block_Cr_raw {};
-
-        runLengthDiffDecode<3>(Y_DC,  Y_AC,  prev_Y_DC,  block_Y_raw);
-        runLengthDiffDecode<3>(Cb_DC, Cb_AC, prev_Cb_DC, block_Cb_raw);
-        runLengthDiffDecode<3>(Cr_DC, Cr_AC, prev_Cr_DC, block_Cr_raw);
+        Block<int16_t, 3> block_Y_raw  = runLengthDiffDecode<3>(Y_DC,  Y_AC,  prev_Y_DC);
+        Block<int16_t, 3> block_Cb_raw = runLengthDiffDecode<3>(Cb_DC, Cb_AC, prev_Cb_DC);
+        Block<int16_t, 3> block_Cr_raw = runLengthDiffDecode<3>(Cr_DC, Cr_AC, prev_Cr_DC);
 
         Block<int16_t, 3> block_Y_dezigzaged  {};
         Block<int16_t, 3> block_Cb_dezigzaged {};
@@ -472,13 +465,15 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
         Block<float, 3> block_Cb_detransformed {};
         Block<float, 3> block_Cr_detransformed {};
 
+        /*
         auto idct = [](Block<float, 3> &block_dequantized, Block<float, 3> &block_detransformed){
-          idct3([&](uint8_t x, uint8_t y, uint8_t z){ return block_dequantized[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> float & { return block_detransformed[z*8*8 + y*8 + x]; });
+          idct<>([&](uint8_t x, uint8_t y, uint8_t z){ return block_dequantized[z*8*8 + y*8 + x]; }, [&](uint8_t x, uint8_t y, uint8_t z) -> float & { return block_detransformed[z*8*8 + y*8 + x]; });
         };
 
         idct(block_Y_dequantized, block_Y_detransformed);
         idct(block_Cb_dequantized, block_Cb_detransformed);
         idct(block_Cr_dequantized, block_Cr_detransformed);
+        */
 
         Block<float, 3> block_Y_deshifted  {};
         Block<float, 3> block_Cb_deshifted {};
@@ -544,3 +539,5 @@ bool JPEG3DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   return true;
 }
+
+#endif

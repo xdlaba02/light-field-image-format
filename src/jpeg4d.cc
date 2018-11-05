@@ -4,6 +4,8 @@
 * DATUM: 26. 10. 2018
 \*******************************************************/
 
+#if FALSE
+
 #include "jpeg4d.h"
 #include "endian.h"
 #include "jpeg.h"
@@ -23,25 +25,17 @@ bool RGBtoJPEG4D(const char *output_filename, const vector<uint8_t> &rgb_data, c
   clock_t clock_start {};
   cerr << fixed << setprecision(3);
 
-  /*******************************************************\
-  * Scale kvantizacni tabulky.
-  \*******************************************************/
-  QuantTable<4> quant_table {};
-
   cerr << "CONSTRUCTING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
   // teoreticky by se dala generovat optimalni kvantizacni tabulka z jiz vygenerovanych koeficientu
-  constructQuantTable<4>(quality, quant_table);
+  QuantTable<4> quant_table = constructQuantTable<4>(quality);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-
-  ZigzagTable<4> zigzag_table {};
-
   cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
   clock_start = clock();
 
-  constructZigzagTable<4>(quant_table, zigzag_table);
+  ZigzagTable<4> zigzag_table = constructZigzagTable<4>(quant_table);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
@@ -378,13 +372,10 @@ bool JPEG4DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-
-  ZigzagTable<4> zigzag_table {};
-
   cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
   clock_start = clock();
 
-  constructZigzagTable<4>(quant_table, zigzag_table);
+  ZigzagTable<4> zigzag_table = constructZigzagTable<4>(quant_table);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
 
@@ -453,13 +444,9 @@ bool JPEG4DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
           readOneBlock(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, Cb_DC, Cb_AC, bitstream);
           readOneBlock(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, Cr_DC, Cr_AC, bitstream);
 
-          Block<int16_t, 4> block_Y_raw  {};
-          Block<int16_t, 4> block_Cb_raw {};
-          Block<int16_t, 4> block_Cr_raw {};
-
-          runLengthDiffDecode<4>(Y_DC,  Y_AC,  prev_Y_DC,  block_Y_raw);
-          runLengthDiffDecode<4>(Cb_DC, Cb_AC, prev_Cb_DC, block_Cb_raw);
-          runLengthDiffDecode<4>(Cr_DC, Cr_AC, prev_Cr_DC, block_Cr_raw);
+          Block<int16_t, 4> block_Y_raw  = runLengthDiffDecode<4>(Y_DC,  Y_AC,  prev_Y_DC);
+          Block<int16_t, 4> block_Cb_raw = runLengthDiffDecode<4>(Cb_DC, Cb_AC, prev_Cb_DC);
+          Block<int16_t, 4> block_Cr_raw = runLengthDiffDecode<4>(Cr_DC, Cr_AC, prev_Cr_DC);
 
           Block<int16_t, 4> block_Y_dezigzaged  {};
           Block<int16_t, 4> block_Cb_dezigzaged {};
@@ -567,3 +554,5 @@ bool JPEG4DtoRGB(const char *input_filename, uint64_t &w, uint64_t &h, uint64_t 
 
   return true;
 }
+
+#endif

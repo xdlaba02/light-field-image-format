@@ -16,6 +16,22 @@ void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstrea
   stream.read(reinterpret_cast<char *>(symbols.data()), symbols.size());
 }
 
+vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC, const vector<uint8_t> &huff_counts_AC, const vector<uint8_t> &huff_symbols_DC, const vector<uint8_t> &huff_symbols_AC, const uint64_t count, IBitstream &bitstream) {
+  vector<vector<RunLengthPair>> runlength(count);
+
+  RunLengthPair pair {};
+
+  for (uint64_t i = 0; i < count; i++) {
+    runlength[i].push_back(decodeOnePair(huff_counts_DC, huff_symbols_DC, bitstream));
+    do {
+      pair = decodeOnePair(huff_counts_AC, huff_symbols_AC, bitstream);
+      runlength[i].push_back(pair);
+    } while((pair.zeroes != 0) || (pair.amplitude != 0));
+  }
+
+  return runlength;
+}
+
 RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
   uint8_t symbol = decodeOneHuffmanSymbol(counts, symbols, stream);
   int16_t amplitude = decodeOneAmplitude(symbol & 0x0f, stream);
@@ -62,13 +78,18 @@ int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
   return amplitude;
 }
 
-void readOneBlock(const vector<uint8_t> &counts_DC, const vector<uint8_t> &counts_AC, const vector<uint8_t> &symbols_DC, const vector<uint8_t> &symbols_AC, int16_t &DC, vector<RunLengthPair> &AC, IBitstream &bitstream) {
-  DC = decodeOnePair(counts_DC, symbols_DC, bitstream).amplitude;
+vector<uint8_t> YCbCrToRGB(const vector<uint8_t> &Y_data, const vector<uint8_t> &Cb_data, const vector<uint8_t> &Cr_data) {
+  vector<uint8_t> rgb_data(Y_data.size() * 3);
 
-  RunLengthPair pair {};
+  for (uint64_t pixel_index = 0; pixel_index < Y_data.size(); pixel_index++) {
+    float Y  = Y_data[pixel_index];
+    float Cb = Cb_data[pixel_index] - 128;
+    float Cr = Cr_data[pixel_index] - 128;
 
-  do {
-    pair = decodeOnePair(counts_AC, symbols_AC, bitstream);
-    AC.push_back(pair);
-  } while((pair.zeroes != 0) || (pair.amplitude != 0));
+    rgb_data[3*pixel_index + 0] = clamp(Y +                      (1.402 * Cr), 0.0, 255.0);
+    rgb_data[3*pixel_index + 1] = clamp(Y - (0.344136 * Cb) - (0.714136 * Cr), 0.0, 255.0);
+    rgb_data[3*pixel_index + 2] = clamp(Y + (1.772    * Cb)                  , 0.0, 255.0);
+  }
+
+  return rgb_data;
 }
