@@ -198,7 +198,7 @@ inline vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &b
     Block<int16_t, D>     &block_quantized  = blocks_quantized[block_index];
 
     for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_quantized[pixel_index] = (block[pixel_index] * constpow(sqrt(0.25), D)) / quant_table[pixel_index];
+      block_quantized[pixel_index] = block[pixel_index] / quant_table[pixel_index];
     }
   }
 
@@ -324,13 +324,6 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
     }
   }
 
-  for (uint64_t i = 0; i < qtable.size(); i++) {
-    if (i % 8 == 0) {
-      cerr << endl;
-    }
-    cerr << long(qtable[i]) << ", ";
-  }
-  
   vector<Block<float, D>> blocks_Cb_transformed = transformBlocks<D>(blocks_Cb_shifted);
   cerr << "#";
   vector<Block<float, D>> blocks_Cr_transformed = transformBlocks<D>(blocks_Cr_shifted);

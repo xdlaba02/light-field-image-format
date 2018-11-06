@@ -76,7 +76,7 @@ inline vector<Block<int32_t, D>> dequantizeBlocks(const vector<Block<int16_t, D>
     Block<int32_t, D>       &block_dequantized = blocks_dequantized[block_index];
 
     for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_dequantized[pixel_index] = block[pixel_index] * constpow(sqrt(0.25), D) * quant_table[pixel_index];
+      block_dequantized[pixel_index] = block[pixel_index] * quant_table[pixel_index];
     }
   }
 
