@@ -15,6 +15,7 @@
 #include <cmath>
 #include <vector>
 #include <tuple>
+#include <algorithm>
 
 using namespace std;
 
@@ -35,15 +36,17 @@ struct RunLengthPair {
 };
 
 template<uint8_t D>
-ZigzagTable<D> constructZigzagTable(const QuantTable<D> &quant_table) {
-  ZigzagTable<D>                    zigzag_table {};
-  Block<pair<uint8_t, uint16_t>, D> srt          {};
+ZigzagTable<D> constructZigzagTable() {
+  ZigzagTable<D>                  zigzag_table {};
+  Block<pair<float, uint16_t>, D> srt          {};
 
-  // DC koeficient musí být vždycky první
-  srt[0] = {0, 0};
-
-  for (uint64_t i = 1; i < constpow(8, D); i++) {
-    srt[i] = {quant_table[i], i};
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    uint64_t sum = 0;
+    for (uint8_t j = 1; j <= D; j++) {
+      uint8_t coord = (i % constpow(8, j)) / constpow(8, j-1);
+      sum += coord * coord;
+    }
+    srt[i] = {sqrt(sum), i};
   }
 
   stable_sort(srt.begin(), srt.end());

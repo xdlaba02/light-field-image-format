@@ -40,6 +40,7 @@ bool loadMultiplePPMs(int filesc, char *filesv[], uint64_t &width, uint64_t &hei
   return true;
 }
 
+
 int main(int argc, char *argv[]) {
   if (argc < 5) {
     print_usage(argv[0]);

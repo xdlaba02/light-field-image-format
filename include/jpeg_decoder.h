@@ -186,6 +186,8 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   clock_t clock_start {};
   cerr << fixed << setprecision(3);
 
+  ZigzagTable<D> zigzag_table = constructZigzagTable<D>();
+
   cerr << "OPENING INPUT FILE" << endl;
   clock_start = clock();
 
@@ -238,12 +240,6 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
 
   QuantTable<D> quant_table {};
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
-  clock_start = clock();
-
-  ZigzagTable<D> zigzag_table = constructZigzagTable<D>(quant_table);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "READING HUFFMAN TABLES" << endl;

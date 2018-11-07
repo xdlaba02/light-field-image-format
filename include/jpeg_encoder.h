@@ -12,7 +12,6 @@
 #include "bitstream.h"
 
 #include <map>
-#include <algorithm>
 #include <numeric>
 #include <iostream>
 #include <iomanip>
@@ -43,38 +42,33 @@ inline uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
 }
 
 template<uint8_t D>
-inline QuantTable<D> constructQuantTable(const uint8_t quality) {
+constexpr QuantTable<D> constructQuantTable() {
   QuantTable<D> quant_table {};
 
-  /* WIKI TABLE
-  16,11,10,16, 24, 40, 51, 61,
-  12,12,14,19, 26, 58, 60, 55,
-  14,13,16,24, 40, 57, 69, 56,
-  14,17,22,29, 51, 87, 80, 62,
-  18,22,37,56, 68,109,103, 77,
-  24,35,55,64, 81,104,113, 92,
-  49,64,78,87,103,121,120,101,
-  72,92,95,98,112,100,103, 99
-  */
-
-  float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
-
   for (uint64_t i = 0; i < quant_table.size(); i++) {
-    uint8_t x  =  i % constpow(8, 1);
-    uint8_t y  = (i % constpow(8, 2)) / constpow(8, 1);
-    uint8_t xi = (i % constpow(8, 3)) / constpow(8, 2);
-    uint8_t yi =  i                   / constpow(8, 3);
-
-    float radius = sqrt(x*x + y*y + xi*xi + yi*yi);
-
-    float quant_value = (radius+1) * max(max(x, y), max(xi, yi));
-    quant_value += 10;
-
-    quant_value *= scale_coef;
-    quant_table[i] = clamp(quant_value, 1.f, 128.f);
+    uint64_t sum = 0;
+    uint64_t max = 0;
+    for (uint8_t j = 1; j <= D; j++) {
+      uint8_t coord = (i % constpow(8, j)) / constpow(8, j-1);
+      sum += coord * coord;
+      if (coord > max) {
+        max = coord;
+      }
+    }
+    quant_table[i] = clamp(((sqrt(sum)+1) * max) + 10, 0., 255.);
   }
 
   return quant_table;
+}
+
+template<uint8_t D>
+inline QuantTable<D> scaleQuantTable(const QuantTable<D> &quant_table, const uint8_t quality) {
+  QuantTable<D> output {};
+  float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
+  for (uint64_t i = 0; i < quant_table.size(); i++) {
+    output[i] = clamp(quant_table[i] * scale_coef, 1.f, 255.f);
+  }
+  return output;
 }
 
 template <typename F>
@@ -263,6 +257,9 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   clock_t clock_start {};
   cerr << fixed << setprecision(3);
 
+  constexpr QuantTable<D> base_quant_table = constructQuantTable<D>();
+  ZigzagTable<D> zigzag_table = constructZigzagTable<D>();
+
   cerr << "CONVERTING TO YCbCr" << endl;
   clock_start = clock();
 
@@ -271,16 +268,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<uint8_t> Cr_data = convertRGB(rgb_data, RGBtoCr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "CONSTRUCTING QUANTIZATION TABLE" << endl;
+  cerr << "SCALING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
-  QuantTable<D> quant_table = constructQuantTable<D>(quality);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
-  clock_start = clock();
-
-  ZigzagTable<D> zigzag_table = constructZigzagTable<D>(quant_table);
+  QuantTable<D> quant_table = scaleQuantTable<D>(base_quant_table, quality);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "COVERTING TO BLOCKS" << endl;
@@ -403,7 +394,7 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   cerr << "WRITING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
-  output.write(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
+  output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "WRITING HUFFMAN TABLES" << endl;
