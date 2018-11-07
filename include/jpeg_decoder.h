@@ -311,11 +311,8 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   clock_start = clock();
 
   vector<Block<float, D>> blocks_Y_shifted  = detransformBlocks<D>(blocks_Y_transformed);
-  cerr << "#";
   vector<Block<float, D>> blocks_Cb_shifted = detransformBlocks<D>(blocks_Cb_transformed);
-  cerr << "#";
   vector<Block<float, D>> blocks_Cr_shifted = detransformBlocks<D>(blocks_Cr_transformed);
-  cerr << "# ";
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "DESHIFTING VALUES TO <0, 255>" << endl;

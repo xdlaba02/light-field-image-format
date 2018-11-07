@@ -314,20 +314,8 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   clock_start = clock();
 
   vector<Block<float, D>> blocks_Y_transformed  = transformBlocks<D>(blocks_Y_shifted);
-  cerr << "#";
-
-  Block<double, D> qtable {};
-
-  for (auto &block: blocks_Y_transformed) {
-    for (uint64_t i = 0; i < block.size(); i++) {
-      qtable[i] += abs(block[i]) / blocks_Y_transformed.size();
-    }
-  }
-
   vector<Block<float, D>> blocks_Cb_transformed = transformBlocks<D>(blocks_Cb_shifted);
-  cerr << "#";
   vector<Block<float, D>> blocks_Cr_transformed = transformBlocks<D>(blocks_Cr_shifted);
-  cerr << "# ";
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "QUANTIZING" << endl;
