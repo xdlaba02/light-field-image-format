@@ -40,6 +40,55 @@ bool loadMultiplePPMs(int filesc, char *filesv[], uint64_t &width, uint64_t &hei
   return true;
 }
 
+vector<uint8_t> zigzagShift(const vector<uint8_t> &rgb_data, uint64_t ix, uint64_t iy) {
+  vector<uint8_t> rgb_shifted {};
+
+  uint64_t size_2d = rgb_data.size() / (ix * iy);
+
+  uint64_t x = 0;
+  uint64_t y = 0;
+  auto index = [&]() -> unsigned { return y*size_2d*ix + x*size_2d; };
+
+  while (true) {
+    rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + size_2d);
+
+    if (x < ix - 1) {
+      x++;
+    }
+    else if (y < iy - 1) {
+      y++;
+    }
+    else {
+      break;
+    }
+
+    while ((x > 0) && (y < iy - 1)) {
+      rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + size_2d);
+      x--;
+      y++;
+    }
+
+    rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + size_2d);
+
+    if (y < iy - 1) {
+      y++;
+    }
+    else if (x < ix - 1) {
+      x++;
+    }
+    else {
+      break;
+    }
+
+    while ((x < ix - 1) && (y > 0)) {
+      rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + size_2d);
+      x++;
+      y--;
+    }
+  }
+
+  return rgb_shifted;
+}
 
 int main(int argc, char *argv[]) {
   if (argc < 5) {
@@ -91,12 +140,14 @@ int main(int argc, char *argv[]) {
     const char *output_filename {argv[5]};
 
     if (method == "2D") {
-      if (!RGBtoJPEG<2>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
+      vector<uint8_t> rgb_shift = zigzagShift(rgb_data, count_x, count_y);
+      if (!RGBtoJPEG<2>(output_filename, rgb_shift, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
     else if (method == "3D") {
-      if (!RGBtoJPEG<3>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
+      vector<uint8_t> rgb_shifted = zigzagShift(rgb_data, count_x, count_y);
+      if (!RGBtoJPEG<3>(output_filename, rgb_shifted, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
