@@ -15,6 +15,7 @@
 #include <numeric>
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 
 void huffmanGetWeights(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights_AC, map<uint8_t, uint64_t> &weights_DC);
 
@@ -292,6 +293,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<uint8_t, D>> blocks_Cb = convertToBlocks<D>(Cb_data, dimensions);
   vector<Block<uint8_t, D>> blocks_Cr = convertToBlocks<D>(Cr_data, dimensions);
 
+  vector<uint8_t>().swap(Y_data);
+  vector<uint8_t>().swap(Cb_data);
+  vector<uint8_t>().swap(Cr_data);
+
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "SHIFTING VALUES TO <-128, 127>" << endl;
   clock_start = clock();
@@ -299,6 +304,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<int8_t, D>> blocks_Y_shifted  = shiftBlocks<D>(blocks_Y);
   vector<Block<int8_t, D>> blocks_Cb_shifted = shiftBlocks<D>(blocks_Cb);
   vector<Block<int8_t, D>> blocks_Cr_shifted = shiftBlocks<D>(blocks_Cr);
+
+  vector<Block<uint8_t, D>>().swap(blocks_Y);
+  vector<Block<uint8_t, D>>().swap(blocks_Cb);
+  vector<Block<uint8_t, D>>().swap(blocks_Cr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "FORWARD DISCRETE COSINE TRANSFORMING" << endl;
@@ -308,6 +317,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<float, D>> blocks_Cb_transformed = transformBlocks<D>(blocks_Cb_shifted);
   vector<Block<float, D>> blocks_Cr_transformed = transformBlocks<D>(blocks_Cr_shifted);
 
+  vector<Block<int8_t, D>>().swap(blocks_Y_shifted);
+  vector<Block<int8_t, D>>().swap(blocks_Cb_shifted);
+  vector<Block<int8_t, D>>().swap(blocks_Cr_shifted);
+
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "QUANTIZING" << endl;
   clock_start = clock();
@@ -315,6 +328,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<int16_t, D>> blocks_Y_quantized  = quantizeBlocks<D>(blocks_Y_transformed,  quant_table);
   vector<Block<int16_t, D>> blocks_Cb_quantized = quantizeBlocks<D>(blocks_Cb_transformed, quant_table);
   vector<Block<int16_t, D>> blocks_Cr_quantized = quantizeBlocks<D>(blocks_Cr_transformed, quant_table);
+
+  vector<Block<float, D>>().swap(blocks_Y_transformed);
+  vector<Block<float, D>>().swap(blocks_Cb_transformed);
+  vector<Block<float, D>>().swap(blocks_Cr_transformed);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "ZIGZAGING" << endl;
@@ -324,6 +341,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<int16_t, D>> blocks_Cb_zigzag = zigzagBlocks<D>(blocks_Cb_quantized, zigzag_table);
   vector<Block<int16_t, D>> blocks_Cr_zigzag = zigzagBlocks<D>(blocks_Cr_quantized, zigzag_table);
 
+  vector<Block<int16_t, D>>().swap(blocks_Y_quantized);
+  vector<Block<int16_t, D>>().swap(blocks_Cb_quantized);
+  vector<Block<int16_t, D>>().swap(blocks_Cr_quantized);
+
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "RUNLENGTH AND DIFF ENCODING" << endl;
   clock_start = clock();
@@ -331,6 +352,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<vector<RunLengthPair>> runlenght_Y  = runLenghtDiffEncodeBlocks<D>(blocks_Y_zigzag);
   vector<vector<RunLengthPair>> runlenght_Cb = runLenghtDiffEncodeBlocks<D>(blocks_Cb_zigzag);
   vector<vector<RunLengthPair>> runlenght_Cr = runLenghtDiffEncodeBlocks<D>(blocks_Cr_zigzag);
+
+  vector<Block<int16_t, D>>().swap(blocks_Y_zigzag);
+  vector<Block<int16_t, D>>().swap(blocks_Cb_zigzag);
+  vector<Block<int16_t, D>>().swap(blocks_Cr_zigzag);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "COUNTING RUNLENGTH PAIR WEIGHTS" << endl;
@@ -368,7 +393,10 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   cerr << "OPENING OUTPUT FILE TO WRITE" << endl;
   clock_start = clock();
 
-  ofstream output(output_filename);
+
+  stringstream ss {};
+  ss << output_filename << ".jpeg" << static_cast<unsigned>(D) << "d";
+  ofstream output(ss.str());
   if (output.fail()) {
     return false;
   }

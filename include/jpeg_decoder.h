@@ -286,6 +286,10 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<Block<int16_t, D>> blocks_Cb_zigzag = runLenghtDiffDecodePairs<D>(runlenght_Cb);
   vector<Block<int16_t, D>> blocks_Cr_zigzag = runLenghtDiffDecodePairs<D>(runlenght_Cr);
 
+  vector<vector<RunLengthPair>>().swap(runlenght_Y);
+  vector<vector<RunLengthPair>>().swap(runlenght_Cb);
+  vector<vector<RunLengthPair>>().swap(runlenght_Cr);
+
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "DEZIGZAGING" << endl;
   clock_start = clock();
@@ -293,6 +297,10 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<Block<int16_t, D>> blocks_Y_quantized  = dezigzagBlocks<D>(blocks_Y_zigzag,  zigzag_table);
   vector<Block<int16_t, D>> blocks_Cb_quantized = dezigzagBlocks<D>(blocks_Cb_zigzag, zigzag_table);
   vector<Block<int16_t, D>> blocks_Cr_quantized = dezigzagBlocks<D>(blocks_Cr_zigzag, zigzag_table);
+
+  vector<Block<int16_t, D>>().swap(blocks_Y_zigzag);
+  vector<Block<int16_t, D>>().swap(blocks_Cb_zigzag);
+  vector<Block<int16_t, D>>().swap(blocks_Cr_zigzag);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "DEQUANTIZING" << endl;
@@ -302,6 +310,10 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<Block<int32_t, D>> blocks_Cb_transformed = dequantizeBlocks<D>(blocks_Cb_quantized, quant_table);
   vector<Block<int32_t, D>> blocks_Cr_transformed = dequantizeBlocks<D>(blocks_Cr_quantized, quant_table);
 
+  vector<Block<int16_t, D>>().swap(blocks_Y_quantized);
+  vector<Block<int16_t, D>>().swap(blocks_Cb_quantized);
+  vector<Block<int16_t, D>>().swap(blocks_Cr_quantized);
+
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "INVERSE DISCRETE COSINE TRANSFORMING" << endl;
   clock_start = clock();
@@ -309,6 +321,10 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<Block<float, D>> blocks_Y_shifted  = detransformBlocks<D>(blocks_Y_transformed);
   vector<Block<float, D>> blocks_Cb_shifted = detransformBlocks<D>(blocks_Cb_transformed);
   vector<Block<float, D>> blocks_Cr_shifted = detransformBlocks<D>(blocks_Cr_transformed);
+
+  vector<Block<int32_t, D>>().swap(blocks_Y_transformed);
+  vector<Block<int32_t, D>>().swap(blocks_Cb_transformed);
+  vector<Block<int32_t, D>>().swap(blocks_Cr_transformed);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "DESHIFTING VALUES TO <0, 255>" << endl;
@@ -318,6 +334,10 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<Block<uint8_t, D>> blocks_Cb = deshiftBlocks<D>(blocks_Cb_shifted);
   vector<Block<uint8_t, D>> blocks_Cr = deshiftBlocks<D>(blocks_Cr_shifted);
 
+  vector<Block<float, D>>().swap(blocks_Y_shifted);
+  vector<Block<float, D>>().swap(blocks_Cb_shifted);
+  vector<Block<float, D>>().swap(blocks_Cr_shifted);
+
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "DEBLOCKING" << endl;
   clock_start = clock();
@@ -325,6 +345,10 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<uint8_t> Y_data  = convertFromBlocks<D>(blocks_Y,  dimensions);
   vector<uint8_t> Cb_data = convertFromBlocks<D>(blocks_Cb, dimensions);
   vector<uint8_t> Cr_data = convertFromBlocks<D>(blocks_Cr, dimensions);
+
+  vector<Block<uint8_t, D>>().swap(blocks_Y);
+  vector<Block<uint8_t, D>>().swap(blocks_Cb);
+  vector<Block<uint8_t, D>>().swap(blocks_Cr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "COVERTING TO RGB" << endl;
