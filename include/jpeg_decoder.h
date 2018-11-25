@@ -25,7 +25,7 @@ RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t>
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream);
 
-vector<uint8_t> YCbCrToRGB(const vector<uint8_t> &Y_data, const vector<uint8_t> &Cb_data, const vector<uint8_t> &Cr_data);
+vector<uint8_t> YCbCrToRGB(const vector<float> &Y_data, const vector<float> &Cb_data, const vector<float> &Cr_data);
 
 template<uint8_t D>
 inline vector<Block<int16_t, D>> runLenghtDiffDecodePairs(const vector<vector<RunLengthPair>> &pairvecs) {
@@ -95,15 +95,15 @@ inline vector<Block<float, D>> detransformBlocks(const vector<Block<int32_t, D>>
 }
 
 template<uint8_t D>
-inline vector<Block<uint8_t, D>> deshiftBlocks(const vector<Block<float, D>> &blocks) {
-  vector<Block<uint8_t, D>> blocks_deshifted(blocks.size());
+inline vector<Block<float, D>> deshiftBlocks(const vector<Block<float, D>> &blocks) {
+  vector<Block<float, D>> blocks_deshifted(blocks.size());
 
   for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
     const Block<float, D> &block           = blocks[block_index];
-    Block<uint8_t, D>     &block_deshifted = blocks_deshifted[block_index];
+    Block<float, D>       &block_deshifted = blocks_deshifted[block_index];
 
     for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_deshifted[pixel_index] = clamp(block[pixel_index] + 128., 0., 255.);
+      block_deshifted[pixel_index] = clamp<float>(block[pixel_index] + 128, 0, 255);
     }
   }
 
@@ -111,7 +111,7 @@ inline vector<Block<uint8_t, D>> deshiftBlocks(const vector<Block<float, D>> &bl
 }
 
 template<uint8_t D>
-inline vector<uint8_t> convertFromBlocks(const vector<Block<uint8_t, D>> &blocks, const array<uint64_t, D> &dims) {
+inline vector<float> convertFromBlocks(const vector<Block<float, D>> &blocks, const array<uint64_t, D> &dims) {
   array<uint64_t, D> block_dims {};
   uint64_t blocks_cnt = 1;
   uint64_t pixels_cnt = 1;
@@ -122,10 +122,10 @@ inline vector<uint8_t> convertFromBlocks(const vector<Block<uint8_t, D>> &blocks
     pixels_cnt *= dims[i];
   }
 
-  vector<uint8_t> data(pixels_cnt);
+  vector<float> data(pixels_cnt);
 
   for (uint64_t block_index = 0; block_index < blocks_cnt; block_index++) {
-    const Block<uint8_t, D> &block = blocks[block_index];
+    const Block<float, D> &block = blocks[block_index];
 
     array<uint64_t, D> block_coords {};
 
@@ -330,9 +330,9 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   cerr << "DESHIFTING VALUES TO <0, 255>" << endl;
   clock_start = clock();
 
-  vector<Block<uint8_t, D>> blocks_Y  = deshiftBlocks<D>(blocks_Y_shifted);
-  vector<Block<uint8_t, D>> blocks_Cb = deshiftBlocks<D>(blocks_Cb_shifted);
-  vector<Block<uint8_t, D>> blocks_Cr = deshiftBlocks<D>(blocks_Cr_shifted);
+  vector<Block<float, D>> blocks_Y  = deshiftBlocks<D>(blocks_Y_shifted);
+  vector<Block<float, D>> blocks_Cb = deshiftBlocks<D>(blocks_Cb_shifted);
+  vector<Block<float, D>> blocks_Cr = deshiftBlocks<D>(blocks_Cr_shifted);
 
   vector<Block<float, D>>().swap(blocks_Y_shifted);
   vector<Block<float, D>>().swap(blocks_Cb_shifted);
@@ -342,13 +342,13 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   cerr << "DEBLOCKING" << endl;
   clock_start = clock();
 
-  vector<uint8_t> Y_data  = convertFromBlocks<D>(blocks_Y,  dimensions);
-  vector<uint8_t> Cb_data = convertFromBlocks<D>(blocks_Cb, dimensions);
-  vector<uint8_t> Cr_data = convertFromBlocks<D>(blocks_Cr, dimensions);
+  vector<float> Y_data  = convertFromBlocks<D>(blocks_Y,  dimensions);
+  vector<float> Cb_data = convertFromBlocks<D>(blocks_Cb, dimensions);
+  vector<float> Cr_data = convertFromBlocks<D>(blocks_Cr, dimensions);
 
-  vector<Block<uint8_t, D>>().swap(blocks_Y);
-  vector<Block<uint8_t, D>>().swap(blocks_Cb);
-  vector<Block<uint8_t, D>>().swap(blocks_Cr);
+  vector<Block<float, D>>().swap(blocks_Y);
+  vector<Block<float, D>>().swap(blocks_Cb);
+  vector<Block<float, D>>().swap(blocks_Cr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "COVERTING TO RGB" << endl;

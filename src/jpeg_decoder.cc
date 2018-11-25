@@ -78,7 +78,7 @@ int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
   return amplitude;
 }
 
-vector<uint8_t> YCbCrToRGB(const vector<uint8_t> &Y_data, const vector<uint8_t> &Cb_data, const vector<uint8_t> &Cr_data) {
+vector<uint8_t> YCbCrToRGB(const vector<float> &Y_data, const vector<float> &Cb_data, const vector<float> &Cr_data) {
   vector<uint8_t> rgb_data(Y_data.size() * 3);
 
   for (uint64_t pixel_index = 0; pixel_index < Y_data.size(); pixel_index++) {

@@ -30,15 +30,15 @@ void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &tabl
 uint8_t huffmanClass(int16_t amplitude);
 uint8_t huffmanSymbol(const RunLengthPair &pair);
 
-inline uint8_t RGBtoY(uint8_t R, uint8_t G, uint8_t B) {
+inline float RGBtoY(uint8_t R, uint8_t G, uint8_t B) {
   return          0.299 * R +    0.587 * G +    0.114 * B;
 }
 
-inline uint8_t RGBtoCb(uint8_t R, uint8_t G, uint8_t B) {
+inline float RGBtoCb(uint8_t R, uint8_t G, uint8_t B) {
   return 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
 }
 
-inline uint8_t RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
+inline float RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
   return 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
 }
 
@@ -67,16 +67,16 @@ inline QuantTable<D> scaleQuantTable(const QuantTable<D> &quant_table, const uin
   QuantTable<D> output {};
   float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
   for (uint64_t i = 0; i < quant_table.size(); i++) {
-    output[i] = clamp(quant_table[i] * scale_coef, 1.f, 255.f);
+    output[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
   }
   return output;
 }
 
 template <typename F>
-inline vector<uint8_t> convertRGB(const vector<uint8_t> &rgb_data, F &&function) {
+inline vector<float> convertRGB(const vector<uint8_t> &rgb_data, F &&function) {
   uint64_t pixels_cnt = rgb_data.size()/3;
 
-  vector<uint8_t> data(pixels_cnt);
+  vector<float> data(pixels_cnt);
 
   for (uint64_t pixel_index = 0; pixel_index < pixels_cnt; pixel_index++) {
     uint8_t R = rgb_data[3*pixel_index + 0];
@@ -90,7 +90,7 @@ inline vector<uint8_t> convertRGB(const vector<uint8_t> &rgb_data, F &&function)
 }
 
 template<uint8_t D>
-inline vector<Block<uint8_t, D>> convertToBlocks(const vector<uint8_t> &data, const array<uint64_t, D> &dims) {
+inline vector<Block<float, D>> convertToBlocks(const vector<float> &data, const array<uint64_t, D> &dims) {
   array<uint64_t, D> block_dims {};
   uint64_t blocks_cnt = 1;
 
@@ -99,10 +99,10 @@ inline vector<Block<uint8_t, D>> convertToBlocks(const vector<uint8_t> &data, co
     blocks_cnt *= block_dims[i];
   }
 
-  vector<Block<uint8_t, D>> blocks(blocks_cnt);
+  vector<Block<float, D>> blocks(blocks_cnt);
 
   for (uint64_t block_index = 0; block_index < blocks_cnt; block_index++) {
-    Block<uint8_t, D> &block = blocks[block_index];
+    Block<float, D> &block = blocks[block_index];
 
     array<uint64_t, D> block_coords {};
 
@@ -154,12 +154,12 @@ inline vector<Block<uint8_t, D>> convertToBlocks(const vector<uint8_t> &data, co
 }
 
 template<uint8_t D>
-vector<Block<int8_t, D>> shiftBlocks(const vector<Block<uint8_t, D>> &blocks) {
-  vector<Block<int8_t, D>> blocks_shifted(blocks.size());
+vector<Block<float, D>> shiftBlocks(const vector<Block<float, D>> &blocks) {
+  vector<Block<float, D>> blocks_shifted(blocks.size());
 
   for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<uint8_t, D> &block    = blocks[block_index];
-    Block<int8_t, D>  &block_shifted  = blocks_shifted[block_index];
+    const Block<float, D> &block    = blocks[block_index];
+    Block<float, D>  &block_shifted = blocks_shifted[block_index];
 
     for (uint16_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
       block_shifted[pixel_index]  = block[pixel_index] - 128;
@@ -170,10 +170,10 @@ vector<Block<int8_t, D>> shiftBlocks(const vector<Block<uint8_t, D>> &blocks) {
 }
 
 template<uint8_t D>
-vector<Block<float, D>> transformBlocks(const vector<Block<int8_t, D>> &blocks) {
+vector<Block<float, D>> transformBlocks(const vector<Block<float, D>> &blocks) {
   vector<Block<float, D>> blocks_transformed(blocks.size());
 
-  auto dct = [](const Block<int8_t, D> &block, Block<float, D> &block_transformed){
+  auto dct = [](const Block<float, D> &block, Block<float, D> &block_transformed){
     fdct<D>([&](uint64_t index) -> float { return block[index];}, [&](uint64_t index) -> float & { return block_transformed[index]; });
   };
 
@@ -264,15 +264,23 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   cerr << "CONVERTING TO YCbCr" << endl;
   clock_start = clock();
 
-  vector<uint8_t> Y_data  = convertRGB(rgb_data, RGBtoY);
-  vector<uint8_t> Cb_data = convertRGB(rgb_data, RGBtoCb);
-  vector<uint8_t> Cr_data = convertRGB(rgb_data, RGBtoCr);
+  vector<float> Y_data  = convertRGB(rgb_data, RGBtoY);
+  vector<float> Cb_data = convertRGB(rgb_data, RGBtoCb);
+  vector<float> Cr_data = convertRGB(rgb_data, RGBtoCr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "SCALING QUANTIZATION TABLE" << endl;
   clock_start = clock();
 
   QuantTable<D> quant_table = scaleQuantTable<D>(base_quant_table, quality);
+
+  for (uint8_t y = 0; y < 8; y++) {
+    for (uint8_t x = 0; x < 8; x++) {
+      cerr << long(quant_table[y*8+x]) << " ";
+    }
+    cerr << endl;
+  }
+  cerr << endl;
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "COVERTING TO BLOCKS" << endl;
@@ -289,25 +297,25 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
     }
   }
 
-  vector<Block<uint8_t, D>> blocks_Y  = convertToBlocks<D>(Y_data,  dimensions);
-  vector<Block<uint8_t, D>> blocks_Cb = convertToBlocks<D>(Cb_data, dimensions);
-  vector<Block<uint8_t, D>> blocks_Cr = convertToBlocks<D>(Cr_data, dimensions);
+  vector<Block<float, D>> blocks_Y  = convertToBlocks<D>(Y_data,  dimensions);
+  vector<Block<float, D>> blocks_Cb = convertToBlocks<D>(Cb_data, dimensions);
+  vector<Block<float, D>> blocks_Cr = convertToBlocks<D>(Cr_data, dimensions);
 
-  vector<uint8_t>().swap(Y_data);
-  vector<uint8_t>().swap(Cb_data);
-  vector<uint8_t>().swap(Cr_data);
+  vector<float>().swap(Y_data);
+  vector<float>().swap(Cb_data);
+  vector<float>().swap(Cr_data);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "SHIFTING VALUES TO <-128, 127>" << endl;
   clock_start = clock();
 
-  vector<Block<int8_t, D>> blocks_Y_shifted  = shiftBlocks<D>(blocks_Y);
-  vector<Block<int8_t, D>> blocks_Cb_shifted = shiftBlocks<D>(blocks_Cb);
-  vector<Block<int8_t, D>> blocks_Cr_shifted = shiftBlocks<D>(blocks_Cr);
+  vector<Block<float, D>> blocks_Y_shifted  = shiftBlocks<D>(blocks_Y);
+  vector<Block<float, D>> blocks_Cb_shifted = shiftBlocks<D>(blocks_Cb);
+  vector<Block<float, D>> blocks_Cr_shifted = shiftBlocks<D>(blocks_Cr);
 
-  vector<Block<uint8_t, D>>().swap(blocks_Y);
-  vector<Block<uint8_t, D>>().swap(blocks_Cb);
-  vector<Block<uint8_t, D>>().swap(blocks_Cr);
+  vector<Block<float, D>>().swap(blocks_Y);
+  vector<Block<float, D>>().swap(blocks_Cb);
+  vector<Block<float, D>>().swap(blocks_Cr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "FORWARD DISCRETE COSINE TRANSFORMING" << endl;
@@ -317,9 +325,9 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<float, D>> blocks_Cb_transformed = transformBlocks<D>(blocks_Cb_shifted);
   vector<Block<float, D>> blocks_Cr_transformed = transformBlocks<D>(blocks_Cr_shifted);
 
-  vector<Block<int8_t, D>>().swap(blocks_Y_shifted);
-  vector<Block<int8_t, D>>().swap(blocks_Cb_shifted);
-  vector<Block<int8_t, D>>().swap(blocks_Cr_shifted);
+  vector<Block<float, D>>().swap(blocks_Y_shifted);
+  vector<Block<float, D>>().swap(blocks_Cb_shifted);
+  vector<Block<float, D>>().swap(blocks_Cr_shifted);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "QUANTIZING" << endl;

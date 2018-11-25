@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
     }
 
     count_x = tmp;
-    
+
     if ((argc - 6) % count_x) {
       cerr << "Pocet obrazku neni delitelny sirkou " << static_cast<long>(count_x) << "!" << endl;
       return -2;

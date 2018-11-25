@@ -4,7 +4,7 @@
 * DATUM: 19. 10. 2018
 \*******************************************************/
 
-#include <cstdint>
+#include "endian.h"
 
 bool amIBigEndian() {
   uint16_t test = 0;
