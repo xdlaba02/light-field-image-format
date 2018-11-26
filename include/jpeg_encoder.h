@@ -201,6 +201,73 @@ inline vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &b
 }
 
 template<uint8_t D>
+inline ZigzagTable<D> constructZigzagTableAvg(vector<Block<int16_t, D>> &blocks_Y, vector<Block<int16_t, D>> &blocks_Cb, vector<Block<int16_t, D>> &blocks_Cr) {
+  ZigzagTable<D>                     zigzag_table {};
+  Block<pair<uint64_t, uint16_t>, D> srt          {};
+
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    srt[i].second = i;
+  }
+
+  for (uint64_t b = 0; b < blocks_Y.size(); b++) {
+    for (uint64_t i = 0; i < constpow(8, D); i++) {
+      srt[i].first += abs(blocks_Y[b][i]) + abs(blocks_Cb[b][i]) + abs(blocks_Cr[b][i]);
+    }
+  }
+
+  stable_sort(srt.rbegin(), srt.rend());
+
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    zigzag_table[srt[i].second] = i;
+  }
+
+  return zigzag_table;
+}
+
+template<uint8_t D>
+ZigzagTable<D> constructZigzagTableRadius() {
+  ZigzagTable<D>                     zigzag_table {};
+  Block<pair<uint64_t, uint16_t>, D> srt          {};
+
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    for (uint8_t j = 1; j <= D; j++) {
+      uint8_t coord = (i % constpow(8, j)) / constpow(8, j-1);
+      srt[i].first += coord * coord;
+    }
+    srt[i].second = i;
+  }
+
+  stable_sort(srt.begin(), srt.end());
+
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    zigzag_table[srt[i].second] = i;
+  }
+
+  return zigzag_table;
+}
+
+template<uint8_t D>
+inline ZigzagTable<D> constructZigzagTableClassic() {
+  ZigzagTable<D>                     zigzag_table {};
+  Block<pair<uint64_t, uint16_t>, D> srt          {};
+
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    for (uint8_t j = 1; j <= D; j++) {
+      srt[i].first += (i % constpow(8, j)) / constpow(8, j-1);
+    }
+    srt[i].second = i;
+  }
+
+  stable_sort(srt.begin(), srt.end());
+
+  for (uint64_t i = 0; i < constpow(8, D); i++) {
+    zigzag_table[srt[i].second] = i;
+  }
+
+  return zigzag_table;
+}
+
+template<uint8_t D>
 inline vector<Block<int16_t, D>> zigzagBlocks(const vector<Block<int16_t, D>> &blocks, const ZigzagTable<D> &zigzag_table) {
   vector<Block<int16_t, D>> blocks_zigzaged(blocks.size());
 
@@ -259,7 +326,6 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   cerr << fixed << setprecision(3);
 
   constexpr QuantTable<D> base_quant_table = constructQuantTable<D>();
-  ZigzagTable<D> zigzag_table = constructZigzagTable<D>();
 
   cerr << "CONVERTING TO YCbCr" << endl;
   clock_start = clock();
@@ -340,6 +406,12 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   vector<Block<float, D>>().swap(blocks_Y_transformed);
   vector<Block<float, D>>().swap(blocks_Cb_transformed);
   vector<Block<float, D>>().swap(blocks_Cr_transformed);
+
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << "CONSTRUCTING ZIGZAG TABLE" << endl;
+  clock_start = clock();
+
+  ZigzagTable<D> zigzag_table = constructZigzagTableAvg<D>(blocks_Y_quantized, blocks_Cb_quantized, blocks_Cr_quantized);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "ZIGZAGING" << endl;
@@ -431,6 +503,12 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   clock_start = clock();
 
   output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
+
+  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
+  cerr << "WRITING ZIGZAG TABLE" << endl;
+  clock_start = clock();
+
+  output.write(reinterpret_cast<const char *>(zigzag_table.data()), zigzag_table.size() * sizeof(zigzag_table[0]));
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "WRITING HUFFMAN TABLES" << endl;

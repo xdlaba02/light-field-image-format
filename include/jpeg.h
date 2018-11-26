@@ -35,27 +35,4 @@ struct RunLengthPair {
   int16_t amplitude;
 };
 
-template<uint8_t D>
-ZigzagTable<D> constructZigzagTable() {
-  ZigzagTable<D>                  zigzag_table {};
-  Block<pair<float, uint16_t>, D> srt          {};
-
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
-    uint64_t sum = 0;
-    for (uint8_t j = 1; j <= D; j++) {
-      uint8_t coord = (i % constpow(8, j)) / constpow(8, j-1);
-      sum += coord * coord;
-    }
-    srt[i] = {sqrt(sum), i};
-  }
-
-  stable_sort(srt.begin(), srt.end());
-
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
-    zigzag_table[srt[i].second] = i;
-  }
-
-  return zigzag_table;
-}
-
 #endif
