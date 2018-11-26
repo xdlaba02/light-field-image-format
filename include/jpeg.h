@@ -28,7 +28,7 @@ template<uint8_t D>
 using QuantTable = Block<uint8_t, D>;
 
 template<uint8_t D>
-using ZigzagTable = Block<uint16_t, D>;
+using TraversalTable = Block<uint16_t, D>;
 
 struct RunLengthPair {
   uint8_t zeroes;

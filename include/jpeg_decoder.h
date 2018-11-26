@@ -52,7 +52,7 @@ inline vector<Block<int16_t, D>> runLenghtDiffDecodePairs(const vector<vector<Ru
 }
 
 template<uint8_t D>
-inline vector<Block<int16_t, D>> dezigzagBlocks(const vector<Block<int16_t, D>> &blocks, const ZigzagTable<D> &zigzag_table) {
+inline vector<Block<int16_t, D>> dezigzagBlocks(const vector<Block<int16_t, D>> &blocks, const TraversalTable<D> &traversal_table) {
   vector<Block<int16_t, D>> blocks_dezigzaged(blocks.size());
 
   for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
@@ -60,7 +60,7 @@ inline vector<Block<int16_t, D>> dezigzagBlocks(const vector<Block<int16_t, D>> 
     Block<int16_t, D>       &block_dezigzaged = blocks_dezigzaged[block_index];
 
     for (uint16_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_dezigzaged[pixel_index] = block[zigzag_table[pixel_index]];
+      block_dezigzaged[pixel_index] = block[traversal_table[pixel_index]];
     }
   }
 
@@ -240,11 +240,11 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING ZIGZAG TABLE" << endl;
+  cerr << "READING TRAVERSAL TABLE" << endl;
   clock_start = clock();
 
-  ZigzagTable<D> zigzag_table {};
-  input.read(reinterpret_cast<char *>(zigzag_table.data()), zigzag_table.size() * sizeof(zigzag_table[0]));
+  TraversalTable<D> traversal_table {};
+  input.read(reinterpret_cast<char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
   cerr << "READING HUFFMAN TABLES" << endl;
@@ -296,12 +296,12 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   vector<vector<RunLengthPair>>().swap(runlenght_Cr);
 
   cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "DEZIGZAGING" << endl;
+  cerr << "DETRAVERSING" << endl;
   clock_start = clock();
 
-  vector<Block<int16_t, D>> blocks_Y_quantized  = dezigzagBlocks<D>(blocks_Y_zigzag,  zigzag_table);
-  vector<Block<int16_t, D>> blocks_Cb_quantized = dezigzagBlocks<D>(blocks_Cb_zigzag, zigzag_table);
-  vector<Block<int16_t, D>> blocks_Cr_quantized = dezigzagBlocks<D>(blocks_Cr_zigzag, zigzag_table);
+  vector<Block<int16_t, D>> blocks_Y_quantized  = dezigzagBlocks<D>(blocks_Y_zigzag,  traversal_table);
+  vector<Block<int16_t, D>> blocks_Cb_quantized = dezigzagBlocks<D>(blocks_Cb_zigzag, traversal_table);
+  vector<Block<int16_t, D>> blocks_Cr_quantized = dezigzagBlocks<D>(blocks_Cr_zigzag, traversal_table);
 
   vector<Block<int16_t, D>>().swap(blocks_Y_zigzag);
   vector<Block<int16_t, D>>().swap(blocks_Cb_zigzag);
