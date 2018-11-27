@@ -56,7 +56,7 @@ constexpr QuantTable<D> constructQuantTable() {
         max = coord;
       }
     }
-    quant_table[i] = clamp(((sqrt(sum)+1) * max) + 10, 0., 255.);
+    quant_table[i] = clamp(((sqrt(sum)+1) * max) + 10, 1., 255.);
   }
 
   return quant_table;
