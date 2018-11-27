@@ -4,8 +4,8 @@
 * DATUM: 19. 10. 2018
 \*******************************************************/
 
-#include "jpeg_encoder.h"
-#include "jpeg_decoder.h"
+#include "lfif_encoder.h"
+#include "lfif_decoder.h"
 #include "ppm.h"
 #include "dct.h"
 
@@ -16,7 +16,7 @@ using namespace std;
 void print_usage(const char *argv0) {
   cerr << "Usage: " << endl;
   cerr << argv0 << " -e <2D|3D|4D> <1..100> <no. images on x axis> path/to/output path/to/inputs*.ppm" << endl;
-  cerr << argv0 << " -d path/to/output/prefix path/to/input.jpeg*d" << endl;
+  cerr << argv0 << " -d path/to/output/prefix path/to/input.lfif*d" << endl;
 }
 
 bool loadMultiplePPMs(int filesc, char *filesv[], uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data) {
@@ -199,18 +199,18 @@ int main(int argc, char *argv[]) {
     const char *output_filename {argv[5]};
 
     if (method == "2D") {
-      if (!RGBtoJPEG<2>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
+      if (!RGBtoLFIF<2>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
     else if (method == "3D") {
       vector<uint8_t> rgb_shifted = zigzagShift(rgb_data, count_x, count_y);
-      if (!RGBtoJPEG<3>(output_filename, rgb_shifted, {width, height, count_x, count_y}, quality)) {
+      if (!RGBtoLFIF<3>(output_filename, rgb_shifted, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
     else if (method == "4D") {
-      if (!RGBtoJPEG<4>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
+      if (!RGBtoLFIF<4>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)) {
         return -3;
       }
     }
@@ -230,20 +230,20 @@ int main(int argc, char *argv[]) {
     const string output_filename(argv[2]);
     const string input_filename(argv[3]);
 
-    if (input_filename.substr(input_filename.find_last_of(".") + 1) == "jpeg2d") {
-      if (!JPEGtoRGB<2>(argv[3], dimensions, rgb_data)) {
+    if (input_filename.substr(input_filename.find_last_of(".") + 1) == "lfif2d") {
+      if (!LFIFtoRGB<2>(argv[3], dimensions, rgb_data)) {
         return -2;
       }
     }
-    else if (input_filename.substr(input_filename.find_last_of(".") + 1) == "jpeg3d") {
+    else if (input_filename.substr(input_filename.find_last_of(".") + 1) == "lfif3d") {
       vector<uint8_t> rgb_shifted {};
-      if (!JPEGtoRGB<3>(argv[3], dimensions, rgb_shifted)) {
+      if (!LFIFtoRGB<3>(argv[3], dimensions, rgb_shifted)) {
         return -2;
       }
       rgb_data = zigzagDeshift(rgb_shifted, dimensions[2], dimensions[3]);
     }
-    else if (input_filename.substr(input_filename.find_last_of(".") + 1) == "jpeg4d") {
-      if (!JPEGtoRGB<4>(argv[3], dimensions, rgb_data)) {
+    else if (input_filename.substr(input_filename.find_last_of(".") + 1) == "lfif4d") {
+      if (!LFIFtoRGB<4>(argv[3], dimensions, rgb_data)) {
         return -2;
       }
     }

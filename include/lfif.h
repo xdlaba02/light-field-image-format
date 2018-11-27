@@ -1,11 +1,11 @@
 /*******************************************************\
-* SOUBOR: jpeg.h
+* SOUBOR: lfif.h
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 * DATUM: 21. 10. 2018
 \*******************************************************/
 
-#ifndef JPEG_H
-#define JPEG_H
+#ifndef LFIF_H
+#define LFIF_H
 
 #include "constmath.h"
 #include "endian.h"

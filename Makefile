@@ -4,7 +4,7 @@
 # DATUM: 19. 10. 2018
 ########################################################
 
-TARGET = codec
+TARGET = lfif
 
 DEPDIR = .dep
 SRCDIR = src

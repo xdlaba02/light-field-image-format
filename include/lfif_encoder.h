@@ -1,13 +1,13 @@
 /*******************************************************\
-* SOUBOR: jpeg_encoder.h
+* SOUBOR: lfif_encoder.h
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 * DATUM: 19. 10. 2018
 \*******************************************************/
 
-#ifndef JPEG_ENCODER_H
-#define JPEG_ENCODER_H
+#ifndef LFIF_ENCODER_H
+#define LFIF_ENCODER_H
 
-#include "jpeg.h"
+#include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"
 
@@ -319,7 +319,7 @@ inline vector<vector<RunLengthPair>> runLenghtDiffEncodeBlocks(const vector<Bloc
 
 
 template<uint8_t D>
-inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_data, const array<uint64_t, 4> &&src_dimensions, const uint8_t quality) {
+inline bool RGBtoLFIF(const char *output_filename, const vector<uint8_t> &rgb_data, const array<uint64_t, 4> &&src_dimensions, const uint8_t quality) {
   static_assert(D <= 4);
 
   clock_t clock_start {};
@@ -475,7 +475,7 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
 
 
   stringstream ss {};
-  ss << output_filename << ".jpeg" << static_cast<unsigned>(D) << "d";
+  ss << output_filename << ".lfif" << static_cast<unsigned>(D) << "d";
   ofstream output(ss.str());
   if (output.fail()) {
     return false;
@@ -485,7 +485,7 @@ inline bool RGBtoJPEG(const char *output_filename, const vector<uint8_t> &rgb_da
   cerr << "WRITING MAGIC NUMBER" << endl;
   clock_start = clock();
 
-  output.write("JPEG-", 5);
+  output.write("LFIF-", 5);
   output.put('0' + D);
   output.write("D\n", 2);
 

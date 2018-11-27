@@ -1,10 +1,10 @@
 /*******************************************************\
-* SOUBOR: jpeg_decoder.cc
+* SOUBOR: lfif_decoder.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 * DATUM: 19. 10. 2018
 \*******************************************************/
 
-#include "jpeg_decoder.h"
+#include "lfif_decoder.h"
 
 #include <numeric>
 

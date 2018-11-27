@@ -1,13 +1,13 @@
 /*******************************************************\
-* SOUBOR: jpeg_decoder.h
+* SOUBOR: lfif_decoder.h
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 * DATUM: 19. 10. 2018
 \*******************************************************/
 
-#ifndef JPEG_DECODER_H
-#define JPEG_DECODER_H
+#ifndef LFIF_DECODER_H
+#define LFIF_DECODER_H
 
-#include "jpeg.h"
+#include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"
 
@@ -180,7 +180,7 @@ inline vector<float> convertFromBlocks(const vector<Block<float, D>> &blocks, co
 }
 
 template<uint8_t D>
-inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensions, vector<uint8_t> &rgb_data) {
+inline bool LFIFtoRGB(const char *input_filename, vector<uint64_t> &src_dimensions, vector<uint8_t> &rgb_data) {
   assert(src_dimensions.size() >= D);
 
   clock_t clock_start {};
@@ -198,7 +198,7 @@ inline bool JPEGtoRGB(const char *input_filename, vector<uint64_t> &src_dimensio
   cerr << "READING MAGIC NUMBER" << endl;
   clock_start = clock();
 
-  char cmp_magic_number[9] {"JPEG-XD\n"};
+  char cmp_magic_number[9] {"LFIF-XD\n"};
   cmp_magic_number[5] = '0' + D;
 
   char magic_number[9] {};
