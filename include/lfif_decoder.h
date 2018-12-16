@@ -19,13 +19,14 @@ using namespace std;
 
 void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstream &stream);
 
-vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC, const vector<uint8_t> &huff_counts_AC, const vector<uint8_t> & huff_symbols_DC, const vector<uint8_t> &huff_symbols_AC, const uint64_t count, IBitstream &bitstream);
-
-vector<vector<RunLengthPair>> diffDecodePairs(const vector<vector<RunLengthPair>> &runlengths);
-
 RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
+
+void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths);
+
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream);
+
+vector<float> deshiftData(const vector<float> &data);
 
 vector<uint8_t> YCbCrToRGB(const vector<float> &Y_data, const vector<float> &Cb_data, const vector<float> &Cr_data);
 
@@ -38,9 +39,9 @@ inline vector<Block<int16_t, D>> runLenghtDecodePairs(const vector<vector<RunLen
     Block<int16_t, D>           &block = blocks[block_index];
 
     uint16_t pixel_index = 0;
-    for (uint64_t i = 0; i < vec.size() - 1; i++) {
-      pixel_index += vec[i].zeroes;
-      block[pixel_index] = vec[i].amplitude;
+    for (auto &pair: vec) {
+      pixel_index += pair.zeroes;
+      block[pixel_index] = pair.amplitude;
       pixel_index++;
     }
   }
@@ -92,23 +93,7 @@ inline vector<Block<float, D>> detransformBlocks(const vector<Block<int32_t, D>>
 }
 
 template<uint8_t D>
-inline vector<Block<float, D>> deshiftBlocks(const vector<Block<float, D>> &blocks) {
-  vector<Block<float, D>> blocks_deshifted(blocks.size());
-
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<float, D> &block           = blocks[block_index];
-    Block<float, D>       &block_deshifted = blocks_deshifted[block_index];
-
-    for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_deshifted[pixel_index] = clamp<float>(block[pixel_index] + 128, 0, 255);
-    }
-  }
-
-  return blocks_deshifted;
-}
-
-template<uint8_t D>
-inline vector<float> convertFromBlocks(const vector<Block<float, D>> &blocks, const array<uint64_t, D> &dims) {
+inline vector<float> convertFromBlocks(const Block<float, D> *blocks, const array<uint64_t, D> &dims) {
   array<uint64_t, D> block_dims {};
   uint64_t blocks_cnt = 1;
   uint64_t pixels_cnt = 1;

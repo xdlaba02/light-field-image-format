@@ -79,10 +79,6 @@ int main(int argc, char *argv[]) {
   uint64_t height = fromBigEndian(raw_height);
   uint64_t image_count = fromBigEndian(raw_count);
 
-  cerr << double(width) << endl;
-  cerr << double(height) << endl;
-  cerr << double(image_count) << endl;
-
   QuantTable<2> quant_table {};
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
@@ -104,9 +100,43 @@ int main(int argc, char *argv[]) {
   readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
   readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
 
+  uint64_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
+
+  vector<vector<RunLengthPair>> pairs_Y(blocks_cnt  * image_count);
+  vector<vector<RunLengthPair>> pairs_Cb(blocks_cnt * image_count);
+  vector<vector<RunLengthPair>> pairs_Cr(blocks_cnt * image_count);
+
   IBitstream bitstream(input);
 
-  uint64_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
+  for (uint64_t i = 0; i < blocks_cnt * image_count; i++) {
+    RunLengthPair pair;
+
+    pairs_Y[i].push_back(decodeOnePair(huff_counts_luma_DC, huff_symbols_luma_DC, bitstream));
+    do {
+      pair = decodeOnePair(huff_counts_luma_AC, huff_symbols_luma_AC, bitstream);
+      pairs_Y[i].push_back(pair);
+    } while((pair.zeroes != 0) || (pair.amplitude != 0));
+
+    pairs_Cb[i].push_back(decodeOnePair(huff_counts_chroma_DC, huff_symbols_chroma_DC, bitstream));
+    do {
+      pair = decodeOnePair(huff_counts_chroma_AC, huff_symbols_chroma_AC, bitstream);
+      pairs_Cb[i].push_back(pair);
+    } while((pair.zeroes != 0) || (pair.amplitude != 0));
+
+    pairs_Cr[i].push_back(decodeOnePair(huff_counts_chroma_DC, huff_symbols_chroma_DC, bitstream));
+    do {
+      pair = decodeOnePair(huff_counts_chroma_AC, huff_symbols_chroma_AC, bitstream);
+      pairs_Cr[i].push_back(pair);
+    } while((pair.zeroes != 0) || (pair.amplitude != 0));
+  }
+
+  diffDecodePairs(pairs_Y);
+  diffDecodePairs(pairs_Cb);
+  diffDecodePairs(pairs_Cr);
+
+  vector<Block<float, 2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Y), traversal_table), quant_table));
+  vector<Block<float, 2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Cb), traversal_table), quant_table));
+  vector<Block<float, 2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Cr), traversal_table), quant_table));
 
   vector<uint64_t> mask_indexes {};
 
@@ -119,12 +149,11 @@ int main(int argc, char *argv[]) {
   string output_file_name {output_file_mask};
 
   for (uint64_t image = 0; image < image_count; image++) {
-    vector<float> Y_data  = convertFromBlocks<2>(detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(decodePairs(huff_counts_luma_DC,   huff_counts_luma_AC,   huff_symbols_luma_DC,   huff_symbols_luma_AC,   blocks_cnt, bitstream))), traversal_table), quant_table)), {width, height});
-    vector<float> Cb_data = convertFromBlocks<2>(detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(decodePairs(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, blocks_cnt, bitstream))), traversal_table), quant_table)), {width, height});
-    vector<float> Cr_data = convertFromBlocks<2>(detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(decodePairs(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, blocks_cnt, bitstream))), traversal_table), quant_table)), {width, height});
+    vector<float> Y_data  = deshiftData(convertFromBlocks<2>(blocks_Y.data()  + image * blocks_cnt, {width, height}));
+    vector<float> Cb_data = deshiftData(convertFromBlocks<2>(blocks_Cb.data() + image * blocks_cnt, {width, height}));
+    vector<float> Cr_data = deshiftData(convertFromBlocks<2>(blocks_Cr.data() + image * blocks_cnt, {width, height}));
 
     vector<uint8_t> rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
-
 
     stringstream image_number {};
     image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);

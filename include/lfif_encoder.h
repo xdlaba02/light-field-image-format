@@ -29,7 +29,6 @@ map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint
 
 void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstream &stream);
 
-void encodePairs(const vector<vector<RunLengthPair>> &pairvecs, const map<uint8_t, Codeword> &huffcodes_AC, const map<uint8_t, Codeword> &huffcodes_DC, OBitstream &bitstream);
 void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream);
 
 uint8_t huffmanClass(int16_t amplitude);

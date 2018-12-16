@@ -214,9 +214,25 @@ int main(int argc, char *argv[]) {
 
   OBitstream bitstream(output);
 
-  encodePairs(runlength_Y,  huffcodes_luma_AC,   huffcodes_luma_DC,   bitstream);
-  encodePairs(runlength_Cb, huffcodes_chroma_AC, huffcodes_chroma_DC, bitstream);
-  encodePairs(runlength_Cr, huffcodes_chroma_AC, huffcodes_chroma_DC, bitstream);
+  uint64_t blocks_cnt = ceil(width/8.) * ceil(height/8.) * image_count;
+
+  for (uint64_t i = 0; i < blocks_cnt; i++) {
+    cerr << "Block " << long(i) << endl;
+    encodeOnePair(runlength_Y[i][0], huffcodes_luma_DC, bitstream);
+    for (uint64_t j = 1; j < runlength_Y[i].size(); j++) {
+      encodeOnePair(runlength_Y[i][j], huffcodes_luma_AC, bitstream);
+    }
+
+    encodeOnePair(runlength_Cb[i][0], huffcodes_chroma_DC, bitstream);
+    for (uint64_t j = 1; j < runlength_Cb[i].size(); j++) {
+      encodeOnePair(runlength_Cb[i][j], huffcodes_chroma_AC, bitstream);
+    }
+
+    encodeOnePair(runlength_Cr[i][0], huffcodes_chroma_DC, bitstream);
+    for (uint64_t j = 1; j < runlength_Cr[i].size(); j++) {
+      encodeOnePair(runlength_Cr[i][j], huffcodes_chroma_AC, bitstream);
+    }
+  }
 
   bitstream.flush();
 

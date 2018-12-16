@@ -160,15 +160,6 @@ void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstr
   }
 }
 
-void encodePairs(const vector<vector<RunLengthPair>> &pairvecs, const map<uint8_t, Codeword> &huffcodes_AC, const map<uint8_t, Codeword> &huffcodes_DC, OBitstream &bitstream) {
-  for (auto &vec: pairvecs) {
-    encodeOnePair(vec[0], huffcodes_DC, bitstream);
-    for (uint64_t i = 1; i < vec.size(); i++) {
-      encodeOnePair(vec[i], huffcodes_AC, bitstream);
-    }
-  }
-}
-
 void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream) {
   uint8_t huff_class = huffmanClass(pair.amplitude);
   uint8_t symbol     = huffmanSymbol(pair);

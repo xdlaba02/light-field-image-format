@@ -16,33 +16,19 @@ void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstrea
   stream.read(reinterpret_cast<char *>(symbols.data()), symbols.size());
 }
 
-vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC, const vector<uint8_t> &huff_counts_AC, const vector<uint8_t> &huff_symbols_DC, const vector<uint8_t> &huff_symbols_AC, const uint64_t count, IBitstream &bitstream) {
-  vector<vector<RunLengthPair>> runlength(count);
-
-  RunLengthPair pair {};
-
-  for (uint64_t i = 0; i < count; i++) {
-    runlength[i].push_back(decodeOnePair(huff_counts_DC, huff_symbols_DC, bitstream));
-    do {
-      pair = decodeOnePair(huff_counts_AC, huff_symbols_AC, bitstream);
-      runlength[i].push_back(pair);
-    } while((pair.zeroes != 0) || (pair.amplitude != 0));
-  }
-
-  return runlength;
+RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
+  uint8_t symbol = decodeOneHuffmanSymbol(counts, symbols, stream);
+  int16_t amplitude = decodeOneAmplitude(symbol & 0x0f, stream);
+  return {static_cast<uint8_t>(symbol >> 4), amplitude};
 }
 
-vector<vector<RunLengthPair>> diffDecodePairs(const vector<vector<RunLengthPair>> &runlengths) {
-  vector<vector<RunLengthPair>> output {runlengths};
-
+void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths) {
   int16_t prev_DC = 0;
 
   for (uint64_t i = 0; i < runlengths.size(); i++) {
-    output[i][0].amplitude = runlengths[i][0].amplitude + prev_DC;
-    prev_DC = output[i][0].amplitude;
+    runlengths[i][0].amplitude += prev_DC;
+    prev_DC = runlengths[i][0].amplitude;
   }
-
-  return output;
 }
 
 vector<float> deshiftData(const vector<float> &data) {
@@ -51,12 +37,6 @@ vector<float> deshiftData(const vector<float> &data) {
     pixel += 128;
   }
   return shifted_data;
-}
-
-RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
-  uint8_t symbol = decodeOneHuffmanSymbol(counts, symbols, stream);
-  int16_t amplitude = decodeOneAmplitude(symbol & 0x0f, stream);
-  return {static_cast<uint8_t>(symbol >> 4), amplitude};
 }
 
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
