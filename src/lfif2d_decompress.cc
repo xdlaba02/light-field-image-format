@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
 
   IBitstream bitstream(input);
 
-  blocks_cnt = 
+  blocks_cnt =
 
   for (uint64_t i = 0; i < image_count; i++) {
     vector<float> Y_data  = convertFromBlocks<D>(detransformBlocks<D>(dequantizeBlocks<D>(dezigzagBlocks<D>(runLenghtDiffDecodePairs<D>(decodePairs(huff_counts_luma_DC,   huff_counts_luma_AC,   huff_symbols_luma_DC,   huff_symbols_luma_AC,   blocks_cnt, bitstream)), traversal_table), quant_table)),  {width, height});
