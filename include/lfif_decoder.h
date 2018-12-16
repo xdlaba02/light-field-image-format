@@ -21,44 +21,13 @@ void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstrea
 
 vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC, const vector<uint8_t> &huff_counts_AC, const vector<uint8_t> & huff_symbols_DC, const vector<uint8_t> &huff_symbols_AC, const uint64_t count, IBitstream &bitstream);
 
-void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths)
+void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths);
 
 RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream);
 
 vector<uint8_t> YCbCrToRGB(const vector<float> &Y_data, const vector<float> &Cb_data, const vector<float> &Cr_data);
-
-template<uint8_t D>
-inline vector<vector<RunLengthPair>> runLenghtEncodeBlocks(const vector<Block<int16_t, D>> &blocks) {
-  vector<vector<RunLengthPair>> runlengths(blocks.size());
-
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<int16_t, D> &block     = blocks[block_index];
-    vector<RunLengthPair>   &runlength = runlengths[block_index];
-
-    runlength.push_back({0, static_cast<int16_t>(block[0])});
-
-    uint64_t zeroes = 0;
-    for (uint64_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
-      if (block[pixel_index] == 0) {
-        zeroes++;
-      }
-      else {
-        while (zeroes >= 16) {
-          runlength.push_back({15, 0});
-          zeroes -= 16;
-        }
-        runlength.push_back({static_cast<uint8_t>(zeroes), block[pixel_index]});
-        zeroes = 0;
-      }
-    }
-
-    runlength.push_back({0, 0});
-  }
-
-  return runlengths;
-}
 
 template<uint8_t D>
 inline vector<Block<int16_t, D>> runLenghtDecodePairs(const vector<vector<RunLengthPair>> &runlengths) {

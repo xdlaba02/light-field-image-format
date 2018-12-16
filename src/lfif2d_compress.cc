@@ -196,12 +196,12 @@ int main(int argc, char *argv[]) {
   output.write("LFIF-2D\n", 8);
 
   uint64_t raw_width  = toBigEndian(width);
-  uint64_t raw_height = toBigEndian(height)
-  uint64_t raw_count = toBigEndian(image_count)
+  uint64_t raw_height = toBigEndian(height);
+  uint64_t raw_count = toBigEndian(image_count);
 
-  output.write(reinterpret_cast<char *>(&raw_width),  sizeof(width));
-  output.write(reinterpret_cast<char *>(&raw_height), sizeof(height));
-  output.write(reinterpret_cast<char *>(&raw_count), sizeof(count));
+  output.write(reinterpret_cast<char *>(&raw_width),  sizeof(raw_width));
+  output.write(reinterpret_cast<char *>(&raw_height), sizeof(raw_height));
+  output.write(reinterpret_cast<char *>(&raw_count), sizeof(raw_count));
 
   output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
 

@@ -32,13 +32,17 @@ vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC,
   return runlength;
 }
 
-void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths) {
+vector<vector<RunLengthPair>> diffDecodePairs(vector<vector<RunLengthPair>> &runlengths) {
+  vector<vector<RunLengthPair>> output(runlengths.size());
+
   int16_t prev_DC = 0;
 
-  for (auto &runlength: runlengths) {
-    runlength[0].amplitude += prev_DC;
-    prev_DC += runlength[0].amplitude;
+  for (uint64_t i = 0; i < runlengths.size(); i++) {
+    output[i][0].amplitude = runlengths[i][0].amplitude + prev_DC;
+    prev_DC += output[i][0].amplitude;
   }
+
+  return output;
 }
 
 vector<float> deshiftData(const vector<float> &data) {
