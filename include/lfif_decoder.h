@@ -21,6 +21,8 @@ void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstrea
 
 vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC, const vector<uint8_t> &huff_counts_AC, const vector<uint8_t> & huff_symbols_DC, const vector<uint8_t> &huff_symbols_AC, const uint64_t count, IBitstream &bitstream);
 
+void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths)
+
 RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream);
@@ -28,20 +30,46 @@ int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream);
 vector<uint8_t> YCbCrToRGB(const vector<float> &Y_data, const vector<float> &Cb_data, const vector<float> &Cr_data);
 
 template<uint8_t D>
-inline vector<Block<int16_t, D>> runLenghtDiffDecodePairs(const vector<vector<RunLengthPair>> &pairvecs) {
-  vector<Block<int16_t, D>> blocks(pairvecs.size());
+inline vector<vector<RunLengthPair>> runLenghtEncodeBlocks(const vector<Block<int16_t, D>> &blocks) {
+  vector<vector<RunLengthPair>> runlengths(blocks.size());
 
-  int16_t prev_DC = 0;
+  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
+    const Block<int16_t, D> &block     = blocks[block_index];
+    vector<RunLengthPair>   &runlength = runlengths[block_index];
 
-  for (uint64_t block_index = 0; block_index < pairvecs.size(); block_index++) {
-    const vector<RunLengthPair> &vec   = pairvecs[block_index];
+    runlength.push_back({0, static_cast<int16_t>(block[0])});
+
+    uint64_t zeroes = 0;
+    for (uint64_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
+      if (block[pixel_index] == 0) {
+        zeroes++;
+      }
+      else {
+        while (zeroes >= 16) {
+          runlength.push_back({15, 0});
+          zeroes -= 16;
+        }
+        runlength.push_back({static_cast<uint8_t>(zeroes), block[pixel_index]});
+        zeroes = 0;
+      }
+    }
+
+    runlength.push_back({0, 0});
+  }
+
+  return runlengths;
+}
+
+template<uint8_t D>
+inline vector<Block<int16_t, D>> runLenghtDecodePairs(const vector<vector<RunLengthPair>> &runlengths) {
+  vector<Block<int16_t, D>> blocks(runlengths.size());
+
+  for (uint64_t block_index = 0; block_index < runlengths.size(); block_index++) {
+    const vector<RunLengthPair> &vec   = runlengths[block_index];
     Block<int16_t, D>           &block = blocks[block_index];
 
-    block[0] = vec[0].amplitude + prev_DC;
-    prev_DC = block[0];
-
-    uint16_t pixel_index = 1;
-    for (uint64_t i = 1; i < vec.size() - 1; i++) {
+    uint16_t pixel_index = 0;
+    for (uint64_t i = 0; i < vec.size() - 1; i++) {
       pixel_index += vec[i].zeroes;
       block[pixel_index] = vec[i].amplitude;
       pixel_index++;
@@ -177,193 +205,6 @@ inline vector<float> convertFromBlocks(const vector<Block<float, D>> &blocks, co
   }
 
   return data;
-}
-
-template<uint8_t D>
-inline bool LFIFtoRGB(const char *input_filename, vector<uint64_t> &src_dimensions, vector<uint8_t> &rgb_data) {
-  assert(src_dimensions.size() >= D);
-
-  clock_t clock_start {};
-  cerr << fixed << setprecision(3);
-
-  cerr << "OPENING INPUT FILE" << endl;
-  clock_start = clock();
-
-  ifstream input(input_filename);
-  if (input.fail()) {
-    return false;
-  }
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING MAGIC NUMBER" << endl;
-  clock_start = clock();
-
-  char cmp_magic_number[9] {"LFIF-XD\n"};
-  cmp_magic_number[5] = '0' + D;
-
-  char magic_number[9] {};
-  input.read(magic_number, 8);
-
-  string orig_magic_number {cmp_magic_number};
-  string file_magic_number {magic_number};
-
-  if (orig_magic_number != file_magic_number) {
-    return false;
-  }
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING IMAGE DIMENSIONS" << endl;
-  clock_start = clock();
-
-  for (uint64_t &dim: src_dimensions) {
-    uint64_t raw_dim {};
-    input.read(reinterpret_cast<char *>(&raw_dim), sizeof(uint64_t));
-    dim = fromBigEndian(raw_dim);
-  }
-
-  array<uint64_t, D> dimensions {};
-
-  for (uint64_t i = 0; i < src_dimensions.size(); i++) {
-    if (i >= D) {
-      dimensions[D-1] *= src_dimensions[i];
-    }
-    else {
-      dimensions[i] = src_dimensions[i];
-    }
-  }
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING QUANTIZATION TABLES" << endl;
-  clock_start = clock();
-
-  QuantTable<D> quant_table {};
-  input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING TRAVERSAL TABLE" << endl;
-  clock_start = clock();
-
-  TraversalTable<D> traversal_table {};
-  input.read(reinterpret_cast<char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING HUFFMAN TABLES" << endl;
-  clock_start = clock();
-
-  vector<uint8_t> huff_counts_luma_DC   {};
-  vector<uint8_t> huff_counts_luma_AC   {};
-  vector<uint8_t> huff_counts_chroma_DC {};
-  vector<uint8_t> huff_counts_chroma_AC {};
-
-  vector<uint8_t> huff_symbols_luma_DC   {};
-  vector<uint8_t> huff_symbols_luma_AC   {};
-  vector<uint8_t> huff_symbols_chroma_DC {};
-  vector<uint8_t> huff_symbols_chroma_AC {};
-
-  readHuffmanTable(huff_counts_luma_DC, huff_symbols_luma_DC, input);
-  readHuffmanTable(huff_counts_luma_AC, huff_symbols_luma_AC, input);
-  readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
-  readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "READING AND HUFFMAN DECODING BLOCKS" << endl;
-  clock_start = clock();
-
-  array<uint64_t, D> block_dimensions {};
-  uint64_t blocks_cnt = 1;
-
-  for (uint64_t i = 0; i < D; i++) {
-    block_dimensions[i] = ceil(dimensions[i]/8.);
-    blocks_cnt *= block_dimensions[i];
-  }
-
-  IBitstream bitstream(input);
-
-  vector<vector<RunLengthPair>> runlenght_Y  = decodePairs(huff_counts_luma_DC,   huff_counts_luma_AC,   huff_symbols_luma_DC,   huff_symbols_luma_AC,   blocks_cnt, bitstream);
-  vector<vector<RunLengthPair>> runlenght_Cb = decodePairs(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, blocks_cnt, bitstream);
-  vector<vector<RunLengthPair>> runlenght_Cr = decodePairs(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, blocks_cnt, bitstream);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "RUNLENGTH AND DIFF DECODING" << endl;
-  clock_start = clock();
-
-  vector<Block<int16_t, D>> blocks_Y_zigzag  = runLenghtDiffDecodePairs<D>(runlenght_Y);
-  vector<Block<int16_t, D>> blocks_Cb_zigzag = runLenghtDiffDecodePairs<D>(runlenght_Cb);
-  vector<Block<int16_t, D>> blocks_Cr_zigzag = runLenghtDiffDecodePairs<D>(runlenght_Cr);
-
-  vector<vector<RunLengthPair>>().swap(runlenght_Y);
-  vector<vector<RunLengthPair>>().swap(runlenght_Cb);
-  vector<vector<RunLengthPair>>().swap(runlenght_Cr);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "DETRAVERSING" << endl;
-  clock_start = clock();
-
-  vector<Block<int16_t, D>> blocks_Y_quantized  = dezigzagBlocks<D>(blocks_Y_zigzag,  traversal_table);
-  vector<Block<int16_t, D>> blocks_Cb_quantized = dezigzagBlocks<D>(blocks_Cb_zigzag, traversal_table);
-  vector<Block<int16_t, D>> blocks_Cr_quantized = dezigzagBlocks<D>(blocks_Cr_zigzag, traversal_table);
-
-  vector<Block<int16_t, D>>().swap(blocks_Y_zigzag);
-  vector<Block<int16_t, D>>().swap(blocks_Cb_zigzag);
-  vector<Block<int16_t, D>>().swap(blocks_Cr_zigzag);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "DEQUANTIZING" << endl;
-  clock_start = clock();
-
-  vector<Block<int32_t, D>> blocks_Y_transformed  = dequantizeBlocks<D>(blocks_Y_quantized,  quant_table);
-  vector<Block<int32_t, D>> blocks_Cb_transformed = dequantizeBlocks<D>(blocks_Cb_quantized, quant_table);
-  vector<Block<int32_t, D>> blocks_Cr_transformed = dequantizeBlocks<D>(blocks_Cr_quantized, quant_table);
-
-  vector<Block<int16_t, D>>().swap(blocks_Y_quantized);
-  vector<Block<int16_t, D>>().swap(blocks_Cb_quantized);
-  vector<Block<int16_t, D>>().swap(blocks_Cr_quantized);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "INVERSE DISCRETE COSINE TRANSFORMING" << endl;
-  clock_start = clock();
-
-  vector<Block<float, D>> blocks_Y_shifted  = detransformBlocks<D>(blocks_Y_transformed);
-  vector<Block<float, D>> blocks_Cb_shifted = detransformBlocks<D>(blocks_Cb_transformed);
-  vector<Block<float, D>> blocks_Cr_shifted = detransformBlocks<D>(blocks_Cr_transformed);
-
-  vector<Block<int32_t, D>>().swap(blocks_Y_transformed);
-  vector<Block<int32_t, D>>().swap(blocks_Cb_transformed);
-  vector<Block<int32_t, D>>().swap(blocks_Cr_transformed);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "DESHIFTING VALUES TO <0, 255>" << endl;
-  clock_start = clock();
-
-  vector<Block<float, D>> blocks_Y  = deshiftBlocks<D>(blocks_Y_shifted);
-  vector<Block<float, D>> blocks_Cb = deshiftBlocks<D>(blocks_Cb_shifted);
-  vector<Block<float, D>> blocks_Cr = deshiftBlocks<D>(blocks_Cr_shifted);
-
-  vector<Block<float, D>>().swap(blocks_Y_shifted);
-  vector<Block<float, D>>().swap(blocks_Cb_shifted);
-  vector<Block<float, D>>().swap(blocks_Cr_shifted);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "DEBLOCKING" << endl;
-  clock_start = clock();
-
-  vector<float> Y_data  = convertFromBlocks<D>(blocks_Y,  dimensions);
-  vector<float> Cb_data = convertFromBlocks<D>(blocks_Cb, dimensions);
-  vector<float> Cr_data = convertFromBlocks<D>(blocks_Cr, dimensions);
-
-  vector<Block<float, D>>().swap(blocks_Y);
-  vector<Block<float, D>>().swap(blocks_Cb);
-  vector<Block<float, D>>().swap(blocks_Cr);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "COVERTING TO RGB" << endl;
-  clock_start = clock();
-
-  rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-
-  return true;
 }
 
 #endif

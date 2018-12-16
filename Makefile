@@ -12,12 +12,12 @@ OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS = -Iinclude -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 LDFLAGS =
 
 all: $(BINDIR) $(OBJDIR) $(BINDIR)/$(TARGETS)
 
-$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o
+$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(OBJDIR)/bitstream.o $(OBJDIR)/endian.o $(OBJDIR)/lfif_encoder.o $(OBJDIR)/ppm.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cc

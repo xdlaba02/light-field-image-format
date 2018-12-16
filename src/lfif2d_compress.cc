@@ -8,8 +8,9 @@
 #include "ppm.h"
 
 #include <getopt.h>
+
 #include <iostream>
-#include <algorithm>
+#include <bitset>
 
 using namespace std;
 
@@ -18,47 +19,27 @@ void print_usage(const char *argv0) {
   cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << endl;
 }
 
-/*
-bool loadMultiplePPMs(int filesc, char *filesv[], uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data) {
-  uint64_t prev_width = 0;
-  uint64_t prev_height = 0;
-
-  for (int64_t i = 0; i < filesc; i++) {
-    if (!loadPPM(filesv[i], width, height, rgb_data)) {
-      cerr << "Unable to load image " << filesv[i] << "!" << endl;
-      return false;
-    }
-    if (prev_width != 0 && prev_height != 0 && ((prev_width != width) || (prev_height != height))) {
-      cerr << "Image sizes do not match!" << endl;
-      return false;
-    }
-
-    prev_width = width;
-    prev_height = height;
-  }
-
-  return true;
-}*/
-
 int main(int argc, char *argv[]) {
-  char *arg_input_file_mask {nullptr};
-  char *arg_output_file_name {nullptr};
-  char *arg_quality {nullptr};
+  char *input_file_mask {nullptr};
+  char *output_file_name    {nullptr};
+  char *arg_quality         {nullptr};
 
-  /*** OPTIONS PARSING ***/
+  /*******************************************************\
+  * Argument parsing
+  \*******************************************************/
   char opt;
   while ((opt = getopt(argc, argv, "i:o:q:")) >= 0) {
     switch (opt) {
       case 'i':
-        if (!arg_input_file_mask) {
-          arg_input_file_mask = optarg;
+        if (!input_file_mask) {
+          input_file_mask = optarg;
           continue;
         }
         break;
 
       case 'o':
-        if (!arg_output_file_name) {
-          arg_output_file_name = optarg;
+        if (!output_file_name) {
+          output_file_name = optarg;
           continue;
         }
         break;
@@ -78,18 +59,15 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if ((!arg_input_file_mask) || (!arg_output_file_name) || (!arg_quality)) {
+  if ((!input_file_mask) || (!output_file_name) || (!arg_quality)) {
     print_usage(argv[0]);
     return -1;
   }
 
-  string input_file_name  {arg_input_file_mask};
-  string output_file_name {arg_output_file_name};
-  uint8_t quality         {};
+  string input_file_name {input_file_mask};
+  uint8_t quality        {};
 
-  int tmp_quality;
-  tmp_quality = atoi(arg_quality);
-
+  int tmp_quality = atoi(arg_quality);
   if ((tmp_quality < 1) || (tmp_quality > 100)) {
     print_usage(argv[0]);
     return -2;
@@ -100,89 +78,147 @@ int main(int argc, char *argv[]) {
 
   vector<uint64_t> mask_indexes {};
 
-  for (uint64_t i = 0; arg_input_file_mask[i] != '\0'; i++) {
-    if (arg_input_file_mask[i] == '#') {
+  for (uint64_t i = 0; input_file_mask[i] != '\0'; i++) {
+    if (input_file_mask[i] == '#') {
       mask_indexes.push_back(i);
     }
   }
 
-  uint64_t input_image_count = pow(10, mask_indexes.size());
+  uint64_t image_count {};
 
-  QuantTable<D> quant_table = scaleQuantTable<D>(baseQuantTable<D>(), quality);
+  uint64_t width  {};
+  uint64_t height {};
 
-  for (uint64_t image = 0; image < input_image_count; image++) {
+  vector<vector<uint8_t>> rgb_data {};
+
+  for (uint64_t image = 0; image < pow(10, mask_indexes.size()); image++) {
     stringstream image_number {};
-
     image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);
 
     for (uint64_t index = 0; index < mask_indexes.size(); index++) {
       input_file_name[mask_indexes[index]] = image_number.str()[index];
     }
 
-    uint64_t width;
-    uint64_t height;
-    vector<uint8_t> rgb_data;
-
-    if (loadPPM(input_file_name, width, height, rgb_data)) {
-      vector<float> data_Y  = convertRGB(rgb_data, RGBtoY);
-      vector<float> data_Cb = convertRGB(rgb_data, RGBtoCb);
-      vector<float> data_Cr = convertRGB(rgb_data, RGBtoCr);
-
-      shiftData<D>(data_Y);
-      shiftData<D>(data_Cb);
-      shiftData<D>(data_Cr);
-
-      vector<Block<float, D>> blocks_Y  = convertToBlocks<D>(data_Y,  {width, height});
-      vector<Block<float, D>> blocks_Cb = convertToBlocks<D>(data_Cb, {width, height});
-      vector<Block<float, D>> blocks_Cr = convertToBlocks<D>(data_Cr, {width, height});
-
-      vector<float>().swap(data_Y);
-      vector<float>().swap(data_Cb);
-      vector<float>().swap(data_Cr);
-
-      vector<Block<float, D>> blocks_transformed_Y  = transformBlocks<D>(blocks_Y);
-      vector<Block<float, D>> blocks_transformed_Cb = transformBlocks<D>(blocks_Cb);
-      vector<Block<float, D>> blocks_transformed_cr = transformBlocks<D>(blocks_Cr);
-
-      vector<float>().swap(blocks_Y);
-      vector<float>().swap(blocks_Cb);
-      vector<float>().swap(blocks_Cr);
-
-      vector<Block<int16_t, D>> blocks_quantized_Y = quantizeBlocks<D>(blocks_transformed_Y,  quant_table);
-      vector<Block<int16_t, D>> blocks_quantized_Cb = quantizeBlocks<D>(blocks_transformed_Cb,  quant_table);
-      vector<Block<int16_t, D>> blocks_quantized_Cr = quantizeBlocks<D>(blocks_transformed_Cr,  quant_table);
-
-      vector<Block<float, D>>().swap(blocks_transformed_Y);
-      vector<Block<float, D>>().swap(blocks_transformed_Cb);
-      vector<Block<float, D>>().swap(blocks_transformed_Cr);
-
-      TraversalTable<D> traversal_table = constructTraversalTableByAvg<D>(blocks_quantized_Y, blocks_quantized_Cb, blocks_quantized_Cr);
-
-      vector<Block<int16_t, D>> blocks_traversed_Y  = traverseBlocks<D>(blocks_quantized_Y,  traversal_table);
-      vector<Block<int16_t, D>> blocks_traversed_Cb = traverseBlocks<D>(blocks_quantized_Cb, traversal_table);
-      vector<Block<int16_t, D>> blocks_traversed_Cr = traverseBlocks<D>(blocks_quantized_Cr, traversal_table);
-
-      vector<Block<int16_t, D>>().swap(blocks_quantized_Y);
-      vector<Block<int16_t, D>>().swap(blocks_quantized_Cb);
-      vector<Block<int16_t, D>>().swap(blocks_quantized_Cr);
+    ifstream input(input_file_name);
+    if (input.fail()) {
+      break;
     }
+
+    image_count++;
+
+    uint64_t image_width {};
+    uint64_t image_height {};
+
+    rgb_data.emplace_back();
+    if (!readPPM(input, image_width, image_height, rgb_data.back())) {
+      cerr << "ERROR: BAD PPM" << endl;
+      return -3;
+    }
+
+    if (width && height) {
+      if ((image_width != width) || (image_height != height)) {
+        cerr << "ERROR: WIDTHS NOT SAME" << endl;
+        return -4;
+      }
+    }
+
+    width = image_width;
+    height = image_height;
   }
 
-  /*
-  vector<uint8_t> rgb_data {};
-  uint64_t width           {};
-  uint64_t height          {};
-  uint64_t count_x         {};
-  uint64_t count_y         {};
-
-  if (!loadMultiplePPMs(argc - 6, argv + 6, width, height, rgb_data)) {
-    return -2;
+  if (bitset<sizeof(image_count)>(image_count).count() != 1) {
+    cerr << "ERROR: NOT SQUARE" << endl;
+    return -5;
   }
 
-  if (!) {
-    return -3;
+  vector<Block<float, 2>> blocks_Y  {};
+  vector<Block<float, 2>> blocks_Cb {};
+  vector<Block<float, 2>> blocks_Cr {};
+
+  for (auto &rgb_image: rgb_data) {
+    convertToBlocks<2>(shiftData(convertRGB(rgb_image, RGBtoY)),  {width, height}, blocks_Y);
+    convertToBlocks<2>(shiftData(convertRGB(rgb_image, RGBtoCb)), {width, height}, blocks_Cb);
+    convertToBlocks<2>(shiftData(convertRGB(rgb_image, RGBtoCr)), {width, height}, blocks_Cr);
   }
-  */
+
+  QuantTable<2> quant_table = scaleQuantTable<2>(baseQuantTable<2>(), quality);
+
+  vector<Block<int16_t, 2>> blocks_quantized_Y  = quantizeBlocks<2>(transformBlocks<2>(blocks_Y),  quant_table);
+  vector<Block<int16_t, 2>> blocks_quantized_Cb = quantizeBlocks<2>(transformBlocks<2>(blocks_Cb), quant_table);
+  vector<Block<int16_t, 2>> blocks_quantized_Cr = quantizeBlocks<2>(transformBlocks<2>(blocks_Cr), quant_table);
+
+  map<uint8_t, uint64_t> weights_luma_AC   {};
+  map<uint8_t, uint64_t> weights_luma_DC   {};
+
+  map<uint8_t, uint64_t> weights_chroma_AC {};
+  map<uint8_t, uint64_t> weights_chroma_DC {};
+
+  Block<double, 2> reference_block {};
+
+  getReference<2>(blocks_quantized_Y,  reference_block);
+  getReference<2>(blocks_quantized_Cb, reference_block);
+  getReference<2>(blocks_quantized_Cr, reference_block);
+
+  TraversalTable<2> traversal_table = constructTraversalTableByReference<2>(reference_block);
+
+  vector<vector<RunLengthPair>> runlength_Y  = runLenghtEncodeBlocks<2>(traverseBlocks<2>(blocks_quantized_Y,  traversal_table));
+  vector<vector<RunLengthPair>> runlength_Cb = runLenghtEncodeBlocks<2>(traverseBlocks<2>(blocks_quantized_Cb, traversal_table));
+  vector<vector<RunLengthPair>> runlength_Cr = runLenghtEncodeBlocks<2>(traverseBlocks<2>(blocks_quantized_Cr, traversal_table));
+
+  diffEncodePairs(runlength_Y);
+  diffEncodePairs(runlength_Cb);
+  diffEncodePairs(runlength_Cr);
+
+  huffmanGetWeightsAC(runlength_Y,  weights_luma_AC);
+  huffmanGetWeightsDC(runlength_Y,  weights_luma_DC);
+
+  huffmanGetWeightsAC(runlength_Cb, weights_chroma_AC);
+  huffmanGetWeightsAC(runlength_Cr, weights_chroma_AC);
+  huffmanGetWeightsDC(runlength_Cb, weights_chroma_DC);
+  huffmanGetWeightsDC(runlength_Cr, weights_chroma_DC);
+
+  vector<pair<uint64_t, uint8_t>> codelengths_luma_DC   = huffmanGetCodelengths(weights_luma_DC);
+  vector<pair<uint64_t, uint8_t>> codelengths_luma_AC   = huffmanGetCodelengths(weights_luma_AC);
+
+  vector<pair<uint64_t, uint8_t>> codelengths_chroma_DC = huffmanGetCodelengths(weights_chroma_DC);
+  vector<pair<uint64_t, uint8_t>> codelengths_chroma_AC = huffmanGetCodelengths(weights_chroma_AC);
+
+  map<uint8_t, Codeword> huffcodes_luma_DC   = huffmanGenerateCodewords(codelengths_luma_DC);
+  map<uint8_t, Codeword> huffcodes_luma_AC   = huffmanGenerateCodewords(codelengths_luma_AC);
+  map<uint8_t, Codeword> huffcodes_chroma_DC = huffmanGenerateCodewords(codelengths_chroma_DC);
+  map<uint8_t, Codeword> huffcodes_chroma_AC = huffmanGenerateCodewords(codelengths_chroma_AC);
+
+  ofstream output(output_file_name);
+  if (output.fail()) {
+    return -6;
+  }
+
+  output.write("LFIF-2D\n", 8);
+
+  uint64_t raw_width  = toBigEndian(width);
+  uint64_t raw_height = toBigEndian(height)
+  uint64_t raw_count = toBigEndian(image_count)
+
+  output.write(reinterpret_cast<char *>(&raw_width),  sizeof(width));
+  output.write(reinterpret_cast<char *>(&raw_height), sizeof(height));
+  output.write(reinterpret_cast<char *>(&raw_count), sizeof(count));
+
+  output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
+
+  output.write(reinterpret_cast<const char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
+
+  writeHuffmanTable(codelengths_luma_DC, output);
+  writeHuffmanTable(codelengths_luma_AC, output);
+  writeHuffmanTable(codelengths_chroma_DC, output);
+  writeHuffmanTable(codelengths_chroma_AC, output);
+
+  OBitstream bitstream(output);
+
+  encodePairs(runlength_Y,  huffcodes_luma_AC,   huffcodes_luma_DC,   bitstream);
+  encodePairs(runlength_Cb, huffcodes_chroma_AC, huffcodes_chroma_DC, bitstream);
+  encodePairs(runlength_Cr, huffcodes_chroma_AC, huffcodes_chroma_DC, bitstream);
+
+  bitstream.flush();
 
   return 0;
 }

@@ -10,12 +10,35 @@
 
 using namespace std;
 
-void huffmanGetWeights(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights_AC, map<uint8_t, uint64_t> &weights_DC) {
+vector<float> shiftData(const vector<float> &data) {
+  vector<float> shifted_data(data);
+  for (auto &pixel: shifted_data) {
+    pixel -= 128;
+  }
+  return shifted_data;
+}
+
+void huffmanGetWeightsAC(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights) {
   for (auto &vec: pairvecs) {
-    weights_DC[huffmanSymbol(vec[0])]++;
     for (uint64_t i = 1; i < vec.size(); i++) {
-      weights_AC[huffmanSymbol(vec[i])]++;
+      weights[huffmanSymbol(vec[i])]++;
     }
+  }
+}
+
+void huffmanGetWeightsDC(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights) {
+  for (auto &vec: pairvecs) {
+    weights[huffmanSymbol(vec[0])]++;
+  }
+}
+
+void diffEncodePairs(vector<vector<RunLengthPair>> &runlengths) {
+  int16_t prev_DC = 0;
+
+  for (auto &runlength: runlengths) {
+    int16_t prev = prev_DC;
+    runlength[0].amplitude -= prev_DC;
+    prev_DC = prev;
   }
 }
 

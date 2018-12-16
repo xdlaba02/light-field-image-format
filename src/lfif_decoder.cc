@@ -32,6 +32,23 @@ vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC,
   return runlength;
 }
 
+void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths) {
+  int16_t prev_DC = 0;
+
+  for (auto &runlength: runlengths) {
+    runlength[0].amplitude += prev_DC;
+    prev_DC += runlength[0].amplitude;
+  }
+}
+
+vector<float> deshiftData(const vector<float> &data) {
+  vector<float> shifted_data(data);
+  for (auto &pixel: shifted_data) {
+    pixel += 128;
+  }
+  return shifted_data;
+}
+
 RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
   uint8_t symbol = decodeOneHuffmanSymbol(counts, symbols, stream);
   int16_t amplitude = decodeOneAmplitude(symbol & 0x0f, stream);

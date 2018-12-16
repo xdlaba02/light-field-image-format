@@ -8,7 +8,6 @@
 #define PPM_H
 
 #include <fstream>
-#include <string>
 #include <vector>
 
 using namespace std;
@@ -30,17 +29,16 @@ enum State {
 };
 
 /*******************************************************\
-* Funkce proparsuje a nacte data ppm souboru filename
-  do bufferu data.
+* Funkce proparsuje data ze streamu input do bufferu
+  rgb_data.
 * Velikosti obrazku ulozi do prommene width a height.
 \*******************************************************/
-bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data);
+bool readPPM(ifstream &input, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data);
 
 /*******************************************************\
-* Funkce vytvori ppm soubor filename a ulozi do nej
-  rgb data.
+* Funkce odesle PPM data z bufferu do streamu output.
 \*******************************************************/
-bool savePPM(const string &&filename, const uint64_t width, const uint64_t height, const uint8_t *rgb_data);
+bool writePPM(ofstream &output, const uint64_t width, const uint64_t height, const uint8_t *rgb_data);
 
 /*******************************************************\
 * Funkce ve streamu preskoci na prvni znak za koncem

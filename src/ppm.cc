@@ -5,14 +5,10 @@
 \*******************************************************/
 
 #include "ppm.h"
+
 #include <iostream>
 
-bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data) {
-  ifstream input(filename);
-  if (input.fail()) {
-    return false;
-  }
-
+bool readPPM(ifstream &input, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data) {
   uint32_t depth {};
 
   if (!parseHeader(input, width, height, depth)) {
@@ -35,12 +31,7 @@ bool loadPPM(const char *filename, uint64_t &width, uint64_t &height, vector<uin
   return true;
 }
 
-bool savePPM(const string &&filename, const uint64_t width, const uint64_t height, const uint8_t *rgb_data) {
-  ofstream output(filename);
-  if (output.fail()) {
-    return false;
-  }
-
+bool writePPM(ofstream &output, const uint64_t width, const uint64_t height, const uint8_t *rgb_data) {
   output << "P6" << endl;
   output << width << endl;
   output << height << endl;
