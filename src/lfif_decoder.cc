@@ -32,14 +32,14 @@ vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC,
   return runlength;
 }
 
-vector<vector<RunLengthPair>> diffDecodePairs(vector<vector<RunLengthPair>> &runlengths) {
-  vector<vector<RunLengthPair>> output(runlengths.size());
+vector<vector<RunLengthPair>> diffDecodePairs(const vector<vector<RunLengthPair>> &runlengths) {
+  vector<vector<RunLengthPair>> output {runlengths};
 
   int16_t prev_DC = 0;
 
   for (uint64_t i = 0; i < runlengths.size(); i++) {
     output[i][0].amplitude = runlengths[i][0].amplitude + prev_DC;
-    prev_DC += output[i][0].amplitude;
+    prev_DC = output[i][0].amplitude;
   }
 
   return output;

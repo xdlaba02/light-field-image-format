@@ -21,7 +21,7 @@ void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstrea
 
 vector<vector<RunLengthPair>> decodePairs(const vector<uint8_t> &huff_counts_DC, const vector<uint8_t> &huff_counts_AC, const vector<uint8_t> & huff_symbols_DC, const vector<uint8_t> &huff_symbols_AC, const uint64_t count, IBitstream &bitstream);
 
-void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths);
+vector<vector<RunLengthPair>> diffDecodePairs(const vector<vector<RunLengthPair>> &runlengths);
 
 RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);
 uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream);

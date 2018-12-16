@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
     height = image_height;
   }
 
-  if (bitset<sizeof(image_count)>(image_count).count() != 1) {
+  if (static_cast<uint64_t>(sqrt(image_count) * sqrt(image_count)) != image_count) {
     cerr << "ERROR: NOT SQUARE" << endl;
     return -5;
   }

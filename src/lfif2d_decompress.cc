@@ -79,6 +79,10 @@ int main(int argc, char *argv[]) {
   uint64_t height = fromBigEndian(raw_height);
   uint64_t image_count = fromBigEndian(raw_count);
 
+  cerr << double(width) << endl;
+  cerr << double(height) << endl;
+  cerr << double(image_count) << endl;
+
   QuantTable<2> quant_table {};
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
 
@@ -119,7 +123,7 @@ int main(int argc, char *argv[]) {
     vector<float> Cb_data = convertFromBlocks<2>(detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(decodePairs(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, blocks_cnt, bitstream))), traversal_table), quant_table)), {width, height});
     vector<float> Cr_data = convertFromBlocks<2>(detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(decodePairs(huff_counts_chroma_DC, huff_counts_chroma_AC, huff_symbols_chroma_DC, huff_symbols_chroma_AC, blocks_cnt, bitstream))), traversal_table), quant_table)), {width, height});
 
-    rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
+    vector<uint8_t> rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
 
 
     stringstream image_number {};
@@ -134,7 +138,7 @@ int main(int argc, char *argv[]) {
       return -4;
     }
 
-    writePPM(output, width, height, rgb_data);
+    writePPM(output, width, height, rgb_data.data());
   }
 
   return 0;
