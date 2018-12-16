@@ -108,6 +108,8 @@ int main(int argc, char *argv[]) {
 
   uint64_t input_image_count = pow(10, mask_indexes.size());
 
+  QuantTable<D> quant_table = scaleQuantTable<D>(baseQuantTable<D>(), quality);
+
   for (uint64_t image = 0; image < input_image_count; image++) {
     stringstream image_number {};
 
@@ -122,11 +124,47 @@ int main(int argc, char *argv[]) {
     vector<uint8_t> rgb_data;
 
     if (loadPPM(input_file_name, width, height, rgb_data)) {
-      vector<float> Y_data  = convertRGB(rgb_data, RGBtoY);
-      vector<float> Cb_data = convertRGB(rgb_data, RGBtoCb);
-      vector<float> Cr_data = convertRGB(rgb_data, RGBtoCr);
+      vector<float> data_Y  = convertRGB(rgb_data, RGBtoY);
+      vector<float> data_Cb = convertRGB(rgb_data, RGBtoCb);
+      vector<float> data_Cr = convertRGB(rgb_data, RGBtoCr);
 
-      RGBtoLFIF<2>(output_filename, rgb_data, {width, height, count_x, count_y}, quality)
+      shiftData<D>(data_Y);
+      shiftData<D>(data_Cb);
+      shiftData<D>(data_Cr);
+
+      vector<Block<float, D>> blocks_Y  = convertToBlocks<D>(data_Y,  {width, height});
+      vector<Block<float, D>> blocks_Cb = convertToBlocks<D>(data_Cb, {width, height});
+      vector<Block<float, D>> blocks_Cr = convertToBlocks<D>(data_Cr, {width, height});
+
+      vector<float>().swap(data_Y);
+      vector<float>().swap(data_Cb);
+      vector<float>().swap(data_Cr);
+
+      vector<Block<float, D>> blocks_transformed_Y  = transformBlocks<D>(blocks_Y);
+      vector<Block<float, D>> blocks_transformed_Cb = transformBlocks<D>(blocks_Cb);
+      vector<Block<float, D>> blocks_transformed_cr = transformBlocks<D>(blocks_Cr);
+
+      vector<float>().swap(blocks_Y);
+      vector<float>().swap(blocks_Cb);
+      vector<float>().swap(blocks_Cr);
+
+      vector<Block<int16_t, D>> blocks_quantized_Y = quantizeBlocks<D>(blocks_transformed_Y,  quant_table);
+      vector<Block<int16_t, D>> blocks_quantized_Cb = quantizeBlocks<D>(blocks_transformed_Cb,  quant_table);
+      vector<Block<int16_t, D>> blocks_quantized_Cr = quantizeBlocks<D>(blocks_transformed_Cr,  quant_table);
+
+      vector<Block<float, D>>().swap(blocks_transformed_Y);
+      vector<Block<float, D>>().swap(blocks_transformed_Cb);
+      vector<Block<float, D>>().swap(blocks_transformed_Cr);
+
+      TraversalTable<D> traversal_table = constructTraversalTableByAvg<D>(blocks_quantized_Y, blocks_quantized_Cb, blocks_quantized_Cr);
+
+      vector<Block<int16_t, D>> blocks_traversed_Y  = traverseBlocks<D>(blocks_quantized_Y,  traversal_table);
+      vector<Block<int16_t, D>> blocks_traversed_Cb = traverseBlocks<D>(blocks_quantized_Cb, traversal_table);
+      vector<Block<int16_t, D>> blocks_traversed_Cr = traverseBlocks<D>(blocks_quantized_Cr, traversal_table);
+
+      vector<Block<int16_t, D>>().swap(blocks_quantized_Y);
+      vector<Block<int16_t, D>>().swap(blocks_quantized_Cb);
+      vector<Block<int16_t, D>>().swap(blocks_quantized_Cr);
     }
   }
 

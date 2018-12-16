@@ -43,7 +43,7 @@ inline float RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
 }
 
 template<uint8_t D>
-constexpr QuantTable<D> constructQuantTable() {
+constexpr QuantTable<D> baseQuantTable() {
   QuantTable<D> quant_table {};
 
   for (uint64_t i = 0; i < quant_table.size(); i++) {
@@ -87,6 +87,12 @@ inline vector<float> convertRGB(const vector<uint8_t> &rgb_data, F &&function) {
   }
 
   return data;
+}
+
+void shiftData(vector<float> &data) {
+  for (auto &pixel: data) {
+    pixel -= 128;
+  }
 }
 
 template<uint8_t D>
@@ -154,22 +160,6 @@ inline vector<Block<float, D>> convertToBlocks(const vector<float> &data, const 
 }
 
 template<uint8_t D>
-vector<Block<float, D>> shiftBlocks(const vector<Block<float, D>> &blocks) {
-  vector<Block<float, D>> blocks_shifted(blocks.size());
-
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<float, D> &block    = blocks[block_index];
-    Block<float, D>  &block_shifted = blocks_shifted[block_index];
-
-    for (uint16_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_shifted[pixel_index]  = block[pixel_index] - 128;
-    }
-  }
-
-  return blocks_shifted;
-}
-
-template<uint8_t D>
 vector<Block<float, D>> transformBlocks(const vector<Block<float, D>> &blocks) {
   vector<Block<float, D>> blocks_transformed(blocks.size());
 
@@ -201,7 +191,7 @@ inline vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &b
 }
 
 template<uint8_t D>
-inline TraversalTable<D> constructTraversalTableByAvg(vector<Block<int16_t, D>> &blocks_Y, vector<Block<int16_t, D>> &blocks_Cb, vector<Block<int16_t, D>> &blocks_Cr) {
+inline TraversalTable<D> constructTraversalTableByAvg(vector<Block<int16_t, D>> &blocks, vector<Block<int16_t, D>> &blocks_Cb, vector<Block<int16_t, D>> &blocks_Cr) {
   TraversalTable<D>                     traversal_table {};
   Block<pair<uint64_t, uint16_t>, D> srt          {};
 
@@ -209,9 +199,9 @@ inline TraversalTable<D> constructTraversalTableByAvg(vector<Block<int16_t, D>> 
     srt[i].second = i;
   }
 
-  for (uint64_t b = 0; b < blocks_Y.size(); b++) {
+  for (uint64_t b = 0; b < blocks.size(); b++) {
     for (uint64_t i = 0; i < constpow(8, D); i++) {
-      srt[i].first += abs(blocks_Y[b][i]) + abs(blocks_Cb[b][i]) + abs(blocks_Cr[b][i]);
+      srt[i].first += abs(blocks[b][i]) + abs(blocks_Cb[b][i]) + abs(blocks_Cr[b][i]);
     }
   }
 
@@ -268,7 +258,7 @@ inline TraversalTable<D> constructTraversalTableByDiagonals() {
 }
 
 template<uint8_t D>
-inline vector<Block<int16_t, D>> zigzagBlocks(const vector<Block<int16_t, D>> &blocks, const TraversalTable<D> &traversal_table) {
+inline vector<Block<int16_t, D>> traverseBlocks(const vector<Block<int16_t, D>> &blocks, const TraversalTable<D> &traversal_table) {
   vector<Block<int16_t, D>> blocks_zigzaged(blocks.size());
 
   for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
@@ -319,224 +309,15 @@ inline vector<vector<RunLengthPair>> runLenghtDiffEncodeBlocks(const vector<Bloc
 
 
 template<uint8_t D>
-inline bool RGBtoLFIF(const char *output_filename, const vector<uint8_t> &rgb_data, const array<uint64_t, 4> &&src_dimensions, const uint8_t quality) {
+inline bool RGBtoLFIF(const vector<float> &data, const array<uint64_t, D> &dimensions, const uint8_t quality) {
   static_assert(D <= 4);
 
-  clock_t clock_start {};
-  cerr << fixed << setprecision(3);
 
-  constexpr QuantTable<D> base_quant_table = constructQuantTable<D>();
-
-  cerr << "CONVERTING TO YCbCr" << endl;
-  clock_start = clock();
-
-  vector<float> Y_data  = convertRGB(rgb_data, RGBtoY);
-  vector<float> Cb_data = convertRGB(rgb_data, RGBtoCb);
-  vector<float> Cr_data = convertRGB(rgb_data, RGBtoCr);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "SCALING QUANTIZATION TABLE" << endl;
-  clock_start = clock();
-
-  QuantTable<D> quant_table = scaleQuantTable<D>(base_quant_table, quality);
-
-  for (uint8_t y = 0; y < 8; y++) {
-    for (uint8_t x = 0; x < 8; x++) {
-      cerr << long(quant_table[y*8+x]) << " ";
-    }
-    cerr << endl;
-  }
-  cerr << endl;
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "COVERTING TO BLOCKS" << endl;
-  clock_start = clock();
-
-  array<uint64_t, D> dimensions {};
-
-  for (uint64_t i = 0; i < src_dimensions.size(); i++) {
-    if (i >= D) {
-      dimensions[D-1] *= src_dimensions[i];
-    }
-    else {
-      dimensions[i] = src_dimensions[i];
-    }
-  }
-
-  vector<Block<float, D>> blocks_Y  = convertToBlocks<D>(Y_data,  dimensions);
-  vector<Block<float, D>> blocks_Cb = convertToBlocks<D>(Cb_data, dimensions);
-  vector<Block<float, D>> blocks_Cr = convertToBlocks<D>(Cr_data, dimensions);
-
-  vector<float>().swap(Y_data);
-  vector<float>().swap(Cb_data);
-  vector<float>().swap(Cr_data);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "SHIFTING VALUES TO <-128, 127>" << endl;
-  clock_start = clock();
-
-  vector<Block<float, D>> blocks_Y_shifted  = shiftBlocks<D>(blocks_Y);
-  vector<Block<float, D>> blocks_Cb_shifted = shiftBlocks<D>(blocks_Cb);
-  vector<Block<float, D>> blocks_Cr_shifted = shiftBlocks<D>(blocks_Cr);
-
-  vector<Block<float, D>>().swap(blocks_Y);
-  vector<Block<float, D>>().swap(blocks_Cb);
-  vector<Block<float, D>>().swap(blocks_Cr);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "FORWARD DISCRETE COSINE TRANSFORMING" << endl;
-  clock_start = clock();
-
-  vector<Block<float, D>> blocks_Y_transformed  = transformBlocks<D>(blocks_Y_shifted);
-  vector<Block<float, D>> blocks_Cb_transformed = transformBlocks<D>(blocks_Cb_shifted);
-  vector<Block<float, D>> blocks_Cr_transformed = transformBlocks<D>(blocks_Cr_shifted);
-
-  vector<Block<float, D>>().swap(blocks_Y_shifted);
-  vector<Block<float, D>>().swap(blocks_Cb_shifted);
-  vector<Block<float, D>>().swap(blocks_Cr_shifted);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "QUANTIZING" << endl;
-  clock_start = clock();
-
-  vector<Block<int16_t, D>> blocks_Y_quantized  = quantizeBlocks<D>(blocks_Y_transformed,  quant_table);
-  vector<Block<int16_t, D>> blocks_Cb_quantized = quantizeBlocks<D>(blocks_Cb_transformed, quant_table);
-  vector<Block<int16_t, D>> blocks_Cr_quantized = quantizeBlocks<D>(blocks_Cr_transformed, quant_table);
-
-  vector<Block<float, D>>().swap(blocks_Y_transformed);
-  vector<Block<float, D>>().swap(blocks_Cb_transformed);
-  vector<Block<float, D>>().swap(blocks_Cr_transformed);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "CONSTRUCTING TRAVERSAL TABLE" << endl;
-  clock_start = clock();
-
-  TraversalTable<D> traversal_table = constructTraversalTableByAvg<D>(blocks_Y_quantized, blocks_Cb_quantized, blocks_Cr_quantized);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "TRAVERSING" << endl;
-  clock_start = clock();
-
-  vector<Block<int16_t, D>> blocks_Y_zigzag  = zigzagBlocks<D>(blocks_Y_quantized,  traversal_table);
-  vector<Block<int16_t, D>> blocks_Cb_zigzag = zigzagBlocks<D>(blocks_Cb_quantized, traversal_table);
-  vector<Block<int16_t, D>> blocks_Cr_zigzag = zigzagBlocks<D>(blocks_Cr_quantized, traversal_table);
-
-  vector<Block<int16_t, D>>().swap(blocks_Y_quantized);
-  vector<Block<int16_t, D>>().swap(blocks_Cb_quantized);
-  vector<Block<int16_t, D>>().swap(blocks_Cr_quantized);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "RUNLENGTH AND DIFF ENCODING" << endl;
-  clock_start = clock();
-
-  vector<vector<RunLengthPair>> runlenght_Y  = runLenghtDiffEncodeBlocks<D>(blocks_Y_zigzag);
-  vector<vector<RunLengthPair>> runlenght_Cb = runLenghtDiffEncodeBlocks<D>(blocks_Cb_zigzag);
-  vector<vector<RunLengthPair>> runlenght_Cr = runLenghtDiffEncodeBlocks<D>(blocks_Cr_zigzag);
-
-  vector<Block<int16_t, D>>().swap(blocks_Y_zigzag);
-  vector<Block<int16_t, D>>().swap(blocks_Cb_zigzag);
-  vector<Block<int16_t, D>>().swap(blocks_Cr_zigzag);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "COUNTING RUNLENGTH PAIR WEIGHTS" << endl;
-  clock_start = clock();
-
-  map<uint8_t, uint64_t> weights_luma_AC   {};
-  map<uint8_t, uint64_t> weights_luma_DC   {};
-
-  map<uint8_t, uint64_t> weights_chroma_AC {};
-  map<uint8_t, uint64_t> weights_chroma_DC {};
-
-  huffmanGetWeights(runlenght_Y,  weights_luma_AC, weights_luma_DC);
-  huffmanGetWeights(runlenght_Cb, weights_chroma_AC, weights_chroma_DC);
-  huffmanGetWeights(runlenght_Cr, weights_chroma_AC, weights_chroma_DC);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "GENERATING HUFFMAN CODE LENGTHS" << endl;
-  clock_start = clock();
-
-  vector<pair<uint64_t, uint8_t>> codelengths_luma_DC   = huffmanGetCodelengths(weights_luma_DC);
-  vector<pair<uint64_t, uint8_t>> codelengths_luma_AC   = huffmanGetCodelengths(weights_luma_AC);
-  vector<pair<uint64_t, uint8_t>> codelengths_chroma_DC = huffmanGetCodelengths(weights_chroma_DC);
-  vector<pair<uint64_t, uint8_t>> codelengths_chroma_AC = huffmanGetCodelengths(weights_chroma_AC);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "GENERATING HUFFMAN CODEWORDS" << endl;
-  clock_start = clock();
-
-  map<uint8_t, Codeword> huffcodes_luma_DC   = huffmanGenerateCodewords(codelengths_luma_DC);
-  map<uint8_t, Codeword> huffcodes_luma_AC   = huffmanGenerateCodewords(codelengths_luma_AC);
-  map<uint8_t, Codeword> huffcodes_chroma_DC = huffmanGenerateCodewords(codelengths_chroma_DC);
-  map<uint8_t, Codeword> huffcodes_chroma_AC = huffmanGenerateCodewords(codelengths_chroma_AC);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "OPENING OUTPUT FILE TO WRITE" << endl;
-  clock_start = clock();
+  vector<Block<int16_t, D>> blocks_zigzag  = traverseBlocks<D>(blocks_quantized,  traversal_table);
 
 
-  stringstream ss {};
-  ss << output_filename << ".lfif" << static_cast<unsigned>(D) << "d";
-  ofstream output(ss.str());
-  if (output.fail()) {
-    return false;
-  }
 
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "WRITING MAGIC NUMBER" << endl;
-  clock_start = clock();
-
-  output.write("LFIF-", 5);
-  output.put('0' + D);
-  output.write("D\n", 2);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "WRITING IMAGE DIMENSIONS" << endl;
-  clock_start = clock();
-
-  for (uint64_t dim: src_dimensions) {
-    uint64_t raw_dim = toBigEndian(dim);
-    output.write(reinterpret_cast<char *>(&raw_dim), sizeof(uint64_t));
-  }
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "WRITING QUANTIZATION TABLE" << endl;
-  clock_start = clock();
-
-  output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "WRITING TRAVERSAL TABLE" << endl;
-  clock_start = clock();
-
-  output.write(reinterpret_cast<const char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "WRITING HUFFMAN TABLES" << endl;
-  clock_start = clock();
-
-  writeHuffmanTable(codelengths_luma_DC, output);
-  writeHuffmanTable(codelengths_luma_AC, output);
-  writeHuffmanTable(codelengths_chroma_DC, output);
-  writeHuffmanTable(codelengths_chroma_AC, output);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "HUFFMAN ENCODING AND WRITING BLOCKS" << endl;
-  clock_start = clock();
-
-  OBitstream bitstream(output);
-
-  encodePairs(runlenght_Y,  huffcodes_luma_AC,   huffcodes_luma_DC,   bitstream);
-  encodePairs(runlenght_Cb, huffcodes_chroma_AC, huffcodes_chroma_DC, bitstream);
-  encodePairs(runlenght_Cr, huffcodes_chroma_AC, huffcodes_chroma_DC, bitstream);
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  cerr << "FLUSHING OUTPUT" << endl;
-  clock_start = clock();
-
-  bitstream.flush();
-
-  cerr << static_cast<float>(clock() - clock_start)/CLOCKS_PER_SEC << " s" << endl;
-  return true;
+  return runLenghtDiffEncodeBlocks<D>(blocks_zigzag);
 }
 
 #endif
