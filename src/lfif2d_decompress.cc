@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
       pairs_Cr[i].push_back(pair);
     } while((pair.zeroes != 0) || (pair.amplitude != 0));
   }
-  
+
   vector<YCbCrDataBlock<2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Y)), traversal_table), quant_table));
   vector<YCbCrDataBlock<2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cb)), traversal_table), quant_table));
   vector<YCbCrDataBlock<2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cr)), traversal_table), quant_table));
@@ -149,10 +149,20 @@ int main(int argc, char *argv[]) {
 
   string output_file_name {output_file_mask};
 
+  Dimensions<2> dims{width, height};
+
   for (size_t image = 0; image < image_count; image++) {
-    YCbCrData Y_data  = deshiftData(convertFromBlocks<2>(blocks_Y.data()  + image * blocks_cnt, {width, height}));
-    YCbCrData Cb_data = deshiftData(convertFromBlocks<2>(blocks_Cb.data() + image * blocks_cnt, {width, height}));
-    YCbCrData Cr_data = deshiftData(convertFromBlocks<2>(blocks_Cr.data() + image * blocks_cnt, {width, height}));
+    YCbCrData data_shifted_Y(width  * height);
+    YCbCrData data_shifted_Cb(width * height);
+    YCbCrData data_shifted_Cr(width * height);
+
+    convertFromBlocks<2>([&](size_t block_index, size_t pixel_index){ return blocks_Y[image * blocks_cnt + block_index][pixel_index]; }, dims.data(), [&](size_t index) -> YCbCrDataUnit &{ return data_shifted_Y[index]; });
+    convertFromBlocks<2>([&](size_t block_index, size_t pixel_index){ return blocks_Cb[image * blocks_cnt + block_index][pixel_index]; }, dims.data(), [&](size_t index) -> YCbCrDataUnit &{ return data_shifted_Cb[index]; });
+    convertFromBlocks<2>([&](size_t block_index, size_t pixel_index){ return blocks_Cr[image * blocks_cnt + block_index][pixel_index]; }, dims.data(), [&](size_t index) -> YCbCrDataUnit &{ return data_shifted_Cr[index]; });
+
+    YCbCrData Y_data  = deshiftData(data_shifted_Y);
+    YCbCrData Cb_data = deshiftData(data_shifted_Cb);
+    YCbCrData Cr_data = deshiftData(data_shifted_Cr);
 
     RGBData rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
 

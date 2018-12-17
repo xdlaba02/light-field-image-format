@@ -89,72 +89,43 @@ inline vector<YCbCrDataBlock<D>> detransformBlocks(const vector<TransformedBlock
 }
 
 template<size_t D>
-inline YCbCrData convertFromBlocks(const YCbCrDataBlock<D> *blocks, const Dimensions<D> &dims) {
-  Dimensions<D> block_dims {};
-  size_t blocks_cnt = 1;
-  size_t pixels_cnt = 1;
+struct convertFromBlocks {
+  template <typename IF, typename OF>
+  convertFromBlocks(IF &&input, const size_t dims[D], OF &&output) {
+    size_t blocks = ceil(dims[D-1]/8.0);
 
-  for (size_t i = 0; i < D; i++) {
-    block_dims[i] = ceil(dims[i]/8.0);
-    blocks_cnt *= block_dims[i];
-    pixels_cnt *= dims[i];
-  }
+    for (size_t block = 0; block < blocks; block++) {
+      for (size_t pixel = 0; pixel < 8; pixel++) {
+        size_t image = block * 8 + pixel;
 
-  YCbCrData data(pixels_cnt);
-
-  for (size_t block_index = 0; block_index < blocks_cnt; block_index++) {
-    const YCbCrDataBlock<D> &block = blocks[block_index];
-
-    Dimensions<D> block_coords {};
-
-    size_t acc1 = 1;
-    size_t acc2 = 1;
-
-    for (size_t i = 0; i < D; i++) {
-      acc1 *= block_dims[i];
-      block_coords[i] = (block_index % acc1) / acc2;
-      acc2 = acc1;
-    }
-
-    for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      array<size_t, D> pixel_coords {};
-
-      for (size_t i = 0; i < D; i++) {
-        pixel_coords[i] = (pixel_index % constpow(8, i+1)) / constpow(8, i);
-      }
-
-      Dimensions<D> image_coords {};
-
-      for (size_t i = 0; i < D; i++) {
-        image_coords[i] = block_coords[i] * 8 + pixel_coords[i];
-      }
-
-      bool ok = true;
-
-      for (size_t i = 0; i < D; i++) {
-        if (image_coords[i] > dims[i] - 1) {
-          ok = false;
+        if (image >= dims[D-1]) {
           break;
         }
+
+        convertFromBlocks<D-1>([&](size_t block_index, size_t pixel_index){ return input(block * blocks + block_index, pixel * constpow(8, D-1) + pixel_index); }, dims, [&](size_t image_index)-> YCbCrDataUnit &{ return output(image * dims[D-1] + image_index); });
       }
-
-      if (!ok) {
-        continue;
-      }
-
-      size_t real_pixel_index = 0;
-      size_t dim_acc = 1;
-
-      for (size_t i = 0; i < D; i++) {
-        real_pixel_index += image_coords[i] * dim_acc;
-        dim_acc *= dims[i];
-      }
-
-      data[real_pixel_index] = block[pixel_index];
     }
   }
+};
 
-  return data;
-}
+template<>
+struct convertFromBlocks<1> {
+  template <typename IF, typename OF>
+  convertFromBlocks(IF &&input, const size_t dims[1], OF &&output) {
+    size_t blocks = ceil(dims[0]/8.0);
+
+    for (size_t block = 0; block < blocks; block++) {
+      for (size_t pixel = 0; pixel < 8; pixel++) {
+        size_t image = block * 8 + pixel;
+
+        if (image >= dims[0]) {
+          break;
+        }
+
+        output(image) = input(block, pixel);
+      }
+    }
+  }
+};
 
 #endif
