@@ -111,32 +111,65 @@ int main(int argc, char *argv[]) {
   for (uint64_t i = 0; i < blocks_cnt * image_count; i++) {
     RunLengthPair pair;
 
-    pairs_Y[i].push_back(decodeOnePair(huff_counts_luma_DC, huff_symbols_luma_DC, bitstream));
+    pair = decodeOnePair(huff_counts_luma_DC, huff_symbols_luma_DC, bitstream);
+    pairs_Y[i].push_back(pair);
     do {
       pair = decodeOnePair(huff_counts_luma_AC, huff_symbols_luma_AC, bitstream);
       pairs_Y[i].push_back(pair);
     } while((pair.zeroes != 0) || (pair.amplitude != 0));
 
-    pairs_Cb[i].push_back(decodeOnePair(huff_counts_chroma_DC, huff_symbols_chroma_DC, bitstream));
+    pair = decodeOnePair(huff_counts_chroma_DC, huff_symbols_chroma_DC, bitstream);
+    pairs_Cb[i].push_back(pair);
     do {
       pair = decodeOnePair(huff_counts_chroma_AC, huff_symbols_chroma_AC, bitstream);
       pairs_Cb[i].push_back(pair);
     } while((pair.zeroes != 0) || (pair.amplitude != 0));
 
-    pairs_Cr[i].push_back(decodeOnePair(huff_counts_chroma_DC, huff_symbols_chroma_DC, bitstream));
+    pair = decodeOnePair(huff_counts_chroma_DC, huff_symbols_chroma_DC, bitstream);
+    pairs_Cr[i].push_back(pair);
     do {
       pair = decodeOnePair(huff_counts_chroma_AC, huff_symbols_chroma_AC, bitstream);
       pairs_Cr[i].push_back(pair);
     } while((pair.zeroes != 0) || (pair.amplitude != 0));
   }
 
+  for (auto &block: pairs_Y) {
+    for (auto &pair: block) {
+      cerr << "(" << long(pair.zeroes) << ", " << long(pair.amplitude) << ") ";
+    }
+    cerr << endl;
+  }
+  cerr << endl;
+
   diffDecodePairs(pairs_Y);
   diffDecodePairs(pairs_Cb);
   diffDecodePairs(pairs_Cr);
 
+  /*
+  for (auto &block: pairs_Y) {
+    for (auto &pair: block) {
+      cerr << "(" << long(pair.zeroes) << ", " << long(pair.amplitude) << ") ";
+    }
+    cerr << endl;
+  }
+  cerr << endl;
+  */
+
   vector<Block<float, 2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Y), traversal_table), quant_table));
   vector<Block<float, 2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Cb), traversal_table), quant_table));
   vector<Block<float, 2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Cr), traversal_table), quant_table));
+
+  /*
+  for (auto &block: blocks_Y) {
+    for (uint8_t i = 0; i < 8; i++) {
+      for (uint8_t j = 0; j < 8; j++) {
+        cerr << long(block[i*8+j]) << ", ";
+      }
+      cerr << endl;
+    }
+    cerr << endl;
+  }
+  */
 
   vector<uint64_t> mask_indexes {};
 
