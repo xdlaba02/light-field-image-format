@@ -11,53 +11,45 @@
 #include "dct.h"
 #include "bitstream.h"
 
-#include <map>
-#include <numeric>
-#include <iostream>
-#include <iomanip>
-#include <sstream>
+YCbCrData shiftData(YCbCrData data);
 
-vector<float> shiftData(const vector<float> &data);
+void huffmanGetWeightsAC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights);
+void huffmanGetWeightsDC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights);
 
-void huffmanGetWeightsAC(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights);
-void huffmanGetWeightsDC(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights);
+RunLengthEncodedImage diffEncodePairs(RunLengthEncodedImage runlengths);
 
-void diffEncodePairs(vector<vector<RunLengthPair>> &runlengths);
+HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights);
+HuffmanTable generateHuffmanCodewords(const HuffmanCodelengths &codelengths);
 
-vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_t> &weights);
-map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint8_t>> &codelengths);
+void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream);
 
-void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstream &stream);
+void encodeOnePair(const RunLengthPair &pair, const HuffmanTable &table, OBitstream &stream);
 
-void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream);
+HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude);
+HuffmanSymbol huffmanSymbol(const RunLengthPair &pair);
 
-uint8_t huffmanClass(int16_t amplitude);
-uint8_t huffmanSymbol(const RunLengthPair &pair);
-
-
-
-inline float RGBtoY(uint8_t R, uint8_t G, uint8_t B) {
-  return          0.299 * R +    0.587 * G +    0.114 * B;
+inline YCbCrDataUnit RGBtoY(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
+  return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
 
-inline float RGBtoCb(uint8_t R, uint8_t G, uint8_t B) {
-  return 128 - 0.168736 * R - 0.331264 * G +      0.5 * B;
+inline YCbCrDataUnit RGBtoCb(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
+  return 128 - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
 }
 
-inline float RGBtoCr(uint8_t R, uint8_t G, uint8_t B) {
-  return 128 +      0.5 * R - 0.418688 * G - 0.081312 * B;
+inline YCbCrDataUnit RGBtoCr(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
+  return 128 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
 template <typename F>
-inline vector<float> convertRGB(const vector<uint8_t> &rgb_data, F &&function) {
-  uint64_t pixels_cnt = rgb_data.size()/3;
+inline YCbCrData convertRGB(const RGBData &rgb_data, F &&function) {
+  size_t pixels_cnt = rgb_data.size()/3;
 
-  vector<float> data(pixels_cnt);
+  YCbCrData data(pixels_cnt);
 
-  for (uint64_t pixel_index = 0; pixel_index < pixels_cnt; pixel_index++) {
-    uint8_t R = rgb_data[3*pixel_index + 0];
-    uint8_t G = rgb_data[3*pixel_index + 1];
-    uint8_t B = rgb_data[3*pixel_index + 2];
+  for (size_t pixel_index = 0; pixel_index < pixels_cnt; pixel_index++) {
+    RGBDataUnit R = rgb_data[3*pixel_index + 0];
+    RGBDataUnit G = rgb_data[3*pixel_index + 1];
+    RGBDataUnit B = rgb_data[3*pixel_index + 2];
 
     data[pixel_index] = function(R, G, B);
   }
@@ -65,15 +57,15 @@ inline vector<float> convertRGB(const vector<uint8_t> &rgb_data, F &&function) {
   return data;
 }
 
-template<uint8_t D>
-constexpr QuantTable<D> baseQuantTable() {
+template<size_t D>
+inline constexpr QuantTable<D> baseQuantTable() {
   QuantTable<D> quant_table {};
 
-  for (uint64_t i = 0; i < quant_table.size(); i++) {
-    uint64_t sum = 0;
-    uint64_t max = 0;
-    for (uint8_t j = 1; j <= D; j++) {
-      uint8_t coord = (i % constpow(8, j)) / constpow(8, j-1);
+  for (size_t i = 0; i < quant_table.size(); i++) {
+    size_t sum = 0;
+    size_t max = 0;
+    for (size_t j = 1; j <= D; j++) {
+      size_t coord = (i % constpow(8, j)) / constpow(8, j-1);
       sum += coord * coord;
       if (coord > max) {
         max = coord;
@@ -85,101 +77,83 @@ constexpr QuantTable<D> baseQuantTable() {
   return quant_table;
 }
 
-template<uint8_t D>
-inline QuantTable<D> scaleQuantTable(const QuantTable<D> &quant_table, const uint8_t quality) {
+template<size_t D>
+inline QuantTable<D> scaleQuantTable(const QuantTable<D> &quant_table, const QualityUnit quality) {
   QuantTable<D> output {};
+
   float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
-  for (uint64_t i = 0; i < quant_table.size(); i++) {
+
+  for (size_t i = 0; i < quant_table.size(); i++) {
     output[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
   }
+
   return output;
 }
 
-template<uint8_t D>
-inline void convertToBlocks(const vector<float> &data, const array<uint64_t, D> &dims, vector<Block<float, D>> &blocks) {
-  array<uint64_t, D> block_dims {};
-  uint64_t blocks_cnt = 1;
+template<size_t D>
+struct convertToBlocks {
+  template <typename IF, typename OF>
+  convertToBlocks(IF &&input, const size_t dims[D], OF &&output) {
+    size_t blocks = ceil(dims[D-1]/8.0);
 
-  for (uint8_t i = 0; i < D; i++) {
-    block_dims[i] = ceil(dims[i]/8.0);
-    blocks_cnt *= block_dims[i];
-  }
+    for (size_t block = 0; block < blocks; block++) {
+      for (size_t pixel = 0; pixel < 8; pixel++) {
+        size_t image = block * 8 + pixel;
 
-  for (uint64_t block_index = 0; block_index < blocks_cnt; block_index++) {
-    blocks.emplace_back();
-    Block<float, D> &block = blocks.back();
-
-    array<uint64_t, D> block_coords {};
-
-    uint64_t acc1 = 1;
-    uint64_t acc2 = 1;
-
-    for (uint8_t i = 0; i < D; i++) {
-      acc1 *= block_dims[i];
-      block_coords[i] = (block_index % acc1) / acc2;
-      acc2 = acc1;
-    }
-
-    for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      array<uint8_t, D> pixel_coords {};
-
-      for (uint8_t i = 0; i < D; i++) {
-        pixel_coords[i] = (pixel_index % constpow(8, i+1)) / constpow(8, i);
-      }
-
-      array<uint64_t, D> image_coords {};
-
-      for (uint8_t i = 0; i < D; i++) {
-        image_coords[i] = block_coords[i] * 8 + pixel_coords[i];
-      }
-
-      /*******************************************************\
-      * V pripade, ze velikost obrazku neni nasobek osmi,
-        se blok doplni z krajnich pixelu.
-      \*******************************************************/
-      for (uint8_t i = 0; i < D; i++) {
-        if (image_coords[i] > dims[i] - 1) {
-          image_coords[i] = dims[i] - 1;
+        if (image >= dims[D-1]) {
+          image = dims[D-1] - 1;
         }
+
+        convertToBlocks<D-1>([&](size_t image_index){ return input(image * dims[D-1] + image_index); }, dims, [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return output(block * blocks + block_index, pixel * constpow(8, D-1) + pixel_index); });
       }
-
-      uint64_t input_pixel_index = 0;
-      uint64_t dim_acc = 1;
-
-      for (uint8_t i = 0; i < D; i++) {
-        input_pixel_index += image_coords[i] * dim_acc;
-        dim_acc *= dims[i];
-      }
-
-      block[pixel_index] = data[input_pixel_index];
     }
   }
-}
+};
 
-template<uint8_t D>
-vector<Block<float, D>> transformBlocks(const vector<Block<float, D>> &blocks) {
-  vector<Block<float, D>> blocks_transformed(blocks.size());
+template<>
+struct convertToBlocks<1> {
+  template <typename IF, typename OF>
+  convertToBlocks(IF &&input, const size_t dims[1], OF &&output) {
+    size_t blocks = ceil(dims[0]/8.0);
 
-  auto dct = [](const Block<float, D> &block, Block<float, D> &block_transformed){
-    fdct<D>([&](uint64_t index) -> float { return block[index];}, [&](uint64_t index) -> float & { return block_transformed[index]; });
+    for (size_t block = 0; block < blocks; block++) {
+      for (size_t pixel = 0; pixel < 8; pixel++) {
+        size_t image = block * 8 + pixel;
+
+        if (image >= dims[0]) {
+          image = dims[0] - 1;
+        }
+
+        output(block, pixel) = input(image);
+      }
+    }
+  }
+};
+
+template<size_t D>
+vector<TransformedBlock<D>> transformBlocks(const vector<YCbCrDataBlock<D>> &blocks) {
+  vector<TransformedBlock<D>> blocks_transformed(blocks.size());
+
+  auto dct = [](const YCbCrDataBlock<D> &block, TransformedBlock<D> &block_transformed){
+    fdct<D>([&](size_t index) -> DCTDataUnit { return block[index];}, [&](size_t index) -> DCTDataUnit & { return block_transformed[index]; });
   };
 
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
+  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
     dct(blocks[block_index], blocks_transformed[block_index]);
   }
 
   return blocks_transformed;
 }
 
-template<uint8_t D>
-inline vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &blocks, const QuantTable<D> &quant_table) {
-  vector<Block<int16_t, D>> blocks_quantized(blocks.size());
+template<size_t D>
+inline vector<QuantizedBlock<D>> quantizeBlocks(const vector<TransformedBlock<D>> &blocks, const QuantTable<D> &quant_table) {
+  vector<QuantizedBlock<D>> blocks_quantized(blocks.size());
 
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<float, D> &block            = blocks[block_index];
-    Block<int16_t, D>     &block_quantized  = blocks_quantized[block_index];
+  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
+    const TransformedBlock<D> &block            = blocks[block_index];
+    QuantizedBlock<D>         &block_quantized  = blocks_quantized[block_index];
 
-    for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
+    for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
       block_quantized[pixel_index] = block[pixel_index] / quant_table[pixel_index];
     }
   }
@@ -187,42 +161,42 @@ inline vector<Block<int16_t, D>> quantizeBlocks(const vector<Block<float, D>> &b
   return blocks_quantized;
 }
 
-template<uint8_t D>
-inline void getReference(const vector<Block<int16_t, D>> &blocks, Block<double, D> &ref_block) {
+template<size_t D>
+inline void getReference(const vector<QuantizedBlock<D>> &blocks, RefereceBlock<D> &ref_block) {
   for (auto &block: blocks) {
-    for (uint64_t i = 0; i < constpow(8, D); i++) {
+    for (size_t i = 0; i < constpow(8, D); i++) {
       ref_block[i] += abs(block[i]);
     }
   }
 }
 
-template<uint8_t D>
-inline TraversalTable<D> constructTraversalTableByReference(const Block<double, D> &ref_block) {
+template<size_t D>
+inline TraversalTable<D> constructTraversalTableByReference(const RefereceBlock<D> &ref_block) {
   TraversalTable<D> traversal_table    {};
-  Block<pair<double, uint16_t>, D> srt {};
+  Block<pair<double, size_t>, D> srt {};
 
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
     srt[i].first += abs(ref_block[i]);
     srt[i].second = i;
   }
 
   stable_sort(srt.rbegin(), srt.rend());
 
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
     traversal_table[srt[i].second] = i;
   }
 
   return traversal_table;
 }
 
-template<uint8_t D>
+template<size_t D>
 TraversalTable<D> constructTraversalTableByRadius() {
-  TraversalTable<D>                     traversal_table {};
-  Block<pair<uint64_t, uint16_t>, D> srt          {};
+  TraversalTable<D>                  traversal_table {};
+  Block<pair<double, size_t>, D> srt          {};
 
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
-    for (uint8_t j = 1; j <= D; j++) {
-      uint8_t coord = (i % constpow(8, j)) / constpow(8, j-1);
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    for (size_t j = 1; j <= D; j++) {
+      size_t coord = (i % constpow(8, j)) / constpow(8, j-1);
       srt[i].first += coord * coord;
     }
     srt[i].second = i;
@@ -230,20 +204,20 @@ TraversalTable<D> constructTraversalTableByRadius() {
 
   stable_sort(srt.begin(), srt.end());
 
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
     traversal_table[srt[i].second] = i;
   }
 
   return traversal_table;
 }
 
-template<uint8_t D>
+template<size_t D>
 inline TraversalTable<D> constructTraversalTableByDiagonals() {
   TraversalTable<D>                     traversal_table {};
-  Block<pair<uint64_t, uint16_t>, D> srt          {};
+  Block<pair<double, size_t>, D> srt          {};
 
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
-    for (uint8_t j = 1; j <= D; j++) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    for (size_t j = 1; j <= D; j++) {
       srt[i].first += (i % constpow(8, j)) / constpow(8, j-1);
     }
     srt[i].second = i;
@@ -251,22 +225,22 @@ inline TraversalTable<D> constructTraversalTableByDiagonals() {
 
   stable_sort(srt.begin(), srt.end());
 
-  for (uint64_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
     traversal_table[srt[i].second] = i;
   }
 
   return traversal_table;
 }
 
-template<uint8_t D>
-inline vector<Block<int16_t, D>> traverseBlocks(const vector<Block<int16_t, D>> &blocks, const TraversalTable<D> &traversal_table) {
-  vector<Block<int16_t, D>> blocks_zigzaged(blocks.size());
+template<size_t D>
+inline vector<TraversedBlock<D>> traverseBlocks(const vector<QuantizedBlock<D>> &blocks, const TraversalTable<D> &traversal_table) {
+  vector<TraversedBlock<D>> blocks_zigzaged(blocks.size());
 
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<int16_t, D> &block          = blocks[block_index];
-    Block<int16_t, D>       &block_zigzaged = blocks_zigzaged[block_index];
+  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
+    const QuantizedBlock<D> &block          = blocks[block_index];
+    TraversedBlock<D>       &block_zigzaged = blocks_zigzaged[block_index];
 
-    for (uint64_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
+    for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
       block_zigzaged[traversal_table[pixel_index]] = block[pixel_index];
     }
   }
@@ -274,18 +248,18 @@ inline vector<Block<int16_t, D>> traverseBlocks(const vector<Block<int16_t, D>> 
   return blocks_zigzaged;
 }
 
-template<uint8_t D>
-inline vector<vector<RunLengthPair>> runLenghtEncodeBlocks(const vector<Block<int16_t, D>> &blocks) {
-  vector<vector<RunLengthPair>> runlengths(blocks.size());
+template<size_t D>
+inline RunLengthEncodedImage runLenghtEncodeBlocks(const vector<TraversedBlock<D>> &blocks) {
+  RunLengthEncodedImage runlengths(blocks.size());
 
-  for (uint64_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const Block<int16_t, D> &block     = blocks[block_index];
-    vector<RunLengthPair>   &runlength = runlengths[block_index];
+  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
+    const TraversedBlock<D>  &block     = blocks[block_index];
+    RunLengthEncodedBlock &runlength = runlengths[block_index];
 
-    runlength.push_back({0, static_cast<int16_t>(block[0])});
+    runlength.push_back({0, static_cast<RunLengthAmplitudeUnit>(block[0])});
 
-    uint64_t zeroes = 0;
-    for (uint64_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
+    size_t zeroes = 0;
+    for (size_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
       if (block[pixel_index] == 0) {
         zeroes++;
       }
@@ -294,7 +268,7 @@ inline vector<vector<RunLengthPair>> runLenghtEncodeBlocks(const vector<Block<in
           runlength.push_back({15, 0});
           zeroes -= 16;
         }
-        runlength.push_back({static_cast<uint8_t>(zeroes), block[pixel_index]});
+        runlength.push_back({static_cast<RunLengthZeroesCountUnit>(zeroes), block[pixel_index]});
         zeroes = 0;
       }
     }

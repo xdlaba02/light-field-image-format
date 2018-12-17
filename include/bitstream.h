@@ -35,7 +35,7 @@ public:
   IBitstream(ifstream &stream);
   ~IBitstream();
 
-  vector<bool> read(const uint64_t size);
+  vector<bool> read(const size_t size);
   bool readBit();
   bool eof();
 

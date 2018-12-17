@@ -10,6 +10,8 @@
 #include <getopt.h>
 
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 
 using namespace std;
 
@@ -100,15 +102,15 @@ int main(int argc, char *argv[]) {
   readHuffmanTable(huff_counts_chroma_DC, huff_symbols_chroma_DC, input);
   readHuffmanTable(huff_counts_chroma_AC, huff_symbols_chroma_AC, input);
 
-  uint64_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
+  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
 
-  vector<vector<RunLengthPair>> pairs_Y(blocks_cnt  * image_count);
-  vector<vector<RunLengthPair>> pairs_Cb(blocks_cnt * image_count);
-  vector<vector<RunLengthPair>> pairs_Cr(blocks_cnt * image_count);
+  RunLengthEncodedImage pairs_Y(blocks_cnt  * image_count);
+  RunLengthEncodedImage pairs_Cb(blocks_cnt * image_count);
+  RunLengthEncodedImage pairs_Cr(blocks_cnt * image_count);
 
   IBitstream bitstream(input);
 
-  for (uint64_t i = 0; i < blocks_cnt * image_count; i++) {
+  for (size_t i = 0; i < blocks_cnt * image_count; i++) {
     RunLengthPair pair;
 
     pair = decodeOnePair(huff_counts_luma_DC, huff_symbols_luma_DC, bitstream);
@@ -132,48 +134,14 @@ int main(int argc, char *argv[]) {
       pairs_Cr[i].push_back(pair);
     } while((pair.zeroes != 0) || (pair.amplitude != 0));
   }
+  
+  vector<YCbCrDataBlock<2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Y)), traversal_table), quant_table));
+  vector<YCbCrDataBlock<2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cb)), traversal_table), quant_table));
+  vector<YCbCrDataBlock<2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cr)), traversal_table), quant_table));
 
-  for (auto &block: pairs_Y) {
-    for (auto &pair: block) {
-      cerr << "(" << long(pair.zeroes) << ", " << long(pair.amplitude) << ") ";
-    }
-    cerr << endl;
-  }
-  cerr << endl;
+  vector<size_t> mask_indexes {};
 
-  diffDecodePairs(pairs_Y);
-  diffDecodePairs(pairs_Cb);
-  diffDecodePairs(pairs_Cr);
-
-  /*
-  for (auto &block: pairs_Y) {
-    for (auto &pair: block) {
-      cerr << "(" << long(pair.zeroes) << ", " << long(pair.amplitude) << ") ";
-    }
-    cerr << endl;
-  }
-  cerr << endl;
-  */
-
-  vector<Block<float, 2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Y), traversal_table), quant_table));
-  vector<Block<float, 2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Cb), traversal_table), quant_table));
-  vector<Block<float, 2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(pairs_Cr), traversal_table), quant_table));
-
-  /*
-  for (auto &block: blocks_Y) {
-    for (uint8_t i = 0; i < 8; i++) {
-      for (uint8_t j = 0; j < 8; j++) {
-        cerr << long(block[i*8+j]) << ", ";
-      }
-      cerr << endl;
-    }
-    cerr << endl;
-  }
-  */
-
-  vector<uint64_t> mask_indexes {};
-
-  for (uint64_t i = 0; output_file_mask[i] != '\0'; i++) {
+  for (size_t i = 0; output_file_mask[i] != '\0'; i++) {
     if (output_file_mask[i] == '#') {
       mask_indexes.push_back(i);
     }
@@ -181,17 +149,17 @@ int main(int argc, char *argv[]) {
 
   string output_file_name {output_file_mask};
 
-  for (uint64_t image = 0; image < image_count; image++) {
-    vector<float> Y_data  = deshiftData(convertFromBlocks<2>(blocks_Y.data()  + image * blocks_cnt, {width, height}));
-    vector<float> Cb_data = deshiftData(convertFromBlocks<2>(blocks_Cb.data() + image * blocks_cnt, {width, height}));
-    vector<float> Cr_data = deshiftData(convertFromBlocks<2>(blocks_Cr.data() + image * blocks_cnt, {width, height}));
+  for (size_t image = 0; image < image_count; image++) {
+    YCbCrData Y_data  = deshiftData(convertFromBlocks<2>(blocks_Y.data()  + image * blocks_cnt, {width, height}));
+    YCbCrData Cb_data = deshiftData(convertFromBlocks<2>(blocks_Cb.data() + image * blocks_cnt, {width, height}));
+    YCbCrData Cr_data = deshiftData(convertFromBlocks<2>(blocks_Cr.data() + image * blocks_cnt, {width, height}));
 
-    vector<uint8_t> rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
+    RGBData rgb_data = YCbCrToRGB(Y_data, Cb_data, Cr_data);
 
     stringstream image_number {};
     image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);
 
-    for (uint64_t index = 0; index < mask_indexes.size(); index++) {
+    for (size_t index = 0; index < mask_indexes.size(); index++) {
       output_file_name[mask_indexes[index]] = image_number.str()[index];
     }
 

@@ -4,3 +4,5 @@ build
 *.ppm
 *.jpeg2d
 vgcore.*
+*.data
+*.old

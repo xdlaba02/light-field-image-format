@@ -10,40 +10,41 @@
 
 using namespace std;
 
-vector<float> shiftData(const vector<float> &data) {
-  vector<float> shifted_data(data);
-  for (auto &pixel: shifted_data) {
+YCbCrData shiftData(YCbCrData data) {
+  for (auto &pixel: data) {
     pixel -= 128;
   }
-  return shifted_data;
+  return data;
 }
 
-void huffmanGetWeightsAC(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights) {
+void huffmanGetWeightsAC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights) {
   for (auto &vec: pairvecs) {
-    for (uint64_t i = 1; i < vec.size(); i++) {
+    for (size_t i = 1; i < vec.size(); i++) {
       weights[huffmanSymbol(vec[i])]++;
     }
   }
 }
 
-void huffmanGetWeightsDC(const vector<vector<RunLengthPair>> &pairvecs, map<uint8_t, uint64_t> &weights) {
+void huffmanGetWeightsDC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights) {
   for (auto &vec: pairvecs) {
     weights[huffmanSymbol(vec[0])]++;
   }
 }
 
-void diffEncodePairs(vector<vector<RunLengthPair>> &runlengths) {
-  int16_t prev_DC = 0;
+RunLengthEncodedImage diffEncodePairs(RunLengthEncodedImage runlengths) {
+  RunLengthAmplitudeUnit prev_DC = 0;
 
   for (auto &runlength: runlengths) {
-    int16_t prev = prev_DC;
+    RunLengthAmplitudeUnit prev = runlength[0].amplitude;
     runlength[0].amplitude -= prev_DC;
     prev_DC = prev;
   }
+
+  return runlengths;
 }
 
-vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_t> &weights) {
-  vector<pair<uint64_t, uint8_t>> A {};
+HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights) {
+  HuffmanCodelengths A {};
 
   A.reserve(weights.size());
 
@@ -55,14 +56,14 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
 
   // SOURCE: http://hjemmesider.diku.dk/~jyrki/Paper/WADS95.pdf
 
-  uint64_t n = A.size();
+  size_t n = A.size();
 
-  uint64_t s = 1;
-  uint64_t r = 1;
+  unsigned long long s = 1;
+  unsigned long long r = 1;
 
-  for (uint64_t t = 1; t <= n - 1; t++) {
-    uint64_t sum = 0;
-    for (uint8_t i = 0; i < 2; i++) {
+  for (unsigned long long t = 1; t <= n - 1; t++) {
+    unsigned long long sum = 0;
+    for (size_t i = 0; i < 2; i++) {
       if ((s > n) || ((r < t) && (A[r-1].first < A[s-1].first))) {
         sum += A[r-1].first;
         A[r-1].first = t;
@@ -84,11 +85,11 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
     A[t-1].first = A[A[t-1].first-1].first + 1;
   }
 
-  int64_t a  = 1;
-  int64_t u  = 0;
-  uint64_t d = 0;
-  uint64_t t = n - 1;
-  uint64_t x = n;
+  long long a  = 1;
+  long long u  = 0;
+  unsigned long long d = 0;
+  unsigned long long t = n - 1;
+  unsigned long long x = n;
 
   while (a > 0) {
     while ((t >= 1) && (A[t-1].first == d)) {
@@ -110,44 +111,44 @@ vector<pair<uint64_t, uint8_t>> huffmanGetCodelengths(const map<uint8_t, uint64_
   return A;
 }
 
-map<uint8_t, Codeword> huffmanGenerateCodewords(const vector<pair<uint64_t, uint8_t>> &codelengths) {
-  map<uint8_t, Codeword> codewords {};
+HuffmanTable generateHuffmanCodewords(const HuffmanCodelengths &codelengths) {
+  HuffmanTable table {};
 
   // TODO PROVE ME
 
   uint8_t prefix_ones = 0;
 
-  uint8_t codeword {};
+  uint8_t huffman_codeword {};
   for (auto &pair: codelengths) {
-    codewords[pair.second];
+    table[pair.second];
 
     for (uint8_t i = 0; i < prefix_ones; i++) {
-      codewords[pair.second].push_back(1);
+      table[pair.second].push_back(1);
     }
 
     uint8_t len = pair.first - prefix_ones;
 
     for (uint8_t k = 0; k < len; k++) {
-      codewords[pair.second].push_back(bitset<8>(codeword)[7 - k]);
+      table[pair.second].push_back(bitset<8>(huffman_codeword)[7 - k]);
     }
 
-    codeword = ((codeword >> (8 - len)) + 1) << (8 - len);
-    while (codeword > 127) {
+    huffman_codeword = ((huffman_codeword >> (8 - len)) + 1) << (8 - len);
+    while (huffman_codeword > 127) {
       prefix_ones++;
-      codeword <<= 1;
+      huffman_codeword <<= 1;
     }
   }
 
-  return codewords;
+  return table;
 }
 
-void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstream &stream) {
+void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream) {
   uint8_t codelengths_cnt = codelengths.back().first + 1;
   stream.put(codelengths_cnt);
 
   auto it = codelengths.begin();
   for (uint8_t i = 0; i < codelengths_cnt; i++) {
-    uint16_t leaves = 0;
+    size_t leaves = 0;
     while ((it < codelengths.end()) && ((*it).first == i)) {
       leaves++;
       it++;
@@ -160,13 +161,13 @@ void writeHuffmanTable(const vector<pair<uint64_t, uint8_t>> &codelengths, ofstr
   }
 }
 
-void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &table, OBitstream &stream) {
-  uint8_t huff_class = huffmanClass(pair.amplitude);
-  uint8_t symbol     = huffmanSymbol(pair);
+void encodeOnePair(const RunLengthPair &pair, const HuffmanTable &table, OBitstream &stream) {
+  HuffmanClass huff_class = huffmanClass(pair.amplitude);
+  HuffmanSymbol symbol     = huffmanSymbol(pair);
 
   stream.write(table.at(symbol));
 
-  int16_t amplitude = pair.amplitude;
+  RunLengthAmplitudeUnit amplitude = pair.amplitude;
   if (amplitude < 0) {
     amplitude = -amplitude;
     amplitude = ~amplitude;
@@ -177,12 +178,12 @@ void encodeOnePair(const RunLengthPair &pair, const map<uint8_t, Codeword> &tabl
   }
 }
 
-uint8_t huffmanClass(int16_t amplitude) {
+HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude) {
   if (amplitude < 0) {
     amplitude = -amplitude;
   }
 
-  uint8_t huff_class = 0;
+  HuffmanClass huff_class = 0;
   while (amplitude > 0) {
     amplitude = amplitude >> 1;
     huff_class++;
@@ -191,6 +192,6 @@ uint8_t huffmanClass(int16_t amplitude) {
   return huff_class;
 }
 
-uint8_t huffmanSymbol(const RunLengthPair &pair) {
+HuffmanSymbol huffmanSymbol(const RunLengthPair &pair) {
   return pair.zeroes << 4 | huffmanClass(pair.amplitude);
 }

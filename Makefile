@@ -32,4 +32,4 @@ $(OBJDIR):
 .PHONY: clean
 
 clean:
-	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore*
+	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore* *.data

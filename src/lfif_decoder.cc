@@ -16,36 +16,37 @@ void readHuffmanTable(vector<uint8_t> &counts, vector<uint8_t> &symbols, ifstrea
   stream.read(reinterpret_cast<char *>(symbols.data()), symbols.size());
 }
 
-RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
-  uint8_t symbol = decodeOneHuffmanSymbol(counts, symbols, stream);
-  int16_t amplitude = decodeOneAmplitude(symbol & 0x0f, stream);
-  return {static_cast<uint8_t>(symbol >> 4), amplitude};
+RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<HuffmanSymbol> &symbols, IBitstream &stream) {
+  HuffmanSymbol symbol = decodeOneHuffmanSymbol(counts, symbols, stream);
+  RunLengthAmplitudeUnit amplitude = decodeOneAmplitude(symbol & 0x0f, stream);
+  return {static_cast<RunLengthZeroesCountUnit>(symbol >> 4), amplitude};
 }
 
-void diffDecodePairs(vector<vector<RunLengthPair>> &runlengths) {
-  int16_t prev_DC = 0;
+RunLengthEncodedImage diffDecodePairs(RunLengthEncodedImage runlengths) {
+  RunLengthAmplitudeUnit prev_DC = 0;
 
-  for (uint64_t i = 0; i < runlengths.size(); i++) {
-    runlengths[i][0].amplitude += prev_DC;
-    prev_DC = runlengths[i][0].amplitude;
+  for (auto &runlength_block: runlengths) {
+    runlength_block[0].amplitude += prev_DC;
+    prev_DC = runlength_block[0].amplitude;
   }
+
+  return runlengths;
 }
 
-vector<float> deshiftData(const vector<float> &data) {
-  vector<float> shifted_data(data);
-  for (auto &pixel: shifted_data) {
+YCbCrData deshiftData(YCbCrData data) {
+  for (auto &pixel: data) {
     pixel += 128;
   }
-  return shifted_data;
+  return data;
 }
 
-uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8_t> &symbols, IBitstream &stream) {
+HuffmanSymbol decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<HuffmanSymbol> &symbols, IBitstream &stream) {
   uint16_t code  = 0;
   uint16_t first = 0;
   uint16_t index = 0;
   uint16_t count = 0;
 
-  for (uint8_t len = 1; len < counts.size(); len++) {
+  for (size_t len = 1; len < counts.size(); len++) {
     code |= stream.readBit();
     count = counts[len];
     if (code - count < first) {
@@ -60,11 +61,11 @@ uint8_t decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<uint8
   return symbols.at(0);
 }
 
-int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
-  int16_t amplitude = 0;
+RunLengthAmplitudeUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stream) {
+  RunLengthAmplitudeUnit amplitude = 0;
 
   if (length != 0) {
-    for (uint8_t i = 0; i < length; i++) {
+    for (HuffmanSymbol i = 0; i < length; i++) {
       amplitude <<= 1;
       amplitude |= stream.readBit();
     }
@@ -79,13 +80,13 @@ int16_t decodeOneAmplitude(uint8_t length, IBitstream &stream) {
   return amplitude;
 }
 
-vector<uint8_t> YCbCrToRGB(const vector<float> &Y_data, const vector<float> &Cb_data, const vector<float> &Cr_data) {
-  vector<uint8_t> rgb_data(Y_data.size() * 3);
+RGBData YCbCrToRGB(const YCbCrData &Y_data, const YCbCrData &Cb_data, const YCbCrData &Cr_data) {
+  RGBData rgb_data(Y_data.size() * 3);
 
-  for (uint64_t pixel_index = 0; pixel_index < Y_data.size(); pixel_index++) {
-    float Y  = Y_data[pixel_index];
-    float Cb = Cb_data[pixel_index] - 128;
-    float Cr = Cr_data[pixel_index] - 128;
+  for (size_t pixel_index = 0; pixel_index < Y_data.size(); pixel_index++) {
+    YCbCrDataUnit Y  = Y_data[pixel_index];
+    YCbCrDataUnit Cb = Cb_data[pixel_index] - 128;
+    YCbCrDataUnit Cr = Cr_data[pixel_index] - 128;
 
     rgb_data[3*pixel_index + 0] = clamp(Y +                      (1.402 * Cr), 0.0, 255.0);
     rgb_data[3*pixel_index + 1] = clamp(Y - (0.344136 * Cb) - (0.714136 * Cr), 0.0, 255.0);

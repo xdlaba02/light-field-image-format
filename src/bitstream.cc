@@ -6,8 +6,6 @@
 
 #include "bitstream.h"
 
-#include <iostream>
-
 using namespace std;
 
 Bitstream::Bitstream(): m_index{}, m_accumulator{} {}
@@ -19,9 +17,9 @@ IBitstream::~IBitstream() {}
 OBitstream::OBitstream(ofstream &stream): m_stream{stream} {}
 OBitstream::~OBitstream() {}
 
-vector<bool> IBitstream::read(const uint64_t size) {
+vector<bool> IBitstream::read(const size_t size) {
   vector<bool> data {};
-  for (uint64_t i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     data.push_back(readBit());
   }
   return data;
