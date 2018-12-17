@@ -142,9 +142,9 @@ int main(int argc, char *argv[]) {
   Dimensions<2> dims{width, height};
 
   for (size_t i = 0; i < rgb_data.size(); i++) {
-    auto &&data_shifted_Y = shiftData(convertRGB(rgb_data[i], RGBtoY));
-    auto &&data_shifted_Cb = shiftData(convertRGB(rgb_data[i], RGBtoCb));
-    auto &&data_shifted_Cr = shiftData(convertRGB(rgb_data[i], RGBtoCr));
+    auto data_shifted_Y = shiftData(convertRGB(rgb_data[i], RGBtoY));
+    auto data_shifted_Cb = shiftData(convertRGB(rgb_data[i], RGBtoCb));
+    auto data_shifted_Cr = shiftData(convertRGB(rgb_data[i], RGBtoCr));
 
     convertToBlocks<2>([&](size_t index){ return data_shifted_Y[index]; },  dims.data(), [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return blocks_Y[i * blocks_cnt + block_index][pixel_index]; });
     convertToBlocks<2>([&](size_t index){ return data_shifted_Cb[index]; }, dims.data(), [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return blocks_Cb[i * blocks_cnt + block_index][pixel_index]; });

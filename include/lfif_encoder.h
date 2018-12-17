@@ -64,8 +64,8 @@ inline constexpr QuantTable<D> baseQuantTable() {
   for (size_t i = 0; i < quant_table.size(); i++) {
     size_t sum = 0;
     size_t max = 0;
-    for (size_t j = 1; j <= D; j++) {
-      size_t coord = (i % constpow(8, j)) / constpow(8, j-1);
+    for (size_t j = 0; j < D; j++) {
+      size_t coord = (i % constpow(8, j+1)) / constpow(8, j);
       sum += coord * coord;
       if (coord > max) {
         max = coord;
