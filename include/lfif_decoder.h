@@ -46,19 +46,19 @@ inline vector<TraversedBlock<D>> runLenghtDecodePairs(const RunLengthEncodedImag
 }
 
 template<size_t D>
-inline vector<QuantizedBlock<D>> dezigzagBlocks(const vector<TraversedBlock<D>> &blocks, const TraversalTable<D> &traversal_table) {
-  vector<QuantizedBlock<D>> blocks_dezigzaged(blocks.size());
+inline vector<QuantizedBlock<D>> detraverseBlocks(const vector<TraversedBlock<D>> &blocks, const TraversalTable<D> &traversal_table) {
+  vector<QuantizedBlock<D>> blocks_detraversed(blocks.size());
 
   for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
     const TraversedBlock<D> &block            = blocks[block_index];
-    QuantizedBlock<D>       &block_dezigzaged = blocks_dezigzaged[block_index];
+    QuantizedBlock<D>       &block_detraversed = blocks_detraversed[block_index];
 
     for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_dezigzaged[pixel_index] = block[traversal_table[pixel_index]];
+      block_detraversed[pixel_index] = block[traversal_table[pixel_index]];
     }
   }
 
-  return blocks_dezigzaged;
+  return blocks_detraversed;
 }
 
 template<size_t D>

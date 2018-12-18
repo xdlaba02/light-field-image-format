@@ -135,9 +135,9 @@ int main(int argc, char *argv[]) {
     } while((pair.zeroes != 0) || (pair.amplitude != 0));
   }
 
-  vector<YCbCrDataBlock<2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Y)), traversal_table), quant_table));
-  vector<YCbCrDataBlock<2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cb)), traversal_table), quant_table));
-  vector<YCbCrDataBlock<2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(dezigzagBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cr)), traversal_table), quant_table));
+  vector<YCbCrDataBlock<2>> blocks_Y  = detransformBlocks<2>(dequantizeBlocks<2>(detraverseBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Y)), traversal_table), quant_table));
+  vector<YCbCrDataBlock<2>> blocks_Cb = detransformBlocks<2>(dequantizeBlocks<2>(detraverseBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cb)), traversal_table), quant_table));
+  vector<YCbCrDataBlock<2>> blocks_Cr = detransformBlocks<2>(dequantizeBlocks<2>(detraverseBlocks<2>(runLenghtDecodePairs<2>(diffDecodePairs(pairs_Cr)), traversal_table), quant_table));
 
   vector<size_t> mask_indexes {};
 

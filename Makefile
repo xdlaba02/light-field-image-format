@@ -10,7 +10,7 @@ OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS = -Iinclude -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 LDFLAGS =
 
 all: $(BINDIR) $(OBJDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress
@@ -32,4 +32,4 @@ $(OBJDIR):
 .PHONY: clean
 
 clean:
-	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore* *.data
+	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR) vgcore* *.data callgrind*

@@ -78,16 +78,14 @@ inline constexpr QuantTable<D> baseQuantTable() {
 }
 
 template<size_t D>
-inline QuantTable<D> scaleQuantTable(const QuantTable<D> &quant_table, const QualityUnit quality) {
-  QuantTable<D> output {};
-
+inline QuantTable<D> scaleQuantTable(QuantTable<D> quant_table, const QualityUnit quality) {
   float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
 
-  for (size_t i = 0; i < quant_table.size(); i++) {
-    output[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    quant_table[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
   }
 
-  return output;
+  return quant_table;
 }
 
 template<size_t D>
@@ -234,18 +232,18 @@ inline TraversalTable<D> constructTraversalTableByDiagonals() {
 
 template<size_t D>
 inline vector<TraversedBlock<D>> traverseBlocks(const vector<QuantizedBlock<D>> &blocks, const TraversalTable<D> &traversal_table) {
-  vector<TraversedBlock<D>> blocks_zigzaged(blocks.size());
+  vector<TraversedBlock<D>> blocks_traversed(blocks.size());
 
   for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
     const QuantizedBlock<D> &block          = blocks[block_index];
-    TraversedBlock<D>       &block_zigzaged = blocks_zigzaged[block_index];
+    TraversedBlock<D>       &block_traversed = blocks_traversed[block_index];
 
     for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_zigzaged[traversal_table[pixel_index]] = block[pixel_index];
+      block_traversed[traversal_table[pixel_index]] = block[pixel_index];
     }
   }
 
-  return blocks_zigzaged;
+  return blocks_traversed;
 }
 
 template<size_t D>

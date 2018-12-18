@@ -4,5 +4,6 @@ build
 *.ppm
 *.jpeg2d
 vgcore.*
+callgrind*
 *.data
 *.old
