@@ -80,6 +80,6 @@ using RunLengthEncodedImage = vector<RunLengthEncodedBlock>;
 using HuffmanCodeword = vector<bool>;
 using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
 using HuffmanCodelengths = vector<pair<uint64_t, uint8_t>>;
-using HuffmanTable = map<uint8_t, HuffmanCodeword>;
+using HuffmanMap = map<uint8_t, HuffmanCodeword>;
 
 #endif

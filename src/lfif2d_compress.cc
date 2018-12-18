@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
 
     ifstream input(input_file_name);
     if (input.fail()) {
-      break;
+      continue;
     }
 
     image_count++;
@@ -133,29 +133,42 @@ int main(int argc, char *argv[]) {
     return -5;
   }
 
+  /**********************/
+
   size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
-
-  vector<YCbCrDataBlock<2>> blocks_Y(blocks_cnt * image_count);
-  vector<YCbCrDataBlock<2>> blocks_Cb(blocks_cnt * image_count);
-  vector<YCbCrDataBlock<2>> blocks_Cr(blocks_cnt * image_count);
-
   Dimensions<2> dims{width, height};
+  QuantTable<2> quant_table = scaleQuantTable<2>(baseQuantTable<2>(), quality);
+  RefereceBlock<2> reference_block {};
 
-  for (size_t i = 0; i < rgb_data.size(); i++) {
-    auto data_shifted_Y = shiftData(convertRGB(rgb_data[i], RGBtoY));
-    auto data_shifted_Cb = shiftData(convertRGB(rgb_data[i], RGBtoCb));
-    auto data_shifted_Cr = shiftData(convertRGB(rgb_data[i], RGBtoCr));
+  auto blockize = [&](const YCbCrData &input, vector<YCbCrDataBlock<2>> &output){
+    size_t prev_size = output.size();
+    output.resize(prev_size + blocks_cnt);
+    convertToBlocks<2>([&](size_t index){ return input[index]; },  dims.data(), [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return output[prev_size + block_index][pixel_index]; });
+  };
 
-    convertToBlocks<2>([&](size_t index){ return data_shifted_Y[index]; },  dims.data(), [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return blocks_Y[i * blocks_cnt + block_index][pixel_index]; });
-    convertToBlocks<2>([&](size_t index){ return data_shifted_Cb[index]; }, dims.data(), [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return blocks_Cb[i * blocks_cnt + block_index][pixel_index]; });
-    convertToBlocks<2>([&](size_t index){ return data_shifted_Cr[index]; }, dims.data(), [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return blocks_Cr[i * blocks_cnt + block_index][pixel_index]; });
+  auto quantize = [&](const vector<YCbCrDataBlock<2>> &input) {
+    return quantizeBlocks<2>(input, quant_table);
+  };
+
+  vector<YCbCrDataBlock<2>> blocks_Y  {};
+  vector<YCbCrDataBlock<2>> blocks_Cb {};
+  vector<YCbCrDataBlock<2>> blocks_Cr {};
+
+  for (size_t i = 0; i < image_count; i++) {
+    blockize(shiftData(convertRGB(rgb_data[i], RGBtoY)), blocks_Y);
+    blockize(shiftData(convertRGB(rgb_data[i], RGBtoCb)), blocks_Cb);
+    blockize(shiftData(convertRGB(rgb_data[i], RGBtoCr)), blocks_Cr);
   }
 
-  QuantTable<2> quant_table = scaleQuantTable<2>(baseQuantTable<2>(), quality);
+  auto quantized_Y  = quantize(transformBlocks<2>(blocks_Y));
+  auto quantized_Cb = quantize(transformBlocks<2>(blocks_Cb));
+  auto quantized_Cr = quantize(transformBlocks<2>(blocks_Cr));
 
-  vector<QuantizedBlock<2>> blocks_quantized_Y  = quantizeBlocks<2>(transformBlocks<2>(blocks_Y),  quant_table);
-  vector<QuantizedBlock<2>> blocks_quantized_Cb = quantizeBlocks<2>(transformBlocks<2>(blocks_Cb), quant_table);
-  vector<QuantizedBlock<2>> blocks_quantized_Cr = quantizeBlocks<2>(transformBlocks<2>(blocks_Cr), quant_table);
+  getReference<2>(quantized_Y,  reference_block);
+  getReference<2>(quantized_Cb, reference_block);
+  getReference<2>(quantized_Cr, reference_block);
+
+  TraversalTable<2> traversal_table = constructTraversalTableByReference<2>(reference_block);
 
   HuffmanWeights weights_luma_AC   {};
   HuffmanWeights weights_luma_DC   {};
@@ -163,17 +176,9 @@ int main(int argc, char *argv[]) {
   HuffmanWeights weights_chroma_AC {};
   HuffmanWeights weights_chroma_DC {};
 
-  RefereceBlock<2> reference_block {};
-
-  getReference<2>(blocks_quantized_Y,  reference_block);
-  getReference<2>(blocks_quantized_Cb, reference_block);
-  getReference<2>(blocks_quantized_Cr, reference_block);
-
-  TraversalTable<2> traversal_table = constructTraversalTableByReference<2>(reference_block);
-
-  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(blocks_quantized_Y,  traversal_table)));
-  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(blocks_quantized_Cb, traversal_table)));
-  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(blocks_quantized_Cr, traversal_table)));
+  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(quantized_Y,  traversal_table)));
+  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(quantized_Cb, traversal_table)));
+  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(quantized_Cr, traversal_table)));
 
   huffmanGetWeightsAC(runlength_Y,  weights_luma_AC);
   huffmanGetWeightsDC(runlength_Y,  weights_luma_DC);
@@ -189,10 +194,7 @@ int main(int argc, char *argv[]) {
   HuffmanCodelengths codelengths_chroma_DC = generateHuffmanCodelengths(weights_chroma_DC);
   HuffmanCodelengths codelengths_chroma_AC = generateHuffmanCodelengths(weights_chroma_AC);
 
-  HuffmanTable huffcodes_luma_DC   = generateHuffmanCodewords(codelengths_luma_DC);
-  HuffmanTable huffcodes_luma_AC   = generateHuffmanCodewords(codelengths_luma_AC);
-  HuffmanTable huffcodes_chroma_DC = generateHuffmanCodewords(codelengths_chroma_DC);
-  HuffmanTable huffcodes_chroma_AC = generateHuffmanCodewords(codelengths_chroma_AC);
+  /*******************************/
 
   ofstream output(output_file_name);
   if (output.fail()) {
@@ -210,7 +212,6 @@ int main(int argc, char *argv[]) {
   output.write(reinterpret_cast<char *>(&raw_count), sizeof(raw_count));
 
   output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
-
   output.write(reinterpret_cast<const char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
 
   writeHuffmanTable(codelengths_luma_DC, output);
@@ -220,20 +221,25 @@ int main(int argc, char *argv[]) {
 
   OBitstream bitstream(output);
 
+  HuffmanMap huffmap_luma_DC   = generateHuffmanMap(codelengths_luma_DC);
+  HuffmanMap huffmap_luma_AC   = generateHuffmanMap(codelengths_luma_AC);
+  HuffmanMap huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
+  HuffmanMap huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
+
   for (size_t i = 0; i < blocks_cnt * image_count; i++) {
-    encodeOnePair(runlength_Y[i][0], huffcodes_luma_DC, bitstream);
+    encodeOnePair(runlength_Y[i][0], huffmap_luma_DC, bitstream);
     for (size_t j = 1; j < runlength_Y[i].size(); j++) {
-      encodeOnePair(runlength_Y[i][j], huffcodes_luma_AC, bitstream);
+      encodeOnePair(runlength_Y[i][j], huffmap_luma_AC, bitstream);
     }
 
-    encodeOnePair(runlength_Cb[i][0], huffcodes_chroma_DC, bitstream);
+    encodeOnePair(runlength_Cb[i][0], huffmap_chroma_DC, bitstream);
     for (size_t j = 1; j < runlength_Cb[i].size(); j++) {
-      encodeOnePair(runlength_Cb[i][j], huffcodes_chroma_AC, bitstream);
+      encodeOnePair(runlength_Cb[i][j], huffmap_chroma_AC, bitstream);
     }
 
-    encodeOnePair(runlength_Cr[i][0], huffcodes_chroma_DC, bitstream);
+    encodeOnePair(runlength_Cr[i][0], huffmap_chroma_DC, bitstream);
     for (size_t j = 1; j < runlength_Cr[i].size(); j++) {
-      encodeOnePair(runlength_Cr[i][j], huffcodes_chroma_AC, bitstream);
+      encodeOnePair(runlength_Cr[i][j], huffmap_chroma_AC, bitstream);
     }
   }
 

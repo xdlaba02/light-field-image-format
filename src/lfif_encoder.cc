@@ -111,8 +111,8 @@ HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights) {
   return A;
 }
 
-HuffmanTable generateHuffmanCodewords(const HuffmanCodelengths &codelengths) {
-  HuffmanTable table {};
+HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths) {
+  HuffmanMap map {};
 
   // TODO PROVE ME
 
@@ -120,16 +120,16 @@ HuffmanTable generateHuffmanCodewords(const HuffmanCodelengths &codelengths) {
 
   uint8_t huffman_codeword {};
   for (auto &pair: codelengths) {
-    table[pair.second];
+    map[pair.second];
 
     for (uint8_t i = 0; i < prefix_ones; i++) {
-      table[pair.second].push_back(1);
+      map[pair.second].push_back(1);
     }
 
     uint8_t len = pair.first - prefix_ones;
 
     for (uint8_t k = 0; k < len; k++) {
-      table[pair.second].push_back(bitset<8>(huffman_codeword)[7 - k]);
+      map[pair.second].push_back(bitset<8>(huffman_codeword)[7 - k]);
     }
 
     huffman_codeword = ((huffman_codeword >> (8 - len)) + 1) << (8 - len);
@@ -139,7 +139,7 @@ HuffmanTable generateHuffmanCodewords(const HuffmanCodelengths &codelengths) {
     }
   }
 
-  return table;
+  return map;
 }
 
 void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream) {
@@ -161,11 +161,11 @@ void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream) 
   }
 }
 
-void encodeOnePair(const RunLengthPair &pair, const HuffmanTable &table, OBitstream &stream) {
+void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream &stream) {
   HuffmanClass huff_class = huffmanClass(pair.amplitude);
-  HuffmanSymbol symbol     = huffmanSymbol(pair);
+  HuffmanSymbol symbol    = huffmanSymbol(pair);
 
-  stream.write(table.at(symbol));
+  stream.write(map.at(symbol));
 
   RunLengthAmplitudeUnit amplitude = pair.amplitude;
   if (amplitude < 0) {

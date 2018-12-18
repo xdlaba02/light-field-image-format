@@ -19,11 +19,11 @@ void huffmanGetWeightsDC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &
 RunLengthEncodedImage diffEncodePairs(RunLengthEncodedImage runlengths);
 
 HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights);
-HuffmanTable generateHuffmanCodewords(const HuffmanCodelengths &codelengths);
+HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths);
 
 void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream);
 
-void encodeOnePair(const RunLengthPair &pair, const HuffmanTable &table, OBitstream &stream);
+void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream &stream);
 
 HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude);
 HuffmanSymbol huffmanSymbol(const RunLengthPair &pair);
