@@ -1,5 +1,5 @@
 /*******************************************************\
-* SOUBOR: lfif2d_compress.cc
+* SOUBOR: lfif3d_compress.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 * DATUM: 19. 12. 2018
 \*******************************************************/
@@ -10,6 +10,61 @@
 
 #include <iostream>
 #include <bitset>
+
+RGBData zigzagShift(const RGBData &rgb_data, uint64_t count) {
+  RGBData rgb_shifted {};
+
+  rgb_shifted.reserve(rgb_data.size());
+
+  size_t img_size = rgb_data.size() / count;
+
+  uint64_t sqrtcnt = sqrt(count);
+
+  uint64_t x = 0;
+  uint64_t y = 0;
+  auto index = [&]() -> unsigned { return y*img_size*sqrtcnt + x*img_size; };
+
+  while (true) {
+    rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+
+    if (x < sqrtcnt - 1) {
+      x++;
+    }
+    else if (y < sqrtcnt - 1) {
+      y++;
+    }
+    else {
+      break;
+    }
+
+    while ((x > 0) && (y < sqrtcnt - 1)) {
+      rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+      x--;
+      y++;
+    }
+
+    rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+
+    if (y < sqrtcnt - 1) {
+      y++;
+    }
+    else if (x < sqrtcnt - 1) {
+      x++;
+    }
+    else {
+      break;
+    }
+
+    while ((x < sqrtcnt - 1) && (y > 0)) {
+      rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+      x++;
+      y--;
+    }
+  }
+
+  return rgb_shifted;
+}
+
 
 int main(int argc, char *argv[]) {
   string input_file_mask  {};
@@ -29,56 +84,54 @@ int main(int argc, char *argv[]) {
     return -2;
   }
 
+  rgb_data = zigzagShift(rgb_data, image_count);
+
   /**********************/
 
-  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
+  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.) * ceil(image_count/8.);
 
-  QuantTable<2> quant_table = scaleQuantTable<2>(baseQuantTable<2>(), quality);
-  RefereceBlock<2> reference_block {};
+  QuantTable<3> quant_table = scaleQuantTable<3>(baseQuantTable<3>(), quality);
+  RefereceBlock<3> reference_block {};
 
   auto blockize = [&](const YCbCrData &input){
-    vector<YCbCrDataBlock<2>> output(blocks_cnt * image_count);
-    Dimensions<2> dims{width, height};
+    vector<YCbCrDataBlock<3>> output(blocks_cnt * image_count);
+    Dimensions<3> dims{width, height, image_count};
 
-    cerr << blocks_cnt * image_count << endl;
+    auto inputF = [&](size_t index) {
+      return input[index];
+    };
 
-    for (size_t i = 0; i < image_count; i++) {
-      auto inputF = [&](size_t index) {
-        return input[(i * width * height) + index];
-      };
+    auto outputF = [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{
+      return output[block_index][pixel_index];
+    };
 
-      auto outputF = [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{
-        return output[(i * blocks_cnt) + block_index][pixel_index];
-      };
-
-      convertToBlocks<2>(inputF, dims.data(), outputF);
-    }
+    convertToBlocks<3>(inputF, dims.data(), outputF);
 
     return output;
   };
 
-  auto quantize = [&](const vector<YCbCrDataBlock<2>> &input) {
-    return quantizeBlocks<2>(input, quant_table);
+  auto quantize = [&](const vector<YCbCrDataBlock<3>> &input) {
+    return quantizeBlocks<3>(input, quant_table);
   };
 
-  vector<QuantizedBlock<2>> quantized_Y  = quantize(transformBlocks<2>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))));
-  vector<QuantizedBlock<2>> quantized_Cb = quantize(transformBlocks<2>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))));
-  vector<QuantizedBlock<2>> quantized_Cr = quantize(transformBlocks<2>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))));
+  vector<QuantizedBlock<3>> quantized_Y  = quantize(transformBlocks<3>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))));
+  vector<QuantizedBlock<3>> quantized_Cb = quantize(transformBlocks<3>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))));
+  vector<QuantizedBlock<3>> quantized_Cr = quantize(transformBlocks<3>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))));
   RGBData().swap(rgb_data);
 
-  getReference<2>(quantized_Y,  reference_block);
-  getReference<2>(quantized_Cb, reference_block);
-  getReference<2>(quantized_Cr, reference_block);
+  getReference<3>(quantized_Y,  reference_block);
+  getReference<3>(quantized_Cb, reference_block);
+  getReference<3>(quantized_Cr, reference_block);
 
-  TraversalTable<2> traversal_table = constructTraversalTableByReference<2>(reference_block);
+  TraversalTable<3> traversal_table = constructTraversalTableByReference<3>(reference_block);
 
-  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(quantized_Y,  traversal_table)));
-  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(quantized_Cb, traversal_table)));
-  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<2>(traverseBlocks<2>(quantized_Cr, traversal_table)));
+  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<3>(traverseBlocks<3>(quantized_Y,  traversal_table)));
+  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<3>(traverseBlocks<3>(quantized_Cb, traversal_table)));
+  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<3>(traverseBlocks<3>(quantized_Cr, traversal_table)));
 
-  vector<QuantizedBlock<2>>().swap(quantized_Y);
-  vector<QuantizedBlock<2>>().swap(quantized_Cb);
-  vector<QuantizedBlock<2>>().swap(quantized_Cr);
+  vector<QuantizedBlock<3>>().swap(quantized_Y);
+  vector<QuantizedBlock<3>>().swap(quantized_Cb);
+  vector<QuantizedBlock<3>>().swap(quantized_Cr);
 
   HuffmanWeights weights_luma_AC   {};
   HuffmanWeights weights_luma_DC   {};
@@ -107,7 +160,7 @@ int main(int argc, char *argv[]) {
     return -6;
   }
 
-  output.write("LFIF-2D\n", 8);
+  output.write("LFIF-3D\n", 8);
 
   uint64_t raw_width  = toBigEndian(width);
   uint64_t raw_height = toBigEndian(height);
@@ -132,7 +185,7 @@ int main(int argc, char *argv[]) {
   HuffmanMap huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
   HuffmanMap huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
 
-  for (size_t i = 0; i < blocks_cnt * image_count; i++) {
+  for (size_t i = 0; i < blocks_cnt; i++) {
     encodeOnePair(runlength_Y[i][0], huffmap_luma_DC, bitstream);
     for (size_t j = 1; j < runlength_Y[i].size(); j++) {
       encodeOnePair(runlength_Y[i][j], huffmap_luma_AC, bitstream);

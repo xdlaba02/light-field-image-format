@@ -7,6 +7,8 @@
 #ifndef LFIF_ENCODER_H
 #define LFIF_ENCODER_H
 
+#include <iostream>
+
 #include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"
@@ -92,6 +94,7 @@ template<size_t D>
 struct convertToBlocks {
   template <typename IF, typename OF>
   convertToBlocks(IF &&input, const size_t dims[D], OF &&output) {
+    size_t blocks_x = ceil(dims[D-2]/8.0);
     size_t blocks = ceil(dims[D-1]/8.0);
 
     for (size_t block = 0; block < blocks; block++) {
@@ -102,7 +105,15 @@ struct convertToBlocks {
           image = dims[D-1] - 1;
         }
 
-        convertToBlocks<D-1>([&](size_t image_index){ return input(image * dims[D-1] + image_index); }, dims, [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{ return output(block * blocks + block_index, pixel * constpow(8, D-1) + pixel_index); });
+        auto inputF = [&](size_t image_index){
+          return input(image * dims[D-2] + image_index);
+        };
+
+        auto outputF = [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{
+          return output((block * blocks_x) + block_index, (pixel * constpow(8, D-1)) + pixel_index);
+        };
+
+        convertToBlocks<D-1>(inputF, dims, outputF);
       }
     }
   }

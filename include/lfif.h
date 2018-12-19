@@ -82,4 +82,9 @@ using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
 using HuffmanCodelengths = vector<pair<uint64_t, uint8_t>>;
 using HuffmanMap = map<uint8_t, HuffmanCodeword>;
 
+struct HuffmanTable {
+  vector<uint8_t> counts;
+  vector<uint8_t> symbols;
+};
+
 #endif

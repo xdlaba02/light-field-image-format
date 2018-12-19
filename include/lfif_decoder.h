@@ -7,20 +7,23 @@
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
 
+#include <iostream>
+
 #include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"
 
 using namespace std;
 
-void readHuffmanTable(vector<uint8_t> &counts, vector<HuffmanSymbol> &symbols, ifstream &stream);
+HuffmanTable readHuffmanTable(ifstream &stream);
 
-RunLengthPair decodeOnePair(const vector<uint8_t> &counts, const vector<HuffmanSymbol> &symbols, IBitstream &stream);
+RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream);
+
+size_t decodeOneHuffmanSymbolIndex(const vector<uint8_t> &counts, IBitstream &stream);
+
+RunLengthAmplitudeUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stream);
 
 RunLengthEncodedImage diffDecodePairs(RunLengthEncodedImage runlengths);
-
-HuffmanSymbol decodeOneHuffmanSymbol(const vector<uint8_t> &counts, const vector<HuffmanSymbol> &symbols, IBitstream &stream);
-RunLengthAmplitudeUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stream);
 
 YCbCrData deshiftData(YCbCrData data);
 
@@ -92,6 +95,7 @@ template<size_t D>
 struct convertFromBlocks {
   template <typename IF, typename OF>
   convertFromBlocks(IF &&input, const size_t dims[D], OF &&output) {
+    size_t blocks_x = ceil(dims[D-2]/8.0);
     size_t blocks = ceil(dims[D-1]/8.0);
 
     for (size_t block = 0; block < blocks; block++) {
@@ -102,7 +106,15 @@ struct convertFromBlocks {
           break;
         }
 
-        convertFromBlocks<D-1>([&](size_t block_index, size_t pixel_index){ return input(block * blocks + block_index, pixel * constpow(8, D-1) + pixel_index); }, dims, [&](size_t image_index)-> YCbCrDataUnit &{ return output(image * dims[D-1] + image_index); });
+        auto inputF = [&](size_t block_index, size_t pixel_index){
+          return input(block * blocks_x + block_index, pixel * constpow(8, D-1) + pixel_index);
+        };
+
+        auto outputF = [&](size_t image_index)-> YCbCrDataUnit &{
+          return output(image * dims[D-2] + image_index);
+        };
+
+        convertFromBlocks<D-1>(inputF, dims, outputF);
       }
     }
   }

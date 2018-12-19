@@ -1,5 +1,5 @@
 /*******************************************************\
-* SOUBOR: lfif2d_decompress.cc
+* SOUBOR: lfif3d_decompress.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 * DATUM: 19. 12. 2018
 \*******************************************************/
@@ -16,6 +16,65 @@
 #include <iomanip>
 
 using namespace std;
+
+vector<uint8_t> zigzagDeshift(const RGBData &shifted_data, uint64_t ix, uint64_t iy) {
+  vector<uint8_t> rgb_data(shifted_data.size());
+
+  uint64_t size_2d = shifted_data.size() / (ix * iy);
+
+  uint64_t shift_index = 0;
+  uint64_t x = 0;
+  uint64_t y = 0;
+  auto index = [&]() -> unsigned { return y*size_2d*ix + x*size_2d; };
+
+  while (true) {
+    for (uint64_t i = 0; i < size_2d; i++) {
+      rgb_data[index()+i] = shifted_data[shift_index++];
+    }
+
+    if (x < ix - 1) {
+      x++;
+    }
+    else if (y < iy - 1) {
+      y++;
+    }
+    else {
+      break;
+    }
+
+    while ((x > 0) && (y < iy - 1)) {
+      for (uint64_t i = 0; i < size_2d; i++) {
+        rgb_data[index()+i] = shifted_data[shift_index++];
+      }
+      x--;
+      y++;
+    }
+
+    for (uint64_t i = 0; i < size_2d; i++) {
+      rgb_data[index()+i] = shifted_data[shift_index++];
+    }
+
+    if (y < iy - 1) {
+      y++;
+    }
+    else if (x < ix - 1) {
+      x++;
+    }
+    else {
+      break;
+    }
+
+    while ((x < ix - 1) && (y > 0)) {
+      for (uint64_t i = 0; i < size_2d; i++) {
+        rgb_data[index()+i] = shifted_data[shift_index++];
+      }
+      x++;
+      y--;
+    }
+  }
+
+  return rgb_data;
+}
 
 int main(int argc, char *argv[]) {
   char *input_file_name  {nullptr};
