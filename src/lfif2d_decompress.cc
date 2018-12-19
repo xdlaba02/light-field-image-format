@@ -68,15 +68,15 @@ int main(int argc, char *argv[]) {
 
   uint64_t raw_width  {};
   uint64_t raw_height {};
-  uint64_t raw_count  {};
+  uint64_t raw_depth  {};
 
   input.read(reinterpret_cast<char *>(&raw_width), sizeof(uint64_t));
   input.read(reinterpret_cast<char *>(&raw_height), sizeof(uint64_t));
-  input.read(reinterpret_cast<char *>(&raw_count), sizeof(uint64_t));
+  input.read(reinterpret_cast<char *>(&raw_depth), sizeof(uint64_t));
 
   uint64_t width  = fromBigEndian(raw_width);
   uint64_t height = fromBigEndian(raw_height);
-  uint64_t image_count = fromBigEndian(raw_count);
+  uint64_t depth = fromBigEndian(raw_depth);
 
   QuantTable<2> quant_table {};
   input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
@@ -91,13 +91,13 @@ int main(int argc, char *argv[]) {
 
   size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
 
-  RunLengthEncodedImage pairs_Y(blocks_cnt  * image_count);
-  RunLengthEncodedImage pairs_Cb(blocks_cnt * image_count);
-  RunLengthEncodedImage pairs_Cr(blocks_cnt * image_count);
+  RunLengthEncodedImage pairs_Y(blocks_cnt  * depth);
+  RunLengthEncodedImage pairs_Cb(blocks_cnt * depth);
+  RunLengthEncodedImage pairs_Cr(blocks_cnt * depth);
 
   IBitstream bitstream(input);
 
-  for (size_t i = 0; i < blocks_cnt * image_count; i++) {
+  for (size_t i = 0; i < blocks_cnt * depth; i++) {
     RunLengthPair pair;
 
     pair = decodeOnePair(hufftable_luma_DC, bitstream);
@@ -123,9 +123,9 @@ int main(int argc, char *argv[]) {
   }
 
   auto deblockize = [&](const vector<YCbCrDataBlock<2>> &input) {
-    YCbCrData output(width * height * image_count);
+    YCbCrData output(width * height * depth);
     Dimensions<2> dims{width, height};
-    for (size_t i = 0; i < image_count; i++) {
+    for (size_t i = 0; i < depth; i++) {
       convertFromBlocks<2>([&](size_t block_index, size_t pixel_index){ return input[blocks_cnt * i + block_index][pixel_index]; }, dims.data(), [&](size_t index) -> YCbCrDataUnit &{ return output[i * width * height + index]; });
     }
     return output;
@@ -136,8 +136,6 @@ int main(int argc, char *argv[]) {
   };
 
   RGBData rgb_data = YCbCrToRGB(decode(pairs_Y), decode(pairs_Cb), decode(pairs_Cr));
-
-  cerr << long(*(rgb_data.end() - 2)) << ", " << long(*(rgb_data.end() - 2)) << ", " << long(*(rgb_data.end() - 1)) << endl;
 
   /*******************************************/
 
@@ -151,7 +149,7 @@ int main(int argc, char *argv[]) {
 
   string output_file_name {output_file_mask};
 
-  for (size_t image = 0; image < image_count; image++) {
+  for (size_t image = 0; image < depth; image++) {
     cerr << "writing image " << image << endl;
     stringstream image_number {};
     image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);

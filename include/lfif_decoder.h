@@ -95,7 +95,14 @@ template<size_t D>
 struct convertFromBlocks {
   template <typename IF, typename OF>
   convertFromBlocks(IF &&input, const size_t dims[D], OF &&output) {
-    size_t blocks_x = ceil(dims[D-2]/8.0);
+    size_t blocks_x = 1;
+    size_t size_x   = 1;
+
+    for (size_t i = 0; i < D - 1; i++) {
+      blocks_x *= ceil(dims[i]/8.0);
+      size_x *= dims[i];
+    }
+
     size_t blocks = ceil(dims[D-1]/8.0);
 
     for (size_t block = 0; block < blocks; block++) {
@@ -111,7 +118,7 @@ struct convertFromBlocks {
         };
 
         auto outputF = [&](size_t image_index)-> YCbCrDataUnit &{
-          return output(image * dims[D-2] + image_index);
+          return output(image * size_x + image_index);
         };
 
         convertFromBlocks<D-1>(inputF, dims, outputF);

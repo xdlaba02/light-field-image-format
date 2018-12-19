@@ -11,65 +11,74 @@
 #include <iostream>
 #include <bitset>
 
-RGBData zigzagShift(const RGBData &rgb_data, uint64_t count) {
-  RGBData rgb_shifted {};
+vector<size_t> generateZigzagTable(uint64_t size) {
+  vector<size_t> table(size * size);
 
-  rgb_shifted.reserve(rgb_data.size());
-
-  size_t img_size = rgb_data.size() / count;
-
-  uint64_t sqrtcnt = sqrt(count);
-
-  uint64_t x = 0;
-  uint64_t y = 0;
-  auto index = [&]() -> unsigned { return y*img_size*sqrtcnt + x*img_size; };
-
+  size_t x = 0;
+  size_t y = 0;
+  size_t output_index = 0;
   while (true) {
-    rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+    table[y * size + x] = output_index++;
 
-    if (x < sqrtcnt - 1) {
+    if (x < size - 1) {
       x++;
     }
-    else if (y < sqrtcnt - 1) {
+    else if (y < size - 1) {
       y++;
     }
     else {
       break;
     }
 
-    while ((x > 0) && (y < sqrtcnt - 1)) {
-      rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+    while ((x > 0) && (y < size - 1)) {
+      table[y * size + x] = output_index++;
       x--;
       y++;
     }
 
-    rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+    table[y * size + x] = output_index++;
 
-    if (y < sqrtcnt - 1) {
+    if (y < size - 1) {
       y++;
     }
-    else if (x < sqrtcnt - 1) {
+    else if (x < size - 1) {
       x++;
     }
     else {
       break;
     }
 
-    while ((x < sqrtcnt - 1) && (y > 0)) {
-      rgb_shifted.insert(rgb_shifted.end(), rgb_data.begin() + index(), rgb_data.begin() + index() + img_size);
+    while ((x < size - 1) && (y > 0)) {
+      table[y * size + x] = output_index++;
       x++;
       y--;
     }
   }
 
-  return rgb_shifted;
+  return table;
+}
+
+RGBData zigzagShift(const RGBData &rgb_data, uint64_t depth) {
+  RGBData zigzag_data(rgb_data.size());
+
+  size_t image_size = rgb_data.size() / depth;
+
+  vector<size_t> zigzag_table = generateZigzagTable(sqrt(depth));
+
+  for (size_t i = 0; i < depth; i++) {
+    for (size_t j = 0; j < image_size; j++) {
+      zigzag_data[zigzag_table[i] * image_size + j] = rgb_data[i * image_size + j];
+    }
+  }
+
+  return zigzag_data;
 }
 
 
 int main(int argc, char *argv[]) {
   string input_file_mask  {};
   string output_file_name {};
-  uint8_t quality        {};
+  uint8_t quality         {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return -1;
@@ -77,25 +86,26 @@ int main(int argc, char *argv[]) {
 
   uint64_t width  {};
   uint64_t height {};
-  uint64_t image_count {};
+  uint64_t depth  {};
+
   RGBData rgb_data {};
 
-  if (!loadPPMs(input_file_mask, width, height, image_count, rgb_data)) {
+  if (!loadPPMs(input_file_mask, width, height, depth, rgb_data)) {
     return -2;
   }
 
-  rgb_data = zigzagShift(rgb_data, image_count);
+  rgb_data = zigzagShift(rgb_data, depth);
 
   /**********************/
 
-  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.) * ceil(image_count/8.);
+  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.) * ceil(depth/8.);
 
   QuantTable<3> quant_table = scaleQuantTable<3>(baseQuantTable<3>(), quality);
   RefereceBlock<3> reference_block {};
 
   auto blockize = [&](const YCbCrData &input){
-    vector<YCbCrDataBlock<3>> output(blocks_cnt * image_count);
-    Dimensions<3> dims{width, height, image_count};
+    vector<YCbCrDataBlock<3>> output(blocks_cnt);
+    Dimensions<3> dims{width, height, depth};
 
     auto inputF = [&](size_t index) {
       return input[index];
@@ -164,11 +174,11 @@ int main(int argc, char *argv[]) {
 
   uint64_t raw_width  = toBigEndian(width);
   uint64_t raw_height = toBigEndian(height);
-  uint64_t raw_count = toBigEndian(image_count);
+  uint64_t raw_depth = toBigEndian(depth);
 
   output.write(reinterpret_cast<char *>(&raw_width),  sizeof(raw_width));
   output.write(reinterpret_cast<char *>(&raw_height), sizeof(raw_height));
-  output.write(reinterpret_cast<char *>(&raw_count), sizeof(raw_count));
+  output.write(reinterpret_cast<char *>(&raw_depth), sizeof(raw_depth));
 
   output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
   output.write(reinterpret_cast<const char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));

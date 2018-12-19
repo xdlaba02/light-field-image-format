@@ -22,10 +22,10 @@ int main(int argc, char *argv[]) {
 
   uint64_t width  {};
   uint64_t height {};
-  uint64_t image_count {};
+  uint64_t depth {};
   RGBData rgb_data {};
 
-  if (!loadPPMs(input_file_mask, width, height, image_count, rgb_data)) {
+  if (!loadPPMs(input_file_mask, width, height, depth, rgb_data)) {
     return -2;
   }
 
@@ -37,12 +37,10 @@ int main(int argc, char *argv[]) {
   RefereceBlock<2> reference_block {};
 
   auto blockize = [&](const YCbCrData &input){
-    vector<YCbCrDataBlock<2>> output(blocks_cnt * image_count);
+    vector<YCbCrDataBlock<2>> output(blocks_cnt * depth);
     Dimensions<2> dims{width, height};
 
-    cerr << blocks_cnt * image_count << endl;
-
-    for (size_t i = 0; i < image_count; i++) {
+    for (size_t i = 0; i < depth; i++) {
       auto inputF = [&](size_t index) {
         return input[(i * width * height) + index];
       };
@@ -111,11 +109,11 @@ int main(int argc, char *argv[]) {
 
   uint64_t raw_width  = toBigEndian(width);
   uint64_t raw_height = toBigEndian(height);
-  uint64_t raw_count = toBigEndian(image_count);
+  uint64_t raw_depth = toBigEndian(depth);
 
   output.write(reinterpret_cast<char *>(&raw_width),  sizeof(raw_width));
   output.write(reinterpret_cast<char *>(&raw_height), sizeof(raw_height));
-  output.write(reinterpret_cast<char *>(&raw_count), sizeof(raw_count));
+  output.write(reinterpret_cast<char *>(&raw_depth), sizeof(raw_depth));
 
   output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
   output.write(reinterpret_cast<const char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
@@ -132,7 +130,7 @@ int main(int argc, char *argv[]) {
   HuffmanMap huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
   HuffmanMap huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
 
-  for (size_t i = 0; i < blocks_cnt * image_count; i++) {
+  for (size_t i = 0; i < blocks_cnt * depth; i++) {
     encodeOnePair(runlength_Y[i][0], huffmap_luma_DC, bitstream);
     for (size_t j = 1; j < runlength_Y[i].size(); j++) {
       encodeOnePair(runlength_Y[i][j], huffmap_luma_AC, bitstream);
