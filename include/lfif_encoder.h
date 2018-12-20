@@ -7,8 +7,6 @@
 #ifndef LFIF_ENCODER_H
 #define LFIF_ENCODER_H
 
-#include <iostream>
-
 #include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"
@@ -25,6 +23,7 @@ HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths);
 
 void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream);
 
+void encodeOneBlock(const RunLengthEncodedBlock &runlength, const HuffmanMap &huffmap_DC, const HuffmanMap &huffmap_AC, OBitstream &stream);
 void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream &stream);
 
 HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude);

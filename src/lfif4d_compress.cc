@@ -1,7 +1,7 @@
 /*******************************************************\
-* SOUBOR: lfif3d_compress.cc
+* SOUBOR: lfif4d_compress.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
-* DATUM: 19. 12. 2018
+* DATUM: 20. 12. 2018
 \*******************************************************/
 
 #include "endian.h"
@@ -10,70 +10,6 @@
 
 #include <iostream>
 #include <bitset>
-
-vector<size_t> generateZigzagTable(uint64_t size) {
-  vector<size_t> table(size * size);
-
-  size_t x = 0;
-  size_t y = 0;
-  size_t output_index = 0;
-  while (true) {
-    table[y * size + x] = output_index++;
-
-    if (x < size - 1) {
-      x++;
-    }
-    else if (y < size - 1) {
-      y++;
-    }
-    else {
-      break;
-    }
-
-    while ((x > 0) && (y < size - 1)) {
-      table[y * size + x] = output_index++;
-      x--;
-      y++;
-    }
-
-    table[y * size + x] = output_index++;
-
-    if (y < size - 1) {
-      y++;
-    }
-    else if (x < size - 1) {
-      x++;
-    }
-    else {
-      break;
-    }
-
-    while ((x < size - 1) && (y > 0)) {
-      table[y * size + x] = output_index++;
-      x++;
-      y--;
-    }
-  }
-
-  return table;
-}
-
-RGBData zigzagShift(const RGBData &rgb_data, uint64_t depth) {
-  RGBData zigzag_data(rgb_data.size());
-
-  size_t image_size = rgb_data.size() / depth;
-
-  vector<size_t> zigzag_table = generateZigzagTable(sqrt(depth));
-
-  for (size_t i = 0; i < depth; i++) {
-    for (size_t j = 0; j < image_size; j++) {
-      zigzag_data[zigzag_table[i] * image_size + j] = rgb_data[i * image_size + j];
-    }
-  }
-
-  return zigzag_data;
-}
-
 
 int main(int argc, char *argv[]) {
   string input_file_mask  {};
@@ -94,17 +30,15 @@ int main(int argc, char *argv[]) {
     return -2;
   }
 
-  rgb_data = zigzagShift(rgb_data, depth);
-
   /**********************/
 
-  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.) * ceil(depth/8.);
+  size_t blocks_cnt = ceil(width/8.) * ceil(height/8.) * ceil(sqrt(depth)/8.) * ceil(sqrt(depth)/8.);
 
-  QuantTable<3> quant_table = scaleQuantTable<3>(baseQuantTable<3>(), quality);
+  QuantTable<4> quant_table = scaleQuantTable<4>(baseQuantTable<4>(), quality);
 
   auto blockize = [&](const YCbCrData &input){
-    vector<YCbCrDataBlock<3>> output(blocks_cnt);
-    Dimensions<3> dims{width, height, depth};
+    vector<YCbCrDataBlock<4>> output(blocks_cnt);
+    Dimensions<4> dims{width, height, sqrt(depth), sqrt(depth)};
 
     auto inputF = [&](size_t index) {
       return input[index];
@@ -114,30 +48,30 @@ int main(int argc, char *argv[]) {
       return output[block_index][pixel_index];
     };
 
-    convertToBlocks<3>(inputF, dims.data(), outputF);
+    convertToBlocks<4>(inputF, dims.data(), outputF);
 
     return output;
   };
 
-  vector<QuantizedBlock<3>> quantized_Y  = quantizeBlocks<3>(transformBlocks<3>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))), quant_table);
-  vector<QuantizedBlock<3>> quantized_Cb = quantizeBlocks<3>(transformBlocks<3>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))), quant_table);
-  vector<QuantizedBlock<3>> quantized_Cr = quantizeBlocks<3>(transformBlocks<3>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))), quant_table);
+  vector<QuantizedBlock<4>> quantized_Y  = quantizeBlocks<4>(transformBlocks<4>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))), quant_table);
+  vector<QuantizedBlock<4>> quantized_Cb = quantizeBlocks<4>(transformBlocks<4>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))), quant_table);
+  vector<QuantizedBlock<4>> quantized_Cr = quantizeBlocks<4>(transformBlocks<4>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))), quant_table);
   RGBData().swap(rgb_data);
 
-  RefereceBlock<3> reference_block {};
-  getReference<3>(quantized_Y,  reference_block);
-  getReference<3>(quantized_Cb, reference_block);
-  getReference<3>(quantized_Cr, reference_block);
+  RefereceBlock<4> reference_block {};
+  getReference<4>(quantized_Y,  reference_block);
+  getReference<4>(quantized_Cb, reference_block);
+  getReference<4>(quantized_Cr, reference_block);
 
-  TraversalTable<3> traversal_table = constructTraversalTableByReference<3>(reference_block);
+  TraversalTable<4> traversal_table = constructTraversalTableByReference<4>(reference_block);
 
-  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<3>(traverseBlocks<3>(quantized_Y,  traversal_table)));
-  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<3>(traverseBlocks<3>(quantized_Cb, traversal_table)));
-  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<3>(traverseBlocks<3>(quantized_Cr, traversal_table)));
+  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<4>(traverseBlocks<4>(quantized_Y,  traversal_table)));
+  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<4>(traverseBlocks<4>(quantized_Cb, traversal_table)));
+  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<4>(traverseBlocks<4>(quantized_Cr, traversal_table)));
 
-  vector<QuantizedBlock<3>>().swap(quantized_Y);
-  vector<QuantizedBlock<3>>().swap(quantized_Cb);
-  vector<QuantizedBlock<3>>().swap(quantized_Cr);
+  vector<QuantizedBlock<4>>().swap(quantized_Y);
+  vector<QuantizedBlock<4>>().swap(quantized_Cb);
+  vector<QuantizedBlock<4>>().swap(quantized_Cr);
 
   HuffmanWeights weights_luma_AC   {};
   HuffmanWeights weights_luma_DC   {};
@@ -166,14 +100,14 @@ int main(int argc, char *argv[]) {
     return -6;
   }
 
-  writeMagicNumber("LFIF-3D\n", output);
+  writeMagicNumber("LFIF-4D\n", output);
 
   writeDimension(width, output);
   writeDimension(height, output);
   writeDimension(depth, output);
 
-  writeQuantTable<3>(quant_table, output);
-  writeTraversalTable<3>(traversal_table, output);
+  writeQuantTable<4>(quant_table, output);
+  writeTraversalTable<4>(traversal_table, output);
 
   writeHuffmanTable(codelengths_luma_DC, output);
   writeHuffmanTable(codelengths_luma_AC, output);

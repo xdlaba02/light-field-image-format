@@ -9,11 +9,10 @@
 #include "lfif_decoder.h"
 #include "ppm.h"
 
-#include <getopt.h>
-
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+
 
 using namespace std;
 
@@ -81,39 +80,10 @@ RGBData zigzagDeshift(const RGBData &rgb_data, uint64_t depth) {
 }
 
 int main(int argc, char *argv[]) {
-  char *input_file_name  {nullptr};
-  char *output_file_mask {nullptr};
+  string input_file_name  {};
+  string output_file_mask {};
 
-  /*******************************************************\
-  * Argument parsing
-  \*******************************************************/
-  char opt;
-  while ((opt = getopt(argc, argv, "i:o:")) >= 0) {
-    switch (opt) {
-      case 'i':
-        if (!input_file_name) {
-          input_file_name = optarg;
-          continue;
-        }
-        break;
-
-      case 'o':
-        if (!output_file_mask) {
-          output_file_mask = optarg;
-          continue;
-        }
-        break;
-
-      default:
-        break;
-    }
-
-    print_usage(argv[0]);
-    return -1;
-  }
-
-  if ((!input_file_name) || (!output_file_mask)) {
-    print_usage(argv[0]);
+  if (!parse_args(argc, argv, input_file_name, output_file_mask)) {
     return -1;
   }
 
@@ -122,30 +92,16 @@ int main(int argc, char *argv[]) {
     return -2;
   }
 
-  char magic_number[9] {};
-  input.read(magic_number, 8);
-
-  if (string(magic_number) != "LFIF-3D\n") {
+  if (!checkMagicNumber("LFIF-3D\n", input)) {
     return -3;
   }
 
-  uint64_t raw_width  {};
-  uint64_t raw_height {};
-  uint64_t raw_depth  {};
+  uint64_t width  = readDimension(input);
+  uint64_t height = readDimension(input);
+  uint64_t depth  = readDimension(input);
 
-  input.read(reinterpret_cast<char *>(&raw_width), sizeof(uint64_t));
-  input.read(reinterpret_cast<char *>(&raw_height), sizeof(uint64_t));
-  input.read(reinterpret_cast<char *>(&raw_depth), sizeof(uint64_t));
-
-  uint64_t width  = fromBigEndian(raw_width);
-  uint64_t height = fromBigEndian(raw_height);
-  uint64_t depth = fromBigEndian(raw_depth);
-
-  QuantTable<3> quant_table {};
-  input.read(reinterpret_cast<char *>(quant_table.data()), quant_table.size());
-
-  TraversalTable<3> traversal_table {};
-  input.read(reinterpret_cast<char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
+  QuantTable<3> quant_table = readQuantTable<3>(input);
+  TraversalTable<3> traversal_table = readTraversalTable<3>(input);
 
   HuffmanTable hufftable_luma_DC = readHuffmanTable(input);
   HuffmanTable hufftable_luma_AC = readHuffmanTable(input);
@@ -161,28 +117,9 @@ int main(int argc, char *argv[]) {
   IBitstream bitstream(input);
 
   for (size_t i = 0; i < blocks_cnt; i++) {
-    RunLengthPair pair;
-
-    pair = decodeOnePair(hufftable_luma_DC, bitstream);
-    pairs_Y[i].push_back(pair);
-    do {
-      pair = decodeOnePair(hufftable_luma_AC, bitstream);
-      pairs_Y[i].push_back(pair);
-    } while((pair.zeroes != 0) || (pair.amplitude != 0));
-
-    pair = decodeOnePair(hufftable_chroma_DC, bitstream);
-    pairs_Cb[i].push_back(pair);
-    do {
-      pair = decodeOnePair(hufftable_chroma_AC, bitstream);
-      pairs_Cb[i].push_back(pair);
-    } while((pair.zeroes != 0) || (pair.amplitude != 0));
-
-    pair = decodeOnePair(hufftable_chroma_DC, bitstream);
-    pairs_Cr[i].push_back(pair);
-    do {
-      pair = decodeOnePair(hufftable_chroma_AC, bitstream);
-      pairs_Cr[i].push_back(pair);
-    } while((pair.zeroes != 0) || (pair.amplitude != 0));
+    decodeOneBlock(pairs_Y[i],  hufftable_luma_DC, hufftable_luma_AC, bitstream);
+    decodeOneBlock(pairs_Cb[i], hufftable_chroma_DC, hufftable_chroma_AC, bitstream);
+    decodeOneBlock(pairs_Cr[i], hufftable_chroma_DC, hufftable_chroma_AC, bitstream);
   }
 
   auto deblockize = [&](const vector<YCbCrDataBlock<3>> &input){
@@ -220,17 +157,15 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  string output_file_name {output_file_mask};
-
   for (size_t image = 0; image < depth; image++) {
     stringstream image_number {};
     image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);
 
     for (size_t index = 0; index < mask_indexes.size(); index++) {
-      output_file_name[mask_indexes[index]] = image_number.str()[index];
+      output_file_mask[mask_indexes[index]] = image_number.str()[index];
     }
 
-    ofstream output(output_file_name);
+    ofstream output(output_file_mask);
     if (output.fail()) {
       return -4;
     }

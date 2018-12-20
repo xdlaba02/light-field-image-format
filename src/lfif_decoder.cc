@@ -20,6 +20,15 @@ HuffmanTable readHuffmanTable(ifstream &stream) {
   return table;
 }
 
+void decodeOneBlock(RunLengthEncodedBlock &pairs, const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream) {
+  RunLengthPair pair = decodeOnePair(hufftable_DC, bitstream);
+  pairs.push_back(pair);
+  do {
+    pair = decodeOnePair(hufftable_AC, bitstream);
+    pairs.push_back(pair);
+  } while((pair.zeroes != 0) || (pair.amplitude != 0));
+}
+
 RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream) {
   size_t symbol_index = decodeOneHuffmanSymbolIndex(table.counts, stream);
   RunLengthAmplitudeUnit amplitude = decodeOneAmplitude(table.symbols[symbol_index] & 0x0f, stream);

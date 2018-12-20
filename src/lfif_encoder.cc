@@ -6,6 +6,8 @@
 
 #include "lfif_encoder.h"
 
+#include <iostream>
+
 #include <bitset>
 
 using namespace std;
@@ -158,6 +160,13 @@ void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream) 
 
   for (auto &pair: codelengths) {
     stream.put(pair.second);
+  }
+}
+
+void encodeOneBlock(const RunLengthEncodedBlock &runlength, const HuffmanMap &huffmap_DC, const HuffmanMap &huffmap_AC, OBitstream &stream) {
+  encodeOnePair(runlength[0], huffmap_DC, stream);
+  for (size_t i = 1; i < runlength.size(); i++) {
+    encodeOnePair(runlength[i], huffmap_AC, stream);
   }
 }
 

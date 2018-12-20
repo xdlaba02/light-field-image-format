@@ -17,6 +17,8 @@ using namespace std;
 
 HuffmanTable readHuffmanTable(ifstream &stream);
 
+void decodeOneBlock(RunLengthEncodedBlock &pairs, const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream);
+
 RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream);
 
 size_t decodeOneHuffmanSymbolIndex(const vector<uint8_t> &counts, IBitstream &stream);

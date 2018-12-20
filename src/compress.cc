@@ -123,3 +123,12 @@ bool loadPPMs(string input_file_mask, uint64_t &width, uint64_t &height, uint64_
 
   return true;
 }
+
+void writeMagicNumber(const char *number, ofstream &output) {
+  output.write(number, 8);
+}
+
+void writeDimension(uint64_t dim, ofstream &output) {
+  uint64_t raw = toBigEndian(dim);
+  output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
+}

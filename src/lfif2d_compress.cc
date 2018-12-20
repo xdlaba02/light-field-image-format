@@ -14,7 +14,7 @@
 int main(int argc, char *argv[]) {
   string input_file_mask  {};
   string output_file_name {};
-  uint8_t quality        {};
+  uint8_t quality         {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return -1;
@@ -105,46 +105,31 @@ int main(int argc, char *argv[]) {
     return -6;
   }
 
-  output.write("LFIF-2D\n", 8);
+  writeMagicNumber("LFIF-2D\n", output);
 
-  uint64_t raw_width  = toBigEndian(width);
-  uint64_t raw_height = toBigEndian(height);
-  uint64_t raw_depth = toBigEndian(depth);
+  writeDimension(width, output);
+  writeDimension(height, output);
+  writeDimension(depth, output);
 
-  output.write(reinterpret_cast<char *>(&raw_width),  sizeof(raw_width));
-  output.write(reinterpret_cast<char *>(&raw_height), sizeof(raw_height));
-  output.write(reinterpret_cast<char *>(&raw_depth), sizeof(raw_depth));
-
-  output.write(reinterpret_cast<const char *>(quant_table.data()), quant_table.size());
-  output.write(reinterpret_cast<const char *>(traversal_table.data()), traversal_table.size() * sizeof(traversal_table[0]));
+  writeQuantTable<2>(quant_table, output);
+  writeTraversalTable<2>(traversal_table, output);
 
   writeHuffmanTable(codelengths_luma_DC, output);
   writeHuffmanTable(codelengths_luma_AC, output);
   writeHuffmanTable(codelengths_chroma_DC, output);
   writeHuffmanTable(codelengths_chroma_AC, output);
 
-  OBitstream bitstream(output);
-
   HuffmanMap huffmap_luma_DC   = generateHuffmanMap(codelengths_luma_DC);
   HuffmanMap huffmap_luma_AC   = generateHuffmanMap(codelengths_luma_AC);
   HuffmanMap huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
   HuffmanMap huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
 
+  OBitstream bitstream(output);
+
   for (size_t i = 0; i < blocks_cnt * depth; i++) {
-    encodeOnePair(runlength_Y[i][0], huffmap_luma_DC, bitstream);
-    for (size_t j = 1; j < runlength_Y[i].size(); j++) {
-      encodeOnePair(runlength_Y[i][j], huffmap_luma_AC, bitstream);
-    }
-
-    encodeOnePair(runlength_Cb[i][0], huffmap_chroma_DC, bitstream);
-    for (size_t j = 1; j < runlength_Cb[i].size(); j++) {
-      encodeOnePair(runlength_Cb[i][j], huffmap_chroma_AC, bitstream);
-    }
-
-    encodeOnePair(runlength_Cr[i][0], huffmap_chroma_DC, bitstream);
-    for (size_t j = 1; j < runlength_Cr[i].size(); j++) {
-      encodeOnePair(runlength_Cr[i][j], huffmap_chroma_AC, bitstream);
-    }
+    encodeOneBlock(runlength_Y[i], huffmap_luma_DC, huffmap_luma_AC, bitstream);
+    encodeOneBlock(runlength_Cb[i], huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+    encodeOneBlock(runlength_Cr[i], huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
   }
 
   bitstream.flush();

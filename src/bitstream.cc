@@ -15,7 +15,9 @@ IBitstream::IBitstream(ifstream &stream): m_stream{stream} {}
 IBitstream::~IBitstream() {}
 
 OBitstream::OBitstream(ofstream &stream): m_stream{stream} {}
-OBitstream::~OBitstream() {}
+OBitstream::~OBitstream() {
+  flush();
+}
 
 vector<bool> IBitstream::read(const size_t size) {
   vector<bool> data {};
