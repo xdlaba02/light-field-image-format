@@ -1,5 +1,6 @@
 #include "compress.h"
 #include "ppm.h"
+#include "zigzag.h"
 
 #include <getopt.h>
 
@@ -131,4 +132,20 @@ void writeMagicNumber(const char *number, ofstream &output) {
 void writeDimension(uint64_t dim, ofstream &output) {
   uint64_t raw = toBigEndian(dim);
   output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
+}
+
+RGBData zigzagShift(const RGBData &rgb_data, uint64_t depth) {
+  RGBData zigzag_data(rgb_data.size());
+
+  size_t image_size = rgb_data.size() / depth;
+
+  vector<size_t> zigzag_table = generateZigzagTable(sqrt(depth));
+
+  for (size_t i = 0; i < depth; i++) {
+    for (size_t j = 0; j < image_size; j++) {
+      zigzag_data[zigzag_table[i] * image_size + j] = rgb_data[i * image_size + j];
+    }
+  }
+
+  return zigzag_data;
 }

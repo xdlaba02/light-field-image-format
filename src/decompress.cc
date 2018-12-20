@@ -1,8 +1,12 @@
 #include "decompress.h"
+#include "ppm.h"
+#include "zigzag.h"
 
 #include <getopt.h>
 
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 
 void print_usage(const char *argv0) {
   cerr << "Usage: " << endl;
@@ -61,7 +65,7 @@ uint64_t readDimension(ifstream &input) {
   return fromBigEndian(raw);
 }
 
-bool savePPMs(const string &output_file_mask, const uint64_t width, const uint64_t height, const uint64_t depth, RGBData &rgb_data) {
+bool savePPMs(string output_file_mask, uint64_t width, uint64_t height, uint64_t depth, RGBData &rgb_data) {
   vector<size_t> mask_indexes {};
 
   for (size_t i = 0; output_file_mask[i] != '\0'; i++) {
@@ -85,4 +89,22 @@ bool savePPMs(const string &output_file_mask, const uint64_t width, const uint64
 
     writePPM(output, width, height, rgb_data.data() + image * width * height * 3);
   }
+
+  return true;
+}
+
+RGBData zigzagDeshift(const RGBData &rgb_data, uint64_t depth) {
+  RGBData zigzag_data(rgb_data.size());
+
+  size_t image_size = rgb_data.size() / depth;
+
+  vector<size_t> zigzag_table = generateZigzagTable(sqrt(depth));
+
+  for (size_t i = 0; i < depth; i++) {
+    for (size_t j = 0; j < image_size; j++) {
+      zigzag_data[i * image_size + j] = rgb_data[zigzag_table[i] * image_size + j];
+    }
+  }
+
+  return zigzag_data;
 }
