@@ -14,15 +14,13 @@ void print_usage(const char *argv0);
 
 bool parse_args(int argc, char *argv[], string &input_file_name, string &output_file_mask);
 
-bool decode4D(const string &input_file_name, uint64_t &width, uint64_t &height, uint64_t &depth, RGBData &rgb_data);
-
 bool checkMagicNumber(const string &cmp, ifstream &input);
 
 uint64_t readDimension(ifstream &input);
 
-bool savePPMs(string output_file_mask, uint64_t width, uint64_t height, uint64_t depth, RGBData &rgb_data);
+bool savePPMs(const RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color_image_count, uint64_t image_count, const string &output_file_mask);
 
-RGBData zigzagDeshift(const RGBData &rgb_data, uint64_t depth);
+RGBData zigzagDeshift(const RGBData &rgb_data, uint64_t image_count);
 
 template<size_t D>
 QuantTable<D> readQuantTable(ifstream &input) {
@@ -39,7 +37,7 @@ TraversalTable<D> readTraversalTable(ifstream &input) {
 }
 
 template<size_t D>
-bool decompress(const string &input_file_name, uint64_t &width, uint64_t &height, uint64_t &depth, RGBData &rgb_data) {
+bool decompress(const string &input_file_name, RGBData &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
   ifstream input(input_file_name);
   if (input.fail()) {
     return false;
@@ -63,7 +61,7 @@ bool decompress(const string &input_file_name, uint64_t &width, uint64_t &height
 
   width  = readDimension(input);
   height = readDimension(input);
-  depth  = readDimension(input);
+  image_count  = readDimension(input);
 
   QuantTable<D> quant_table = readQuantTable<D>(input);
   TraversalTable<D> traversal_table = readTraversalTable<D>(input);
@@ -76,13 +74,13 @@ bool decompress(const string &input_file_name, uint64_t &width, uint64_t &height
   size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
 
   if (D == 2) {
-    blocks_cnt *= depth;
+    blocks_cnt *= image_count;
   }
   else if (D == 3) {
-    blocks_cnt *= ceil(depth/8.);
+    blocks_cnt *= ceil(image_count/8.);
   }
   else if (D == 4) {
-    blocks_cnt *= ceil(sqrt(depth)/8.) * ceil(sqrt(depth)/8.);
+    blocks_cnt *= ceil(sqrt(image_count)/8.) * ceil(sqrt(image_count)/8.);
   }
 
   RunLengthEncodedImage pairs_Y(blocks_cnt);
@@ -98,22 +96,22 @@ bool decompress(const string &input_file_name, uint64_t &width, uint64_t &height
   }
 
   auto deblockize = [&](const vector<YCbCrDataBlock<D>> &input) {
-    YCbCrData output(width * height * depth);
+    YCbCrData output(width * height * image_count);
     Dimensions<D> dims {width, height};
 
     size_t blocks_in_one_image = 0;
     size_t cnt = 1;
 
     if (D == 2) {
-      blocks_in_one_image = blocks_cnt / depth;
-      cnt = depth;
+      blocks_in_one_image = blocks_cnt / image_count;
+      cnt = image_count;
     }
     else if (D == 3) {
-      dims[2] = depth;
+      dims[2] = image_count;
     }
     else if (D == 4) {
-      dims[2] = static_cast<size_t>(sqrt(depth));
-      dims[3] = static_cast<size_t>(sqrt(depth));
+      dims[2] = static_cast<size_t>(sqrt(image_count));
+      dims[3] = static_cast<size_t>(sqrt(image_count));
     }
 
     for (size_t i = 0; i < cnt; i++) {

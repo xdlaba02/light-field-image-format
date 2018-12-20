@@ -14,20 +14,21 @@ int main(int argc, char *argv[]) {
   uint8_t quality         {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
-    return -1;
+    return 1;
   }
 
-  uint64_t width  {};
-  uint64_t height {};
-  uint64_t depth  {};
+  uint64_t width       {};
+  uint64_t height      {};
+  uint32_t color_depth {};
+  uint64_t image_count {};
 
   RGBData rgb_data {};
 
-  if (!loadPPMs(input_file_mask, width, height, depth, rgb_data)) {
-    return -2;
+  if (!loadPPMs(input_file_mask, rgb_data, width, height, color_depth, image_count)) {
+    return 2;
   }
 
-  if (!compress<4>(output_file_name, width, height, depth, quality, rgb_data)) {
+  if (!compress<4>(rgb_data, width, height, color_depth, image_count, quality, output_file_name)) {
     return 3;
   }
 

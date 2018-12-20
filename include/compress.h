@@ -20,13 +20,13 @@ bool parse_args(int argc, char *argv[], string &input_file_mask, string &output_
 
 vector<size_t> getMaskIndexes(const string &file_mask);
 
-bool loadPPMs(string input_file_mask, uint64_t &width, uint64_t &height, uint64_t &image_count, vector<uint8_t> &rgb_data);
+bool loadPPMs(string input_file_mask, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_image_count, uint64_t &image_count);
 
 void writeMagicNumber(const char *number, ofstream &output);
 
 void writeDimension(uint64_t dim, ofstream &output);
 
-RGBData zigzagShift(const RGBData &rgb_data, uint64_t depth);
+RGBData zigzagShift(const RGBData &rgb_data, uint64_t image_count);
 
 template<size_t D>
 void writeQuantTable(const QuantTable<D> &table, ofstream &output) {
@@ -39,17 +39,17 @@ void writeTraversalTable(const TraversalTable<D> &table, ofstream &output) {
 }
 
 template<size_t D>
-bool compress(const string &output_file_name, uint64_t width, uint64_t height, uint64_t depth, uint8_t quality, RGBData &rgb_data) {
+bool compress(RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, uint8_t quality, const string &output_file_name) {
   size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
 
   if (D == 2) {
-    blocks_cnt *= depth;
+    blocks_cnt *= image_count;
   }
   else if (D == 3) {
-    blocks_cnt *= ceil(depth/8.);
+    blocks_cnt *= ceil(image_count/8.);
   }
   else if (D == 4) {
-    blocks_cnt *= ceil(sqrt(depth)/8.) * ceil(sqrt(depth)/8.);
+    blocks_cnt *= ceil(sqrt(image_count)/8.) * ceil(sqrt(image_count)/8.);
   }
 
   QuantTable<D> quant_table = scaleQuantTable<D>(baseQuantTable<D>(), quality);
@@ -63,15 +63,15 @@ bool compress(const string &output_file_name, uint64_t width, uint64_t height, u
     size_t cnt = 1;
 
     if (D == 2) {
-      blocks_in_one_image = blocks_cnt / depth;
-      cnt = depth;
+      blocks_in_one_image = blocks_cnt / image_count;
+      cnt = image_count;
     }
     else if (D == 3) {
-      dims[2] = depth;
+      dims[2] = image_count;
     }
     else if (D == 4) {
-      dims[2] = static_cast<size_t>(sqrt(depth));
-      dims[3] = static_cast<size_t>(sqrt(depth));
+      dims[2] = static_cast<size_t>(sqrt(image_count));
+      dims[3] = static_cast<size_t>(sqrt(image_count));
     }
 
     for (size_t i = 0; i < cnt; i++) {
@@ -145,7 +145,7 @@ bool compress(const string &output_file_name, uint64_t width, uint64_t height, u
 
   writeDimension(width, output);
   writeDimension(height, output);
-  writeDimension(depth, output);
+  writeDimension(image_count, output);
 
   writeQuantTable<D>(quant_table, output);
   writeTraversalTable<D>(traversal_table, output);

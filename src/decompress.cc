@@ -1,12 +1,11 @@
 #include "decompress.h"
 #include "ppm.h"
 #include "zigzag.h"
+#include "file_mask.h"
 
 #include <getopt.h>
 
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 
 void print_usage(const char *argv0) {
   cerr << "Usage: " << endl;
@@ -65,42 +64,35 @@ uint64_t readDimension(ifstream &input) {
   return fromBigEndian(raw);
 }
 
-bool savePPMs(string output_file_mask, uint64_t width, uint64_t height, uint64_t depth, RGBData &rgb_data) {
-  vector<size_t> mask_indexes {};
+bool savePPMs(const RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, const string &output_file_mask) {
+  size_t image_size = width * height * 3;
 
-  for (size_t i = 0; output_file_mask[i] != '\0'; i++) {
-    if (output_file_mask[i] == '#') {
-      mask_indexes.push_back(i);
-    }
+  if (color_depth >= 256) {
+    image_size *= 2;
   }
 
-  for (size_t image = 0; image < depth; image++) {
-    stringstream image_number {};
-    image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);
+  FileMask file_name(output_file_mask);
 
-    for (size_t index = 0; index < mask_indexes.size(); index++) {
-      output_file_mask[mask_indexes[index]] = image_number.str()[index];
-    }
-
-    ofstream output(output_file_mask);
+  for (size_t image = 0; image < image_count; image++) {
+    ofstream output(file_name[image]);
     if (output.fail()) {
       return false;
     }
 
-    writePPM(output, width, height, rgb_data.data() + image * width * height * 3);
+    writePPM(rgb_data.data() + image * image_size, width, height, color_depth, output);
   }
 
   return true;
 }
 
-RGBData zigzagDeshift(const RGBData &rgb_data, uint64_t depth) {
+RGBData zigzagDeshift(const RGBData &rgb_data, uint64_t image_count) {
   RGBData zigzag_data(rgb_data.size());
 
-  size_t image_size = rgb_data.size() / depth;
+  size_t image_size = rgb_data.size() / image_count;
 
-  vector<size_t> zigzag_table = generateZigzagTable(sqrt(depth));
+  vector<size_t> zigzag_table = generateZigzagTable(sqrt(image_count));
 
-  for (size_t i = 0; i < depth; i++) {
+  for (size_t i = 0; i < image_count; i++) {
     for (size_t j = 0; j < image_size; j++) {
       zigzag_data[i * image_size + j] = rgb_data[zigzag_table[i] * image_size + j];
     }

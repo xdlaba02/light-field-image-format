@@ -1,13 +1,12 @@
 #include "compress.h"
 #include "ppm.h"
 #include "zigzag.h"
+#include "file_mask.h"
 
 #include <getopt.h>
 
 #include <cmath>
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 
 void print_usage(const char *argv0) {
   std::cerr << "Usage: " << std::endl;
@@ -65,51 +64,36 @@ bool parse_args(int argc, char *argv[], string &input_file_mask, string &output_
   return true;
 }
 
-vector<size_t> getMaskIndexes(const string &file_mask) {
-  vector<size_t> mask_indexes {};
-  for (size_t i = 0; file_mask[i] != '\0'; i++) {
-    if (file_mask[i] == '#') {
-      mask_indexes.push_back(i);
-    }
-  }
-  return mask_indexes;
-}
+bool loadPPMs(string input_file_mask, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
+  FileMask file_name(input_file_mask);
 
-bool loadPPMs(string input_file_mask, uint64_t &width, uint64_t &height, uint64_t &image_count, vector<uint8_t> &rgb_data) {
-  vector<size_t> mask_indexes = getMaskIndexes(input_file_mask);
-
-  for (size_t image = 0; image < pow(10, mask_indexes.size()); image++) {
-    stringstream image_number {};
-    image_number << setw(mask_indexes.size()) << setfill('0') << to_string(image);
-
-    for (size_t index = 0; index < mask_indexes.size(); index++) {
-      input_file_mask[mask_indexes[index]] = image_number.str()[index];
-    }
-
-    ifstream input(input_file_mask);
+  for (size_t image = 0; image < file_name.count(); image++) {
+    ifstream input(file_name[image]);
     if (input.fail()) {
       continue;
     }
 
     image_count++;
 
-    uint64_t image_width {};
-    uint64_t image_height {};
+    uint64_t image_width       {};
+    uint64_t image_height      {};
+    uint32_t image_color_depth {};
 
-    if (!readPPM(input, image_width, image_height, rgb_data)) {
+    if (!readPPM(input, rgb_data, image_width, image_height, image_color_depth)) {
       cerr << "ERROR: BAD PPM" << endl;
       return false;
     }
 
-    if (width && height) {
-      if ((image_width != width) || (image_height != height)) {
-        cerr << "ERROR: WIDTHS NOT SAME" << endl;
+    if (width && height && color_depth) {
+      if ((image_width != width) || (image_height != height) || (image_color_depth != color_depth)) {
+        cerr << "ERROR: DIMENSIONS NOT SAME" << endl;
         return false;
       }
     }
 
-    width = image_width;
-    height = image_height;
+    width       = image_width;
+    height      = image_height;
+    color_depth = image_color_depth;
   }
 
   if (!image_count) {
@@ -134,14 +118,14 @@ void writeDimension(uint64_t dim, ofstream &output) {
   output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
 }
 
-RGBData zigzagShift(const RGBData &rgb_data, uint64_t depth) {
+RGBData zigzagShift(const RGBData &rgb_data, uint64_t image_count) {
   RGBData zigzag_data(rgb_data.size());
 
-  size_t image_size = rgb_data.size() / depth;
+  size_t image_size = rgb_data.size() / image_count;
 
-  vector<size_t> zigzag_table = generateZigzagTable(sqrt(depth));
+  vector<size_t> zigzag_table = generateZigzagTable(sqrt(image_count));
 
-  for (size_t i = 0; i < depth; i++) {
+  for (size_t i = 0; i < image_count; i++) {
     for (size_t j = 0; j < image_size; j++) {
       zigzag_data[zigzag_table[i] * image_size + j] = rgb_data[i * image_size + j];
     }

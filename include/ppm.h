@@ -33,12 +33,12 @@ enum State {
   rgb_data.
 * Velikosti obrazku ulozi do prommene width a height.
 \*******************************************************/
-bool readPPM(ifstream &input, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data);
+bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &depth);
 
 /*******************************************************\
 * Funkce odesle PPM data z bufferu do streamu output.
 \*******************************************************/
-bool writePPM(ofstream &output, const uint64_t width, const uint64_t height, const uint8_t *rgb_data);
+bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t depth, ofstream &output);
 
 /*******************************************************\
 * Funkce ve streamu preskoci na prvni znak za koncem
@@ -51,11 +51,5 @@ void skipUntilEol(ifstream &input);
   vrati v patricnych prommenych.
 \*******************************************************/
 bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &depth);
-
-/*******************************************************\
-* Funkce vytvori hlavicku ppm souboru a zapise ji
-  do streamu.
-\*******************************************************/
-void writeHeader(ofstream &output, uint64_t width, uint64_t height, uint32_t depth);
 
 #endif

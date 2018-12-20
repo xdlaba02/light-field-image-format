@@ -8,22 +8,22 @@
 
 #include <iostream>
 
-bool readPPM(ifstream &input, uint64_t &width, uint64_t &height, vector<uint8_t> &rgb_data) {
-  uint32_t depth {};
-
+bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &depth) {
   if (!parseHeader(input, width, height, depth)) {
     return false;
   }
 
-  if (depth != 255) {
-    return false;
-  }
-  else {
-    auto original_size = rgb_data.size();
-    rgb_data.resize(original_size + width * height * 3);
-    input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), rgb_data.size() - original_size);
+  size_t image_size = width * height * 3;
+
+  if (depth >= 256) {
+    image_size *= 2;
   }
 
+  size_t original_size = rgb_data.size();
+
+  rgb_data.resize(original_size + image_size);
+
+  input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), image_size);
   if (input.fail()) {
     return false;
   }
@@ -31,13 +31,19 @@ bool readPPM(ifstream &input, uint64_t &width, uint64_t &height, vector<uint8_t>
   return true;
 }
 
-bool writePPM(ofstream &output, const uint64_t width, const uint64_t height, const uint8_t *rgb_data) {
+bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t depth, ofstream &output) {
   output << "P6" << endl;
   output << width << endl;
   output << height << endl;
-  output << "255" << endl;
+  output << depth << endl;
 
-  output.write(reinterpret_cast<const char *>(rgb_data), width * height * 3);
+  size_t image_size = width * height * 3;
+
+  if (depth >= 256) {
+    image_size *= 2;
+  }
+
+  output.write(reinterpret_cast<const char *>(rgb_data), image_size);
   if (output.fail()) {
     return false;
   }
