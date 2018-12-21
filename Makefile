@@ -13,7 +13,7 @@ CC = g++
 CFLAGS = -Iinclude -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 LDFLAGS =
 
-CODEC = $(OBJDIR)/bitstream.o $(OBJDIR)/endian.o $(OBJDIR)/ppm.o $(OBJDIR)/zigzag.o $(OBJDIR)/file_mask.o
+CODEC = $(OBJDIR)/bitstream.o $(OBJDIR)/ppm.o $(OBJDIR)/zigzag.o $(OBJDIR)/file_mask.o
 
 ENCODER = $(OBJDIR)/lfif_encoder.o $(OBJDIR)/compress.o $(CODEC)
 

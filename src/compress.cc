@@ -114,7 +114,7 @@ void writeMagicNumber(const char *number, ofstream &output) {
 }
 
 void writeDimension(uint64_t dim, ofstream &output) {
-  uint64_t raw = toBigEndian(dim);
+  uint64_t raw = htobe64(dim);
   output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
 }
 

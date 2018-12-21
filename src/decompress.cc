@@ -61,7 +61,7 @@ bool checkMagicNumber(const string &cmp, ifstream &input) {
 uint64_t readDimension(ifstream &input) {
   uint64_t raw {};
   input.read(reinterpret_cast<char *>(&raw), sizeof(uint64_t));
-  return fromBigEndian(raw);
+  return be64toh(raw);
 }
 
 bool savePPMs(const RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, const string &output_file_mask) {
