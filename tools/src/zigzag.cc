@@ -1,3 +1,8 @@
+/******************************************************************************\
+* SOUBOR: zigzag.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+\******************************************************************************/
+
 #include "zigzag.h"
 
 std::vector<size_t> generateZigzagTable(uint64_t size) {
