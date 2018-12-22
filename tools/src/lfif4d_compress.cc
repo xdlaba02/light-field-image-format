@@ -1,11 +1,12 @@
 /*******************************************************\
-* SOUBOR: lfif2d_compress.cc
+* SOUBOR: lfif4d_compress.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
-* DATUM: 19. 12. 2018
+* DATUM: 20. 12. 2018
 \*******************************************************/
 
 #include "compress.h"
-#include "lfif_encoder.h"
+
+#include <lfif_encoder.h>
 
 #include <iostream>
 
@@ -19,8 +20,6 @@ int main(int argc, char *argv[]) {
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return 1;
   }
-
-
 
   uint64_t width       {};
   uint64_t height      {};
@@ -38,8 +37,8 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  uint64_t img_dims[] {width, height};
-  if (!LFIFCompress<2>(rgb_data, img_dims, image_count, quality, output_file_name)) {
+  uint64_t img_dims[] {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
+  if (!LFIFCompress<4>(rgb_data, img_dims, 1, quality, output_file_name)) {
     return 3;
   }
 

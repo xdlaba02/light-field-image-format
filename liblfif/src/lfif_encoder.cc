@@ -6,8 +6,6 @@
 
 #include "lfif_encoder.h"
 
-#include <iostream>
-
 #include <bitset>
 
 using namespace std;

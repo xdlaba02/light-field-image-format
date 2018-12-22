@@ -1,6 +1,7 @@
 #include "decompress.h"
-#include "ppm.h"
 #include "file_mask.h"
+
+#include <ppm.h>
 
 #include <getopt.h>
 

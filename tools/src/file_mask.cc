@@ -1,7 +1,6 @@
 #include "file_mask.h"
 
 #include <cmath>
-
 #include <iomanip>
 
 FileMask::FileMask(const string &input_file_mask): m_filename_mask{input_file_mask}, m_mask_indexes{} {

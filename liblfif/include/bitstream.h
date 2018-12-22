@@ -7,7 +7,7 @@
 #ifndef BITSTREAM_H
 #define BITSTREAM_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <fstream>
 #include <vector>

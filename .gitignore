@@ -7,3 +7,5 @@ vgcore.*
 callgrind*
 *.data
 *.old
+*.so
+*.a

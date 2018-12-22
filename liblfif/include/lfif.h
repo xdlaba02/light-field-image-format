@@ -7,16 +7,11 @@
 #ifndef LFIF_H
 #define LFIF_H
 
-#include "constmath.h"
-#include "endian.h"
 #include "dct.h"
 
 #include <cstdint>
 #include <array>
-#include <cmath>
 #include <vector>
-#include <tuple>
-#include <algorithm>
 #include <map>
 
 using namespace std;

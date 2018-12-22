@@ -8,8 +8,6 @@
 
 #include <endian.h>
 
-#include <iostream>
-
 bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth) {
   if (!parseHeader(input, width, height, color_depth)) {
     return false;

@@ -7,8 +7,6 @@
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
 
-#include <iostream>
-
 #include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"

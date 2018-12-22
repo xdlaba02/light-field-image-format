@@ -1,10 +1,10 @@
 #include "compress.h"
-#include "ppm.h"
 #include "file_mask.h"
+
+#include <ppm.h>
 
 #include <getopt.h>
 
-#include <cmath>
 #include <iostream>
 
 void print_usage(const char *argv0) {

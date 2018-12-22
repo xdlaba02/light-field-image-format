@@ -1,7 +1,7 @@
 #ifndef DCT_H
 #define DCT_H
 
-#include "constmath.h"
+#include "constpow.h"
 
 #include <cstdint>
 #include <cmath>
