@@ -204,3 +204,12 @@ HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude) {
 HuffmanSymbol huffmanSymbol(const RunLengthPair &pair) {
   return pair.zeroes << 4 | huffmanClass(pair.amplitude);
 }
+
+void writeMagicNumber(const char *number, ofstream &output) {
+  output.write(number, 8);
+}
+
+void writeDimension(uint64_t dim, ofstream &output) {
+  uint64_t raw = htobe64(dim);
+  output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
+}

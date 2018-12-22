@@ -1,6 +1,5 @@
 #include "compress.h"
 #include "ppm.h"
-#include "zigzag.h"
 #include "file_mask.h"
 
 #include <getopt.h>
@@ -64,7 +63,7 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
   return true;
 }
 
-bool loadPPMs(string input_file_mask, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
+bool loadPPMs(const char *input_file_mask, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
   FileMask file_name(input_file_mask);
 
   for (size_t image = 0; image < file_name.count(); image++) {
@@ -101,35 +100,12 @@ bool loadPPMs(string input_file_mask, vector<uint8_t> &rgb_data, uint64_t &width
     return false;
   }
 
-  if (static_cast<uint64_t>(sqrt(image_count) * sqrt(image_count)) != image_count) {
-    cerr << "ERROR: NOT SQUARE" << endl;
-    return false;
-  }
-
-  return true;
-}
-
-void writeMagicNumber(const char *number, ofstream &output) {
-  output.write(number, 8);
-}
-
-void writeDimension(uint64_t dim, ofstream &output) {
-  uint64_t raw = htobe64(dim);
-  output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
-}
-
-RGBData zigzagShift(const RGBData &rgb_data, uint64_t image_count) {
-  RGBData zigzag_data(rgb_data.size());
-
-  size_t image_size = rgb_data.size() / image_count;
-
-  vector<size_t> zigzag_table = generateZigzagTable(sqrt(image_count));
-
-  for (size_t i = 0; i < image_count; i++) {
-    for (size_t j = 0; j < image_size; j++) {
-      zigzag_data[zigzag_table[i] * image_size + j] = rgb_data[i * image_size + j];
+  for (size_t i = 0; i * i <= image_count; i++) {
+    if (i * i == image_count) {
+      return true;
     }
   }
 
-  return zigzag_data;
+  cerr << "ERROR: NOT SQUARE" << endl;
+  return false;
 }

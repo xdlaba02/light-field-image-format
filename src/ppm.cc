@@ -10,15 +10,15 @@
 
 #include <iostream>
 
-bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &depth) {
-  if (!parseHeader(input, width, height, depth)) {
+bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth) {
+  if (!parseHeader(input, width, height, color_depth)) {
     return false;
   }
 
   size_t image_size = width * height * 3;
   size_t original_size = rgb_data.size();
 
-  if (depth < 256) {
+  if (color_depth < 256) {
     rgb_data.resize(original_size + image_size);
     input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), image_size);
     if (input.fail()) {
@@ -40,15 +40,15 @@ bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64
   return true;
 }
 
-bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t depth, ofstream &output) {
+bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, ofstream &output) {
   output << "P6" << endl;
   output << width << endl;
   output << height << endl;
-  output << depth << endl;
+  output << color_depth << endl;
 
   size_t image_size = width * height * 3;
 
-  if (depth >= 256) {
+  if (color_depth >= 256) {
     image_size *= 2;
   }
 

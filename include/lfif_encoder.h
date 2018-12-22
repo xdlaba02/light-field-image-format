@@ -29,6 +29,9 @@ void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream 
 HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude);
 HuffmanSymbol huffmanSymbol(const RunLengthPair &pair);
 
+void writeMagicNumber(const char *number, ofstream &output);
+void writeDimension(uint64_t dim, ofstream &output);
+
 inline YCbCrDataUnit RGBtoY(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
   return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
@@ -292,6 +295,137 @@ inline RunLengthEncodedImage runLenghtEncodeBlocks(const vector<TraversedBlock<D
   }
 
   return runlengths;
+}
+
+template<size_t D>
+void writeQuantTable(const QuantTable<D> &table, ofstream &output) {
+  output.write(reinterpret_cast<const char *>(table.data()), table.size() * sizeof(QuantTable<0>::value_type));
+}
+
+template<size_t D>
+void writeTraversalTable(const TraversalTable<D> &table, ofstream &output) {
+  output.write(reinterpret_cast<const char *>(table.data()), table.size() * sizeof(TraversalTable<0>::value_type));
+}
+
+template<size_t D>
+bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cnt, uint8_t quality, const char *output_file_name) {
+  size_t blocks_cnt = 1;
+  size_t pixels_cnt = 1;
+
+  for (size_t i = 0; i < D; i++) {
+    blocks_cnt *= ceil(img_dims[i]/8.);
+    pixels_cnt *= img_dims[i];
+  }
+
+  auto blockize = [&](const YCbCrData &input) {
+    vector<YCbCrDataBlock<D>> output(blocks_cnt * imgs_cnt);
+
+    for (size_t i = 0; i < imgs_cnt; i++) {
+      auto inputF = [&](size_t index) {
+        return input[i * pixels_cnt + index];
+      };
+
+      auto outputF = [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{
+        return output[i * blocks_cnt + block_index][pixel_index];
+      };
+
+      convertToBlocks<D>(inputF, img_dims, outputF);
+    }
+
+    return output;
+  };
+
+  QuantTable<D> quant_table = scaleQuantTable<D>(baseQuantTable<D>(), quality);
+
+  vector<QuantizedBlock<D>> quantized_Y  = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))), quant_table);
+  vector<QuantizedBlock<D>> quantized_Cb = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))), quant_table);
+  vector<QuantizedBlock<D>> quantized_Cr = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))), quant_table);
+
+  /********************************************\
+  * Free unused RGB Buffer
+  \********************************************/
+  RGBData().swap(rgb_data);
+
+  /********************************************\
+  * Construt traversal table by reference block
+  \********************************************/
+  RefereceBlock<D> reference_block {};
+  getReference<D>(quantized_Y,  reference_block);
+  getReference<D>(quantized_Cb, reference_block);
+  getReference<D>(quantized_Cr, reference_block);
+  TraversalTable<D> traversal_table = constructTraversalTableByReference<D>(reference_block);
+
+  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Y,  traversal_table)));
+  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cb, traversal_table)));
+  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cr, traversal_table)));
+
+  /********************************************\
+  * Free unused vectors
+  \********************************************/
+  vector<QuantizedBlock<D>>().swap(quantized_Y);
+  vector<QuantizedBlock<D>>().swap(quantized_Cb);
+  vector<QuantizedBlock<D>>().swap(quantized_Cr);
+
+
+  HuffmanWeights weights_luma_AC   {};
+  HuffmanWeights weights_luma_DC   {};
+
+  huffmanGetWeightsAC(runlength_Y,  weights_luma_AC);
+  huffmanGetWeightsDC(runlength_Y,  weights_luma_DC);
+
+  HuffmanWeights weights_chroma_AC {};
+  HuffmanWeights weights_chroma_DC {};
+
+  huffmanGetWeightsAC(runlength_Cb, weights_chroma_AC);
+  huffmanGetWeightsAC(runlength_Cr, weights_chroma_AC);
+  huffmanGetWeightsDC(runlength_Cb, weights_chroma_DC);
+  huffmanGetWeightsDC(runlength_Cr, weights_chroma_DC);
+
+  HuffmanCodelengths codelengths_luma_DC   = generateHuffmanCodelengths(weights_luma_DC);
+  HuffmanCodelengths codelengths_luma_AC   = generateHuffmanCodelengths(weights_luma_AC);
+  HuffmanCodelengths codelengths_chroma_DC = generateHuffmanCodelengths(weights_chroma_DC);
+  HuffmanCodelengths codelengths_chroma_AC = generateHuffmanCodelengths(weights_chroma_AC);
+
+  ofstream output(output_file_name);
+  if (output.fail()) {
+    return false;
+  }
+
+  char magic_number[9] = "LFIF-#D\n";
+  magic_number[5] = D + '0';
+
+  writeMagicNumber(magic_number, output);
+
+  for (size_t i = 0; i < D; i++) {
+    writeDimension(img_dims[i], output);
+  }
+
+  writeDimension(imgs_cnt, output);
+
+  writeQuantTable<D>(quant_table, output);
+  writeTraversalTable<D>(traversal_table, output);
+
+  writeHuffmanTable(codelengths_luma_DC, output);
+  writeHuffmanTable(codelengths_luma_AC, output);
+  writeHuffmanTable(codelengths_chroma_DC, output);
+  writeHuffmanTable(codelengths_chroma_AC, output);
+
+  HuffmanMap huffmap_luma_DC   = generateHuffmanMap(codelengths_luma_DC);
+  HuffmanMap huffmap_luma_AC   = generateHuffmanMap(codelengths_luma_AC);
+  HuffmanMap huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
+  HuffmanMap huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
+
+  OBitstream bitstream(output);
+
+  for (size_t i = 0; i < blocks_cnt * imgs_cnt; i++) {
+    encodeOneBlock(runlength_Y[i], huffmap_luma_DC, huffmap_luma_AC, bitstream);
+    encodeOneBlock(runlength_Cb[i], huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+    encodeOneBlock(runlength_Cr[i], huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+  }
+
+  bitstream.flush();
+
+  return true;
 }
 
 #endif

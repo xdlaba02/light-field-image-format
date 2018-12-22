@@ -16,17 +16,16 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  uint64_t width       {};
-  uint64_t height      {};
+  uint64_t img_dims[4] {};
   uint64_t image_count {};
 
   RGBData rgb_data {};
 
-  if (!decompress<4>(input_file_name, rgb_data, width, height, image_count)) {
+  if (!LFIFDecompress<4>(input_file_name, rgb_data, img_dims, image_count)) {
     return 2;
   }
 
-  if (!savePPMs(rgb_data, width, height, 255, image_count, output_file_mask)) {
+  if (!savePPMs(rgb_data, img_dims[0], img_dims[1], 255, img_dims[2] * img_dims[3] * image_count, output_file_mask)) {
     return 3;
   }
 

@@ -8,6 +8,24 @@
 
 #include <numeric>
 
+bool checkMagicNumber(const string &cmp, ifstream &input) {
+  char magic_number[9] {};
+  input.read(magic_number, 8);
+
+  if (string(magic_number) != cmp) {
+    return false;
+  }
+  else {
+    return true;
+  }
+}
+
+uint64_t readDimension(ifstream &input) {
+  uint64_t raw {};
+  input.read(reinterpret_cast<char *>(&raw), sizeof(uint64_t));
+  return be64toh(raw);
+}
+
 HuffmanTable readHuffmanTable(ifstream &stream) {
   HuffmanTable table {};
 

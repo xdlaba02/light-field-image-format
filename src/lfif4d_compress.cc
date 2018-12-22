@@ -5,6 +5,9 @@
 \*******************************************************/
 
 #include "compress.h"
+#include "lfif_encoder.h"
+
+#include <iostream>
 
 using namespace std;
 
@@ -28,13 +31,15 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  if (color_depth == 255) {
-    if (!compress<4>(rgb_data, width, height, image_count, quality, output_file_name)) {
-      return 3;
-    }
-  }
-  else {
+  if (color_depth != 255) {
     cerr << "UNSUPPORTED COLOR DEPTH" << endl;
+    return 2;
   }
+
+  uint64_t img_dims[] {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
+  if (!LFIFCompress<4>(rgb_data, img_dims, 1, quality, output_file_name)) {
+    return 3;
+  }
+
   return 0;
 }

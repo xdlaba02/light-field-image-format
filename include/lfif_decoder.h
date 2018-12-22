@@ -15,6 +15,10 @@
 
 using namespace std;
 
+bool checkMagicNumber(const string &cmp, ifstream &input);
+
+uint64_t readDimension(ifstream &input);
+
 HuffmanTable readHuffmanTable(ifstream &stream);
 
 void decodeOneBlock(RunLengthEncodedBlock &pairs, const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream);
@@ -30,6 +34,21 @@ RunLengthEncodedImage diffDecodePairs(RunLengthEncodedImage runlengths);
 YCbCrData deshiftData(YCbCrData data);
 
 RGBData YCbCrToRGB(const YCbCrData &Y_data, const YCbCrData &Cb_data, const YCbCrData &Cr_data);
+
+
+template<size_t D>
+QuantTable<D> readQuantTable(ifstream &input) {
+  QuantTable<D> table {};
+  input.read(reinterpret_cast<char *>(table.data()), table.size() * sizeof(QuantTable<0>::value_type));
+  return table;
+}
+
+template<size_t D>
+TraversalTable<D> readTraversalTable(ifstream &input) {
+  TraversalTable<D> table {};
+  input.read(reinterpret_cast<char *>(table.data()), table.size() * sizeof(TraversalTable<0>::value_type));
+  return table;
+}
 
 template<size_t D>
 inline vector<TraversedBlock<D>> runLenghtDecodePairs(const RunLengthEncodedImage &runlengths) {
@@ -148,5 +167,80 @@ struct convertFromBlocks<1> {
     }
   }
 };
+
+template<size_t D>
+bool LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img_dims[D], uint64_t &imgs_cnt) {
+  ifstream input(input_file_name);
+  if (input.fail()) {
+    return false;
+  }
+
+  char magic_number[9] = "LFIF-#D\n";
+  magic_number[5] = D + '0';
+
+  if (!checkMagicNumber(magic_number, input)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < D; i++) {
+    img_dims[i] = readDimension(input);
+  }
+
+  imgs_cnt = readDimension(input);
+
+  QuantTable<D> quant_table = readQuantTable<D>(input);
+  TraversalTable<D> traversal_table = readTraversalTable<D>(input);
+
+  HuffmanTable hufftable_luma_DC = readHuffmanTable(input);
+  HuffmanTable hufftable_luma_AC = readHuffmanTable(input);
+  HuffmanTable hufftable_chroma_DC = readHuffmanTable(input);
+  HuffmanTable hufftable_chroma_AC = readHuffmanTable(input);
+
+  size_t blocks_cnt = 1;
+  size_t pixels_cnt = 1;
+
+  for (size_t i = 0; i < D; i++) {
+    blocks_cnt *= ceil(img_dims[i]/8.);
+    pixels_cnt *= img_dims[i];
+  }
+
+  RunLengthEncodedImage pairs_Y(blocks_cnt * imgs_cnt);
+  RunLengthEncodedImage pairs_Cb(blocks_cnt * imgs_cnt);
+  RunLengthEncodedImage pairs_Cr(blocks_cnt * imgs_cnt);
+
+  IBitstream bitstream(input);
+
+  for (size_t i = 0; i < blocks_cnt * imgs_cnt; i++) {
+    decodeOneBlock(pairs_Y[i],  hufftable_luma_DC, hufftable_luma_AC, bitstream);
+    decodeOneBlock(pairs_Cb[i], hufftable_chroma_DC, hufftable_chroma_AC, bitstream);
+    decodeOneBlock(pairs_Cr[i], hufftable_chroma_DC, hufftable_chroma_AC, bitstream);
+  }
+
+  auto deblockize = [&](const vector<YCbCrDataBlock<D>> &input) {
+    YCbCrData output(pixels_cnt * imgs_cnt);
+
+    for (size_t i = 0; i < imgs_cnt; i++) {
+      auto inputF = [&](size_t block_index, size_t pixel_index){
+        return input[(i * blocks_cnt) + block_index][pixel_index];
+      };
+
+      auto outputF = [&](size_t index) -> YCbCrDataUnit &{
+        return output[(i * pixels_cnt) + index];
+      };
+
+      convertFromBlocks<D>(inputF, img_dims, outputF);
+    }
+
+    return output;
+  };
+
+  auto decode = [&](const RunLengthEncodedImage &input) {
+    return deshiftData(deblockize(detransformBlocks<D>(dequantizeBlocks<D>(detraverseBlocks<D>(runLenghtDecodePairs<D>(diffDecodePairs(input)), traversal_table), quant_table))));
+  };
+
+  rgb_data = YCbCrToRGB(decode(pairs_Y), decode(pairs_Cb), decode(pairs_Cr));
+
+  return true;
+}
 
 #endif

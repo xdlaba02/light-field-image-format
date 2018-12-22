@@ -33,12 +33,12 @@ enum State {
   rgb_data.
 * Velikosti obrazku ulozi do prommene width a height.
 \*******************************************************/
-bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &depth);
+bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth);
 
 /*******************************************************\
 * Funkce odesle PPM data z bufferu do streamu output.
 \*******************************************************/
-bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t depth, ofstream &output);
+bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, ofstream &output);
 
 /*******************************************************\
 * Funkce ve streamu preskoci na prvni znak za koncem
