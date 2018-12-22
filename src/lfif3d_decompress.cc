@@ -5,6 +5,7 @@
 \*******************************************************/
 
 #include "decompress.h"
+#include "lfif_decoder.h"
 #include "zigzag.h"
 
 using namespace std;

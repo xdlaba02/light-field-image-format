@@ -5,6 +5,7 @@
 \*******************************************************/
 
 #include "decompress.h"
+#include "lfif_decoder.h"
 
 using namespace std;
 
