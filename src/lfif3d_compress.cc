@@ -9,8 +9,8 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {
-  string input_file_mask  {};
-  string output_file_name {};
+  const char *input_file_mask  {};
+  const char *output_file_name {};
   uint8_t quality         {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
@@ -28,11 +28,14 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  rgb_data = zigzagShift(rgb_data, image_count);
-
-  if (!compress<3>(rgb_data, width, height, color_depth, image_count, quality, output_file_name)) {
-    return 3;
+  if (color_depth == 255) {
+    rgb_data = zigzagShift(rgb_data, image_count);
+    if (!compress<3>(rgb_data, width, height, image_count, quality, output_file_name)) {
+      return 3;
+    }
   }
-
+  else {
+    cerr << "UNSUPPORTED COLOR DEPTH" << endl;
+  }
   return 0;
 }

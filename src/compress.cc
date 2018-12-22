@@ -13,28 +13,28 @@ void print_usage(const char *argv0) {
   std::cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << std::endl;
 }
 
-bool parse_args(int argc, char *argv[], string &input_file_mask, string &output_file_name, uint8_t &quality) {
-  string arg_quality {};
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &quality) {
+  const char *arg_quality {};
 
   char opt;
   while ((opt = getopt(argc, argv, "i:o:q:")) >= 0) {
     switch (opt) {
       case 'i':
-        if (input_file_mask.empty()) {
+        if (!input_file_mask) {
           input_file_mask = optarg;
           continue;
         }
         break;
 
       case 'o':
-        if (output_file_name.empty()) {
+        if (!output_file_name) {
           output_file_name = optarg;
           continue;
         }
         break;
 
       case 'q':
-        if (arg_quality.empty()) {
+        if (!arg_quality) {
           arg_quality = optarg;
           continue;
         }
@@ -48,12 +48,12 @@ bool parse_args(int argc, char *argv[], string &input_file_mask, string &output_
     return false;
   }
 
-  if ((input_file_mask.empty()) || (output_file_name.empty()) || (arg_quality.empty())) {
+  if ((!input_file_mask) || (!output_file_name) || (!arg_quality)) {
     print_usage(argv[0]);
     return false;
   }
 
-  int tmp_quality = stoi(arg_quality);
+  int tmp_quality = atoi(arg_quality);
   if ((tmp_quality < 1) || (tmp_quality > 100)) {
     print_usage(argv[0]);
     return false;

@@ -2,8 +2,9 @@
 #define DECOMPRESS_H
 
 #include "lfif.h"
-#include "endian.h"
 #include "lfif_decoder.h"
+
+#include <endian.h>
 
 #include <string>
 #include <fstream>
@@ -12,7 +13,7 @@ using namespace std;
 
 void print_usage(const char *argv0);
 
-bool parse_args(int argc, char *argv[], string &input_file_name, string &output_file_mask);
+bool parse_args(int argc, char *argv[], const char *&input_file_name, const char *&output_file_mask);
 
 bool checkMagicNumber(const string &cmp, ifstream &input);
 
@@ -37,7 +38,7 @@ TraversalTable<D> readTraversalTable(ifstream &input) {
 }
 
 template<size_t D>
-bool decompress(const string &input_file_name, RGBData &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
+bool decompress(const char *input_file_name, RGBData &rgb_data, uint64_t &width, uint64_t &height, uint64_t &image_count) {
   ifstream input(input_file_name);
   if (input.fail()) {
     return false;
@@ -97,7 +98,7 @@ bool decompress(const string &input_file_name, RGBData &rgb_data, uint64_t &widt
 
   auto deblockize = [&](const vector<YCbCrDataBlock<D>> &input) {
     YCbCrData output(width * height * image_count);
-    Dimensions<D> dims {width, height};
+    size_t dims[D] {width, height};
 
     size_t blocks_in_one_image = 0;
     size_t cnt = 1;
@@ -123,7 +124,7 @@ bool decompress(const string &input_file_name, RGBData &rgb_data, uint64_t &widt
         return output[(i * width * height) + index];
       };
 
-      convertFromBlocks<D>(inputF, dims.data(), outputF);
+      convertFromBlocks<D>(inputF, dims, outputF);
     }
 
     return output;

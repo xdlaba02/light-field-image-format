@@ -6,6 +6,8 @@
 
 #include "ppm.h"
 
+#include <endian.h>
+
 #include <iostream>
 
 bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &depth) {
@@ -14,18 +16,25 @@ bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64
   }
 
   size_t image_size = width * height * 3;
-
-  if (depth >= 256) {
-    image_size *= 2;
-  }
-
   size_t original_size = rgb_data.size();
 
-  rgb_data.resize(original_size + image_size);
-
-  input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), image_size);
-  if (input.fail()) {
-    return false;
+  if (depth < 256) {
+    rgb_data.resize(original_size + image_size);
+    input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), image_size);
+    if (input.fail()) {
+      return false;
+    }
+  }
+  else {
+    rgb_data.resize(original_size + (2 * image_size));
+    input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), 2 * image_size);
+    if (input.fail()) {
+      return false;
+    }
+    uint16_t *arr = reinterpret_cast<uint16_t *>(rgb_data.data());
+    for (size_t i = 0; i < image_size; i++) {
+      arr[i] = be16toh(arr[i]);
+    }
   }
 
   return true;

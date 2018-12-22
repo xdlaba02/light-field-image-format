@@ -79,7 +79,7 @@ inline constexpr QuantTable<D> baseQuantTable() {
 }
 
 template<size_t D>
-inline QuantTable<D> scaleQuantTable(QuantTable<D> quant_table, const QualityUnit quality) {
+inline QuantTable<D> scaleQuantTable(QuantTable<D> quant_table, const uint8_t quality) {
   float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
 
   for (size_t i = 0; i < constpow(8, D); i++) {

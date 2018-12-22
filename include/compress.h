@@ -2,9 +2,9 @@
 #define COMPRESS_H
 
 #include "lfif.h"
-
-#include "endian.h"
 #include "lfif_encoder.h"
+
+#include <endian.h>
 
 #include <iostream>
 #include <cstdint>
@@ -16,7 +16,7 @@ using namespace std;
 
 void print_usage(const char *argv0);
 
-bool parse_args(int argc, char *argv[], string &input_file_mask, string &output_file_name, uint8_t &quality);
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &quality);
 
 vector<size_t> getMaskIndexes(const string &file_mask);
 
@@ -39,7 +39,7 @@ void writeTraversalTable(const TraversalTable<D> &table, ofstream &output) {
 }
 
 template<size_t D>
-bool compress(RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, uint8_t quality, const string &output_file_name) {
+bool compress(RGBData &rgb_data, uint64_t width, uint64_t height, uint64_t image_count, uint8_t quality, const char *output_file_name) {
   size_t blocks_cnt = ceil(width/8.) * ceil(height/8.);
 
   if (D == 2) {
@@ -57,7 +57,7 @@ bool compress(RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color
 
   auto blockize = [&](const YCbCrData &input) {
     vector<YCbCrDataBlock<D>> output(blocks_cnt);
-    Dimensions<D> dims {width, height};
+    size_t dims[D] {width, height};
 
     size_t blocks_in_one_image = 0;
     size_t cnt = 1;
@@ -83,7 +83,7 @@ bool compress(RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color
         return output[(i * blocks_in_one_image) + block_index][pixel_index];
       };
 
-      convertToBlocks<D>(inputF, dims.data(), outputF);
+      convertToBlocks<D>(inputF, dims, outputF);
     }
 
     return output;
