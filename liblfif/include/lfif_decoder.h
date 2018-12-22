@@ -185,8 +185,11 @@ bool LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img
 
   imgs_cnt = readDimension(input);
 
-  QuantTable<D> quant_table = readQuantTable<D>(input);
-  TraversalTable<D> traversal_table = readTraversalTable<D>(input);
+  QuantTable<D> quant_table_luma = readQuantTable<D>(input);
+  QuantTable<D> quant_table_chroma = readQuantTable<D>(input);
+
+  TraversalTable<D> traversal_table_luma = readTraversalTable<D>(input);
+  TraversalTable<D> traversal_table_chroma = readTraversalTable<D>(input);
 
   HuffmanTable hufftable_luma_DC = readHuffmanTable(input);
   HuffmanTable hufftable_luma_AC = readHuffmanTable(input);
@@ -231,11 +234,15 @@ bool LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img
     return output;
   };
 
-  auto decode = [&](const RunLengthEncodedImage &input) {
+  auto decode = [&](const RunLengthEncodedImage &input, const QuantTable<D> &quant_table, const TraversalTable<D> &traversal_table) {
     return deshiftData(deblockize(detransformBlocks<D>(dequantizeBlocks<D>(detraverseBlocks<D>(runLenghtDecodePairs<D>(diffDecodePairs(input)), traversal_table), quant_table))));
   };
 
-  rgb_data = YCbCrToRGB(decode(pairs_Y), decode(pairs_Cb), decode(pairs_Cr));
+  rgb_data = YCbCrToRGB(
+    decode(pairs_Y, quant_table_luma, traversal_table_luma),
+    decode(pairs_Cb, quant_table_chroma, traversal_table_chroma),
+    decode(pairs_Cr, quant_table_chroma, traversal_table_chroma)
+  );
 
   return true;
 }

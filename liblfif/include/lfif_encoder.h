@@ -61,20 +61,44 @@ inline YCbCrData convertRGB(const RGBData &rgb_data, F &&function) {
 }
 
 template<size_t D>
-inline constexpr QuantTable<D> baseQuantTable() {
+inline constexpr QuantTable<D> baseQuantTableLuma() {
+  constexpr QuantTable<2> base_luma {
+    16, 11, 10, 16, 124, 140, 151, 161,
+    12, 12, 14, 19, 126, 158, 160, 155,
+    14, 13, 16, 24, 140, 157, 169, 156,
+    14, 17, 22, 29, 151, 187, 180, 162,
+    18, 22, 37, 56, 168, 109, 103, 177,
+    24, 35, 55, 64, 181, 104, 113, 192,
+    49, 64, 78, 87, 103, 121, 120, 101,
+    72, 92, 95, 98, 112, 100, 103, 199,
+  };
+
   QuantTable<D> quant_table {};
 
-  for (size_t i = 0; i < quant_table.size(); i++) {
-    size_t sum = 0;
-    size_t max = 0;
-    for (size_t j = 0; j < D; j++) {
-      size_t coord = (i % constpow(8, j+1)) / constpow(8, j);
-      sum += coord * coord;
-      if (coord > max) {
-        max = coord;
-      }
-    }
-    quant_table[i] = clamp(((sqrt(sum)+1) * max) + 10, 1., 255.);
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    quant_table[i] = base_luma[i%64];
+  }
+
+  return quant_table;
+}
+
+template<size_t D>
+inline constexpr QuantTable<D> baseQuantTableChroma() {
+  constexpr QuantTable<2> base_chroma {
+    17, 18, 24, 47, 99, 99, 99, 99,
+    18, 21, 26, 66, 99, 99, 99, 99,
+    24, 26, 56, 99, 99, 99, 99, 99,
+    47, 66, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99,
+  };
+
+  QuantTable<D> quant_table {};
+
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    quant_table[i] = base_chroma[i%64];
   }
 
   return quant_table;
@@ -334,11 +358,12 @@ bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_c
     return output;
   };
 
-  QuantTable<D> quant_table = scaleQuantTable<D>(baseQuantTable<D>(), quality);
+  QuantTable<D> quant_table_luma = scaleQuantTable<D>(baseQuantTableLuma<D>(), quality);
+  QuantTable<D> quant_table_chroma = scaleQuantTable<D>(baseQuantTableChroma<D>(), quality);
 
-  vector<QuantizedBlock<D>> quantized_Y  = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))), quant_table);
-  vector<QuantizedBlock<D>> quantized_Cb = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))), quant_table);
-  vector<QuantizedBlock<D>> quantized_Cr = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))), quant_table);
+  vector<QuantizedBlock<D>> quantized_Y  = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))), quant_table_luma);
+  vector<QuantizedBlock<D>> quantized_Cb = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))), quant_table_chroma);
+  vector<QuantizedBlock<D>> quantized_Cr = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))), quant_table_chroma);
 
   /********************************************\
   * Free unused RGB Buffer
@@ -348,15 +373,20 @@ bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_c
   /********************************************\
   * Construt traversal table by reference block
   \********************************************/
-  RefereceBlock<D> reference_block {};
-  getReference<D>(quantized_Y,  reference_block);
-  getReference<D>(quantized_Cb, reference_block);
-  getReference<D>(quantized_Cr, reference_block);
-  TraversalTable<D> traversal_table = constructTraversalTableByReference<D>(reference_block);
+  RefereceBlock<D> reference_block_luma {};
+  RefereceBlock<D> reference_block_chroma {};
 
-  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Y,  traversal_table)));
-  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cb, traversal_table)));
-  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cr, traversal_table)));
+  getReference<D>(quantized_Y,  reference_block_luma);
+
+  getReference<D>(quantized_Cb, reference_block_chroma);
+  getReference<D>(quantized_Cr, reference_block_chroma);
+
+  TraversalTable<D> traversal_table_luma = constructTraversalTableByReference<D>(reference_block_luma);
+  TraversalTable<D> traversal_table_chroma = constructTraversalTableByReference<D>(reference_block_chroma);
+
+  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Y,  traversal_table_luma)));
+  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cb, traversal_table_chroma)));
+  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cr, traversal_table_chroma)));
 
   /********************************************\
   * Free unused vectors
@@ -401,8 +431,11 @@ bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_c
 
   writeDimension(imgs_cnt, output);
 
-  writeQuantTable<D>(quant_table, output);
-  writeTraversalTable<D>(traversal_table, output);
+  writeQuantTable<D>(quant_table_luma, output);
+  writeQuantTable<D>(quant_table_chroma, output);
+
+  writeTraversalTable<D>(traversal_table_luma, output);
+  writeTraversalTable<D>(traversal_table_chroma, output);
 
   writeHuffmanTable(codelengths_luma_DC, output);
   writeHuffmanTable(codelengths_luma_AC, output);
