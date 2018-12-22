@@ -45,7 +45,7 @@ bool parse_args(int argc, char *argv[], const char *&input_file_name, const char
   return true;
 }
 
-bool savePPMs(const RGBData &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, const string &output_file_mask) {
+bool savePPMs(const vector<uint8_t> &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, const string &output_file_mask) {
   size_t image_size = width * height * 3;
 
   if (color_depth >= 256) {

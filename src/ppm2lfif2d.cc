@@ -1,7 +1,7 @@
 /*******************************************************\
-* SOUBOR: lfif2d_compress.cc
+* SOUBOR: ppm2lfif2d.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
-* DATUM: 19. 12. 2018
+* DATUM: 22. 12. 2018
 \*******************************************************/
 
 #include "compress.h"
@@ -19,8 +19,6 @@ int main(int argc, char *argv[]) {
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return 1;
   }
-
-
 
   uint64_t width       {};
   uint64_t height      {};

@@ -1,10 +1,11 @@
 /*******************************************************\
-* SOUBOR: lfif3d_decompress.cc
+* SOUBOR: lfif3d2ppm.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
-* DATUM: 19. 12. 2018
+* DATUM: 22. 12. 2018
 \*******************************************************/
 
 #include "decompress.h"
+#include "lfif_decoder.h"
 #include "zigzag.h"
 
 using namespace std;

@@ -4,6 +4,8 @@
 # DATUM: 19. 10. 2018
 ########################################################
 
+
+
 SRCDIR = src
 INCDIR = include
 OBJDIR = build
@@ -19,24 +21,24 @@ ENCODER = $(OBJDIR)/lfif_encoder.o $(OBJDIR)/compress.o $(CODEC)
 
 DECODER = $(OBJDIR)/lfif_decoder.o $(OBJDIR)/decompress.o $(CODEC)
 
-all: $(BINDIR) $(OBJDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
+all: $(BINDIR) $(OBJDIR) $(BINDIR)/ppm2lfif2d $(BINDIR)/lfif2d2ppm $(BINDIR)/ppm2lfif3d $(BINDIR)/lfif3d2ppm $(BINDIR)/ppm2lfif4d $(BINDIR)/lfif4d2ppm
 
-$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(ENCODER)
+$(BINDIR)/ppm2lfif2d: $(OBJDIR)/ppm2lfif2d.o $(ENCODER)
 	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress.o $(DECODER)
+$(BINDIR)/lfif2d2ppm: $(OBJDIR)/lfif2d2ppm.o $(DECODER)
 	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress.o $(ENCODER)
+$(BINDIR)/ppm2lfif3d: $(OBJDIR)/ppm2lfif3d.o $(ENCODER)
 	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress.o $(DECODER)
+$(BINDIR)/lfif3d2ppm: $(OBJDIR)/lfif3d2ppm.o $(DECODER)
 	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(ENCODER)
+$(BINDIR)/ppm2lfif4d: $(OBJDIR)/ppm2lfif4d.o $(ENCODER)
 	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(DECODER)
+$(BINDIR)/lfif4d2ppm: $(OBJDIR)/lfif4d2ppm.o $(DECODER)
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cc

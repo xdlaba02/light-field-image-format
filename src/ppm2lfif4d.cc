@@ -1,32 +1,15 @@
 /*******************************************************\
-* SOUBOR: lfif3d_compress.cc
+* SOUBOR: ppm2lfif4d.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
-* DATUM: 19. 12. 2018
+* DATUM: 22. 12. 2018
 \*******************************************************/
 
 #include "compress.h"
 #include "lfif_encoder.h"
-#include "zigzag.h"
 
 #include <iostream>
 
 using namespace std;
-
-RGBData zigzagShiftRGB(const RGBData &rgb_data, uint64_t image_count) {
-  RGBData zigzag_data(rgb_data.size());
-
-  size_t image_size = rgb_data.size() / image_count;
-
-  vector<size_t> zigzag_table = generateZigzagTable(sqrt(image_count));
-
-  for (size_t i = 0; i < image_count; i++) {
-    for (size_t j = 0; j < image_size; j++) {
-      zigzag_data[zigzag_table[i] * image_size + j] = rgb_data[i * image_size + j];
-    }
-  }
-
-  return zigzag_data;
-}
 
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
@@ -53,10 +36,8 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  rgb_data = zigzagShiftRGB(rgb_data, image_count);
-
-  uint64_t img_dims[] {width, height, image_count};
-  if (!LFIFCompress<3>(rgb_data, img_dims, 1, quality, output_file_name)) {
+  uint64_t img_dims[] {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
+  if (!LFIFCompress<4>(rgb_data, img_dims, 1, quality, output_file_name)) {
     return 3;
   }
 

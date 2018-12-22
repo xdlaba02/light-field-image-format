@@ -1,10 +1,11 @@
 /*******************************************************\
-* SOUBOR: lfif4d_decompress.cc
+* SOUBOR: lfif4d2ppm.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
-* DATUM: 20. 12. 2018
+* DATUM: 22. 12. 2018
 \*******************************************************/
 
 #include "decompress.h"
+#include "lfif_decoder.h"
 
 using namespace std;
 
