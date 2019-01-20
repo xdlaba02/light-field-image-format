@@ -168,8 +168,7 @@ void encodeOneBlock(const RunLengthEncodedBlock &runlength, const HuffmanMap &hu
 }
 
 void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream &stream) {
-  HuffmanClass huff_class = huffmanClass(pair.amplitude);
-  HuffmanSymbol symbol    = huffmanSymbol(pair);
+  HuffmanSymbol symbol = huffmanSymbol(pair);
 
   stream.write(map.at(symbol));
 
@@ -179,6 +178,7 @@ void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream 
     amplitude = ~amplitude;
   }
 
+  HuffmanClass huff_class = huffmanClass(amplitude);
   for (int8_t i = huff_class - 1; i >= 0; i--) {
     stream.writeBit((amplitude & (1 << i)) >> i);
   }

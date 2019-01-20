@@ -9,3 +9,11 @@ callgrind*
 *.old
 *.so
 *.a
+*.toc
+*.ptc
+*.pdf
+*.log
+*.blg
+*.bbl
+*.aux
+*.out

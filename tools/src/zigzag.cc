@@ -5,8 +5,10 @@
 
 #include "zigzag.h"
 
-std::vector<size_t> generateZigzagTable(uint64_t size) {
-  std::vector<size_t> table(size * size);
+#include <iostream>
+
+vector<size_t> generateZigzagTable(uint64_t size) {
+  vector<size_t> table(size * size);
 
   size_t x = 0;
   size_t y = 0;
