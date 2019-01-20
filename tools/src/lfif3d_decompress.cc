@@ -29,19 +29,6 @@ RGBData zigzagDeshiftRGB(const RGBData &rgb_data, uint64_t image_count) {
 }
 
 int main(int argc, char *argv[]) {
-  vector<size_t> vec(512);
-  constructZigzagTable<3>(4, [&](size_t index) -> size_t & { return vec[index]; });
-
-  for (size_t z = 0; z < 4; z++) {
-    for (size_t y = 0; y < 4; y++) {
-      for (size_t x = 0; x < 4; x++) {
-        cerr << vec[z * 16 + y * 4 + x] << " ";
-      }
-      cerr << endl;
-    }
-    cerr << endl;
-  }
-
   const char *input_file_name  {};
   const char *output_file_mask {};
 

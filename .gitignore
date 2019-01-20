@@ -17,3 +17,5 @@ callgrind*
 *.bbl
 *.aux
 *.out
+*.nav
+*.snm

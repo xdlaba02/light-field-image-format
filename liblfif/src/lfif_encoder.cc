@@ -172,13 +172,14 @@ void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream 
 
   stream.write(map.at(symbol));
 
+  HuffmanClass huff_class = huffmanClass(pair.amplitude);
+
   RunLengthAmplitudeUnit amplitude = pair.amplitude;
   if (amplitude < 0) {
     amplitude = -amplitude;
     amplitude = ~amplitude;
   }
 
-  HuffmanClass huff_class = huffmanClass(amplitude);
   for (int8_t i = huff_class - 1; i >= 0; i--) {
     stream.writeBit((amplitude & (1 << i)) >> i);
   }
