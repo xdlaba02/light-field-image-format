@@ -43,6 +43,9 @@
 % Basic packages are at the bottom of template file fitthesis.cls
 % zde můžeme vložit vlastní balíčky / you can place own packages here
 
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows}
+
 % Kompilace po částech (rychlejší, ale v náhledu nemusí být vše aktuální)
 % Compilation piecewise (faster, but not all parts in preview will be up-to-date)
 % \usepackage{subfiles}
@@ -115,7 +118,7 @@
   date=\today,             % datum odevzdání / submission date
   %Nazev prace / thesis title
   title.cs={Ztrátová komprese plenoptických fotografií},  % název práce v češtině či slovenštině (dle zadání) / thesis title in czech language (according to assignment)
-  title.en={Lossy compression of light-filed photography}, % název práce v angličtině / thesis title in english
+  title.en={Lossy compression of light field photography}, % název práce v angličtině / thesis title in english
   %title.length={14.5cm}, % nastavení délky bloku s titulkem pro úpravu zalomení řádku (lze definovat zde nebo níže) / setting the length of a block with a thesis title for adjusting a line break (can be defined here or below)
   %Autor / Author
   author.name={Drahomír},   % jméno autora / author name
@@ -135,10 +138,10 @@
   %keywords.en={Here, individual keywords separated by commas will be written in English.},
   % Abstrakt / Abstract
   abstract.cs={
-    Cílem této práce je vhodně navrhnout a implementoval ztrátový kodek pro plenoptické fotografie.
+    Cílem této práce je vhodně navrhnout a implementovat ztrátový kodek pro plenoptické fotografie.
     První implementovanou procedurou pro kompresi je zrcadlení metody JPEG do tří a čtyř rozměrů, které jsou reprezentovány jednotlivými pohledy plenoptické fotografie.
     Dále jsou implementovány metody využívající ke kompresi plenoptické fotografie metody pro kompresi videa AVC a HEVC.
-    Zrcadlením metody JPEG do čtyř rozměrů se povedlo při stejném PSNR dosáhnout kompresního poměru X:Y, což je oproti referenčnímu 2D JPEG kodeků zlepšení o ZZ\%.
+    Zrcadlením metody JPEG do čtyř rozměrů se povedlo při stejném PSNR dosáhnout kompresního poměru X:Y, což je oproti referenčnímu 2D JPEG kodeku zlepšení o ZZ\%.
     Využitím metod pro kompresi videa bylo dosaženo kompresního poměru X:Z.
     Z výsledků vyplývá, že je ze zkoumaných kodeků pro kompresi plenoptických fotografií nejvhodnější metoda YYY.},
     % abstrakt v českém či slovenském jazyce / abstract in czech or slovak language

@@ -9,32 +9,32 @@ Pomocí směru zachycených paprsků je možné z fotografie rekonstruovat hloub
 Tím se otevírá řada nových možností, jak se zachycenou scénou pracovat a jak ji využít.
 
 \section{Zachycení plenoptické fotografie}
+\begin{figure}
+  \centering
+  \includegraphics[width=.4\textwidth]{obrazky-figures/stanford-array.jpg}
+	\caption{Pole fotoaparátů sestrojené na univerzitě Stanford \cite{stanford}.}
+	\label{stanfordArray}
+\end{figure}
+
 Nejjednoduším způsobem zachycení plenoptické fotografie je pole klasických dvourozměrných fotoaparátů, které jsou rovnoměrně rozloženy v rovině.
 Na obrázku \ref{stanfordArray} je možné vidět, jak takové pole vypadá.
 Scéna je zachycena všemi fotoaparáty ve stejném čase.
 Fotografie zachycená jedním fotoaparátem reprezentuje jeden snímek plenoptické fotografie.
 Index pohledu je dán indexem fotoaparátu, který tento pohled vyfotografoval.
-Z pole snímků lze vypočítat hlobková data.
+Z pole snímků lze vypočítat hloubková data.
 
 Komplikovanější variantou může být specializovaný plenoptický fotoaparát.
 Oproti klasickému fotoaparátu se liší tím, že má před světlocitlivým senzorem pole mikročoček.
 Paprsek světla přicházející do fotoaparátu je nejprve hlavní čočkou soustředěn do pole mikročoek, které jej podle úhlu dopadu rozptýlí na světlocitlivý senzor.
 Tento princip je vyobrazen na obrázku \ref{plenoPrincip}.
-Každá mikročoka zachytává jeden pixel scény z více pohledů.
+Každá mikročočka zachytává jeden pixel scény z více pohledů.
 Této jednotce se říká makropixel.
 
-\begin{figure}[h]
+\begin{figure}
 	\centering
-	\includegraphics[width=.5\textwidth]{obrazky-figures/placeholder.pdf}
-	\caption{Pole fotoaparátů sestrojené na univerzitě Stanford \cite{stanford}.}
-	\label{stanfordArray}
-\end{figure}
-
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=.5\textwidth]{obrazky-figures/placeholder.pdf}
-	\caption{Vyobrazení principu zachycení plenoptické fotografie pomocí plenoptického fotoaparátu. Paprsky směřující do fotoaparátu jsou před zachycením na světlocitlivý senzor rozptýleny polem mikročoček.}
-	\label{plenoPrincip}
+		\includegraphics[width=.4\textwidth]{obrazky-figures/pleno-cam.pdf}
+		\caption{Princip plenoptického fotoaparátu. Paprsky směřující do fotoaparátu jsou před zachycením na světlocitlivý senzor rozptýleny polem mikročoček.}
+		\label{plenoPrincip}
 \end{figure}
 
 \section{Formáty pro uložení plenoptických dat}
@@ -44,7 +44,7 @@ Na jednu stranu je potřeba s těmito daty pracovat rychle a efektivně, na stra
 Při práci s plenoptickým fotoaparátem se lze nejčastěji setkat s daty v lenslet\footnote{Lenslet -- mikročočka, která je prvkem pole mikročoček \cite{lenslet}.} formátu. Jde o surová data, která jsou zachycena světlocitlivým senzorem v plenoptickém fotoaparátu.
 Tato data reflektují rozložení mikročoček ve fotoaparátu.
 Pro jejich snažší zpracování jsou k samotné bitmapě přiložena metadata o konstrukci fotoaparátu, který tato data zachytil.
-Mimo metadata, která ukládá klasický fotoaparát se zde zaznamenává zejména informace o velikosti a rozložení mikročoček.
+Mimo metadata, která ukládá klasický fotoaparát, se zde zaznamenává zejména informace o velikosti a rozložení mikročoček.
 
 Další alternativou, jak ukládat plenoptické fotografie, je dvourozměrné pole pohledů na tutéž scénu, kde každý pohled reprezentuje snímek scény pod jiným úhlem pozorování.
 Tento formát je obvykle výstupem zachycení plenoptické fotografie pomocí dvourozměrného pole fotoaparátů.
@@ -55,25 +55,33 @@ Tento formát je vhodný zejména pro kompresi založenou na transformaci a kvan
 Příznivým faktorem pro tuto třídu kompresních algoritmů je silná korelace mezi jednotlivými sousedícími pohledy.
 Proto se plenoptické fotografie zachycené plenoptickým fotoaparátem do tohoto formátu často převádí.
 
-Plenoptická data je také možné ukládat jako point cloud\footnote{Point cloud - množina bodů v prostoru.}.
-Tento formát již nezaznamenává paprsky svěla zachycené na senzor, nýbrž rekonstruovanou trojrozměrnou scénu, kterou toto světlo reprezentuje.
+Plenoptická data je také možné ukládat jako point cloud\footnote{Point cloud -- množina bodů v prostoru.}.
+Tento formát již nezaznamenává paprsky světla zachycené na senzor, nýbrž rekonstruovanou trojrozměrnou scénu, kterou toto světlo reprezentuje.
 Point cloud, případně polygonová síť z point cloudu vytvořená, je vhodná pro vykreslení běžnými renderovacími algoritmy.
 
-\chapter{Principy ztrátové komprese využitelné pro kompresi plenoptických dat}
-Ztrátová komprese je komprese, při které dochází ke nezvratné ztrátě informací, rekonstruovaná data tedy pouze aproximují data původní.
-Výhodou dobře implementované ztrátové komprese oproti bezeztrátové kompresi je signifikatní redukce velikosti oproti zanedbatelné degradaci dat.
+\chapter{Principy ztrátové komprese využitelné pro plenoptická data}
+Ztrátová komprese je komprese, při které dochází k nezvratné ztrátě informací, rekonstruovaná data tedy pouze aproximují data původní.
+Výhodou dobře implementované ztrátové komprese oproti bezeztrátové kompresi je signifikantní redukce velikosti oproti zanedbatelné degradaci dat.
 Díky nedokonalosti lidských smyslů je ztrátová komprese hojně využívaná v oblasti obrazových a zvukových signálů.
 U ztrátové komprese je snaha redukovat data, která mají nejmenší význam.
 
 \section{Komprese obrazu}
-Nejrozšířenějším standardem pro ztrátovou kompresi obrazu stal formát JPEG z roku 1992.
-Tento formát je založený na diskrétní cosinově transformaci a následné kvantizaci výsledných koeficinetů podle citlivosti lidského oka na jednotlivé frekvence v obrazu.
+Nejrozšířenějším standardem pro ztrátovou kompresi se obrazu stal formát JPEG z roku 1992.
+Tento formát je založený na diskrétní cosinově transformaci a následné kvantizaci výsledných koeficientů podle citlivosti lidského oka na jednotlivé frekvence v obrazu.
+
+\tikzstyle{block} = [draw, fill=blue!20, rectangle,
+    minimum height=3em, minimum width=6em]
+\tikzstyle{sum} = [draw, fill=blue!20, circle, node distance=1cm]
+\tikzstyle{input} = [coordinate]
+\tikzstyle{output} = [coordinate]
+\tikzstyle{pinstyle} = [pin edge={to-,thin,black}]
+
 
 \subsubsection*{Transformace barevného prostoru}
 
 RGB obrázek je vhodné před samotnou transformací převést do vhodného barevného modelu.
 K tomuto se vybízí využít model YC\textsubscript{b}C\textsubscript{r}, který barevná data dělí na luminanci Y (jas) a složky chrominance C\textsubscript{b}C\textsubscript{r} (barvy).
-Jelikož je lidské oko citvlivé více na jas, než na barvu, je možné chromatické složky komprimovat více drasticky bez viditelné ztráty kvality.
+Jelikož je lidské oko citvlivé více na jas než na barvu, je možné chromatické složky komprimovat více drasticky bez viditelné ztráty kvality.
 Po převodu do vhodného barevného modelu je každý kanál komprimován zvlášť.
 
 \subsubsection*{Dělení do bloků}
@@ -81,26 +89,26 @@ Po převodu do vhodného barevného modelu je každý kanál komprimován zvlá�
 Data jednoho komprimovaného kanálu jsou převedeny do bloků velikosti $8\times8$, které jsou následně komprimovány individuálně.
 U obrázků, jejichž rozměr není násobkem osmi, vzniká problém krajních bloků.
 Obrázek se v tomto případě obvykle rozšíří na násobek osmičky, přičemž existuje několik alternativ, jak vyplnit nově vytvořené krajní pixely.
-Nejjednoduší je vyplnit prázdné místo nějakou jednotnou barvou.
+Nejjednodušší je vyplnit prázdné místo nějakou jednotnou barvou.
 Nevýhodou tohoto přístupu je vysoká frekvence, která vzniká skokovým přechodem mezi obrázkem a barvou.
 Tento problém dokáže částečně řešit přístup, kdy se redundantní pixely doplní hodnotou krajních pixelů originálního obrázku.
-Alernativou může být také zrcadlení původního obrázku, nebo jeho opakování (svinutí obrázku do pomyslného torusu).
+Alernativou může být také zrcadlení původního obrázku nebo jeho opakování (svinutí obrázku do pomyslného torusu).
 
 \subsubsection*{Diskrétní cosinova transformace}
 
 Na každý blok se dále aplikuje diskrétní cosinova transformace.
-DCT rozloží blok na DC koeficient -- vevo nahoře -- reprezentující pouze průměrnou barvu bloku, a AC koeficienty -- všechny ostatní -- reprezentující jednotlivé frekvence.
+DCT rozloží blok na DC koeficient -- vlevo nahoře -- reprezentující pouze průměrnou barvu bloku, a AC koeficienty -- všechny ostatní -- reprezentující jednotlivé frekvence.
 Jde o transformaci podobnou diskrétní Fourierově transformaci, která produkuje pouze reálné koeficienty.
-Diskrétní cosinova transformace je využívána také z důvodu koncentrace nejvíce energie na nejnižších frekvencích, cože je z hlediska ztrátové komprese výhodné.
+Diskrétní cosinova transformace je využívána také z důvodu koncentrace nejvíce energie na nejnižších frekvencích, což je z hlediska ztrátové komprese výhodné.
 
 \subsubsection*{Kvantizace}
 
-Na transformované bloky se aplikuje kvatizace.
+Na transformované bloky se aplikuje kvantizace.
 Kvantizace je jádro ztrátové komprese, v tomto kroku jsou totiž aplikovány ztráty.
 Ke kvantizaci se využívá kvantizační matice.
-Tato matice byla vytvořena na základě experimentů zkoumajícíh vlastnosti lidského oka.
+Tato matice byla vytvořena na základě experimentů zkoumajících vlastnosti lidského oka.
 Je navržena tak, aby redukovala frekvence, na které je lidské oko nejméně citlivé.
-Kvantizace probíhá podělením DCT koeficientů koeficientem v kvantizační matici a zaokrouhlením.
+Kvantizace probíhá podělením DCT koeficientů hodnotou v kvantizační matici a následným zaokrouhlením.
 Kvantizace má za následek, že většina výsledných koeficientů má hodnotu nula.
 Toho je využito zejména v bezeztrátové kompresi, která následuje.
 
@@ -113,13 +121,13 @@ Tento průchod zajišťuje, že DC koeficient bude na jedné straně a AC koefic
 Na DC koeficienty je aplikováno kódování, kdy je od každého DC koeficientu odečten DC koeficient předchozího bloku.
 Tyto rozdíly se uloží namísto původních DC koeficientů.
 
-AC koeficienty jsou zakódovány pomocí RLE\footnote{RLE -- Run-lenght encoding}.
+AC koeficienty jsou zakódovány pomocí RLE\footnote{RLE -- Run-length encoding.}.
 RLE je provedeno tak, že každý nenulový koeficient v bloku je převeden na dvojici (ZEROES, AMPLITUDE), kde ZEROES je počet nul, které koeficientu předcházely, a AMPLITUDE je samotná hodnota koeficientu.
 
 Toto kódování zahrnuje dvě speciální dvojice.
 Tou první je dvojice (0, 0), takzvaný EOB\footnote{EOB -- End-of-block.} -- symbol sloužící jako ukončující značka daného bloku reprezentující zbytek nul na konci.
 Kvůli tomu je pro kompresi výhodné řadit koeficienty tak, aby na konci bylo velké množství nul.
-Pokud nastane situace, kde je před kódovaným nenulovým koeficientem více než 15 nul, je nutné zavést opatření, kerá zajistí, že hodnotu počtu nul bude možné uložit do 4 bitů.
+Pokud nastane situace, kde je před kódovaným nenulovým koeficientem více než 15 nul, je nutné zavést opatření, která zajistí, že hodnotu počtu nul bude možné uložit do 4 bitů.
 Tímto opatřením je dvojice (15, 0), která reprezentuje šestnáct nulových koeficientů za sebou, resp. patnáct předcházejících nul + koeficient s nulovou hodnotou.
 Pokud se tedy na vstupu objeví napříkad sedmnáct nul a dvojka, budou výstupem dvojice (15, 0) a (1, 2).
 
