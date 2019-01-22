@@ -41,15 +41,15 @@ xdlaba02@stud.fit.vutbr.cz}
 \begin{frame}\frametitle{Existující řešení}
   \begin{columns}
     \column{0.7\linewidth}
-    \begin{block}{Jednotlivé pohledy můžeme komprimovat samostatně,}
+    \begin{block}{Pohledy komprimovány samostatně}
       \begin{itemize}
         \item JPEG,
         \item JPEG 2000,
         \item H.264,
-        \item H.265,
+        \item H.265.
       \end{itemize}
     \end{block}
-    \begin{block}{nebo je můžeme vhodně seřadit a komprimovat jako video,}
+    \begin{block}{Pohledy komprimovány jako video}
       \begin{itemize}
         \item H.264,
         \item H.265.
@@ -63,41 +63,53 @@ xdlaba02@stud.fit.vutbr.cz}
 \end{frame}
 
 \begin{frame}\frametitle{Moje řešení}
-  \begin{center}
-    {\Large Plenoptická fotografie jako 4D hyperkvádr}
-    \begin{columns}
-      \column{0.6\linewidth}
-        \begin{itemize}
-          \item Dvě dimenze pro index pixelu,
-          \item dvě dimenze pro index pohledu,
-          \item zrcadlení metody JPEG do čtvrtého rozměru,
-          \item bloky $8 \times 8 \times 8 \times 8$ pixelů,
-          \item 4D cosinova transformace,
-          \item 4D kvantizační tabulka.
-        \end{itemize}
-      \column{0.5\linewidth}
-        \begin{figure}
-          \includegraphics[width=\textwidth]{img/head.png}
-        \end{figure}
-    \end{columns}
-    \vfill
-    Využití podobnosti mezi sousedními pohledy.
-  \end{center}
+  \begin{block}{Plenoptická fotografie jako 3D kvádr}
+    \begin{itemize}
+      \item Rozšíření metody JPEG do 3D.
+      \item Třetím rozměrem je index pohledu.
+      \item Bloky $8 \times 8 \times 8$.
+    \end{itemize}
+  \end{block}
+  \begin{block}{Plenoptická fotografie jako 4D hyperkvádr}
+    \begin{itemize}
+      \item Rozšíření metody JPEG do 4D.
+      \item Třetím rozměrem je vertikální index pohledu,
+      \item čtvrtým rozměrem je horizontální index pohledu.
+      \item Bloky $8 \times 8 \times 8 \times 8$.
+    \end{itemize}
+  \end{block}
 \end{frame}
 
 \begin{frame}\frametitle{Přehled práce}
-  \begin{itemize}
-    \item Implementace metody JPEG pro 2D, 3D a 4D data.
-    \item Porovnání efektivity těchto metod.
-    \rule{\linewidth}{0.4pt}
-    \item Komprese pomocí videokodeků H.264/H.265.
-  \end{itemize}
+  \begin{block}{Zimní semestr}
+    \begin{itemize}
+      \item{Implemetace kodeků JPEG pro 3D a 4D data.}
+      \begin{itemize}
+        \item Implementace 3D a 4D DCT,
+        \item rozšíření kvantizační tabulky do 3D a 4D,
+        \item problematika řazení kvantizovaných koeficientů ve 3D a 4D.
+      \end{itemize}
+      \item Porovnání efektivity těchto rozšíření.
+    \end{itemize}
+  \end{block}
+  \begin{block}{Letní semestr}
+    \begin{itemize}
+      \item Komprese pomocí videokodeků H.264/H.265.
+      \item Zařazení výsledků do širších souvislostí.
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}\frametitle{Výsledky práce}
+  Porovnání implenetovaných metod vuči referenční knihovně libjpeg.
   \begin{figure}
     \includegraphics[width=0.8\textwidth]{img/plot.pdf}
   \end{figure}
+  {
+  \centering
+  \small
+  Testováno na obrázku "Origami", dostupného z \url{http://hci-lightfield.iwr.uni-heidelberg.de/}.
+  }
 \end{frame}
-
-
-\bluepage{Děkuji za pozornost.}
 
 \end{document}
