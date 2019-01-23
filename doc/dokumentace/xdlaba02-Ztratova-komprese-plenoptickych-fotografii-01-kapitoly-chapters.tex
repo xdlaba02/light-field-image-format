@@ -1,12 +1,60 @@
 %===============================================================================
 % Autoři: Michal Bidlo, Bohuslav Křena, Jaroslav Dytrych, Petr Veigend a Adam Herout 2018
-%\chapter{Úvod}
+
+\chapter{Úvod}
+S rozvojem nových technologií pro zachycení scény v prostoru a čase rostou také nároky na archivaci a přenos těchto scén po síti.
+Příkladem takové technologie je plenoptická fotografie.
+Dosud se jednalo spíše o experimentální odvětví počítačové grafiky patřící do výzkumných laboratoří, ale s nástupem výkonnějšího hardwaru se rozšiřuje i mezi širokou veřejnost.
+
+Taková fotografie nese nejen informace o barvě, ale také o směru paprsku dopadajícího na světelný senzor.
+Informace o směru paprsků vytváří mnohem kompletnější reprezentaci zachycené scény.
+Z plenoptické fotografie lze například rekonstruovat pohled na scénu z jiného místa pozorování či s jiným zorným úhlem.
+Lze tak například vytvořit ortografickou reprezentaci zachycené scény.
+Také je možné softwarově měnit rovinu zaostření a simulovat různé velikosti clony.
+To vše bez nutnosti převádět fotografii na point cloud či jiný trojrozměrný formát.
+
+V praxi to ovšem znamená, že plenoptická fotografie oproti klasické fotografii klade mnohonásobně větší nároky na kapacitu paměti.
+Plenoptické fotografie je proto potřeba efektivně komprimovat.
+Jelikož je tato technologie poměrně dlouho známá a její rozšíření omezuje primárně nedostatečný hardwarový výkon, byla pro plenoptické fotografie vyvinuta řada kompresních metod, které jsou založeny na existujících algoritmech pro kompresi klasických fotografií, videa či volumetrických dat.
+
+Tato práce si klade za cíl prozkoumat další metody komprese plenoptických fotografií, zejména se zaměřuje na zrcadlení metody JPEG do tří a čtyř rozměrů.
+Dále zkoumá efektivitu komprese pomocí videokodeků H.264 a H.265.
+
+Toto téma jsem si zvolil z důvodu dlouhodobého zájmu o konvenční i nekonvenční metody pro zachycení trojrozměrné scény reálného světa do digitální podoby v kombinaci se zájmem o kompresní algoritmy.
+Dále věřím, že výsledek této práce bude reálně využitelný v praxi, případně poskytne důležité poznatky pro další výzkumy na toto téma.
+
+Kapitola \ref{pleno-teo} se věnuje popisu technologie plenoptických fotografií.
+Jsou v ní vysvětleny teoretické pojmy související s plenoptickými fotografiemi, dále způsoby reprezentace a formáty pro uložení těchto dat.
+Kapitola \ref{kompres-teo} shrnuje a prezentuje existující kompresní metody, které lze využít pro kompresi plenoptických fotografií.
+V podkapitole \ref{jpeg} je podrobně popsán kompresní řetězec metody JPEG, který je dále rozvíjen v kapitole \ref{lfif-impl}.
+\todo{Popsat zbytek kapitol, až budou.}
+
 
 \chapter{Technologie plenoptických fotografií}
-Plenoptická fotografie je rozšířením klasické fotografie o možnost zachytit nejen intenzitu a vlnovou délku světla, ale také směr, ze kterého světelný paprsek přichází.
-Tato zdánlivě nepodstatná zachycená informace navíc umožňuje se zachycenou scénou pracovat tak, jak dosud s klasickými fotografiemi nebylo možné.
-Pomocí směru zachycených paprsků je možné z fotografie rekonstruovat hloubková data ve scéně.
-Tím se otevírá řada nových možností, jak se zachycenou scénou pracovat a jak ji využít.
+\label{pleno-teo}
+Pro pochopení plenoptické fotografie je nejprve nutné pochopit pojem plenoptická funkce.
+Tomuto pojmu se věnuje podkapitola \ref{pleno-fce}.
+
+
+\section{Plenoptická funkce}
+\label{pleno-fce}
+Plenoptická funkce $P(x, y, z, \theta, \phi, \lambda, t)$ určuje intenzitu světelného paprsku v každém bodě v časoprostoru $x, y, z, t$ pro každou vlnovou délku $\lambda$ a pro každý úhel $\theta, \phi$.
+Plenoptická funkce reprezentuje nejen všechno, co kdy bylo, je a bude viděno, ale také to, co by viděno být mohlo.
+
+Jelikož není možné pozorovat realitu z každého bodu v časoprostoru, slouží plenoptická funkce pouze jako idealizovaný koncept.
+Důležitost plenoptické funkce spočívá ve faktu, že svět je tvořen z objektů reálného světa, ktré své vlastnosti nepředávají jiným objektům přímo, ale pomocí světelných paprsků.
+Tyto paprsky tvoří plenoptickou funkci.
+Pozorovatel si může vzít vzorek z této funkce a na základě z něj interpretovat vlastnosti objektu.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=.4\textwidth]{obrazky-figures/plenoptic-function.pdf}
+	\caption{Ilustrace plenoptické funkce. Pro zjednodušení není brán v úvahu čas a vlnová délka světla.}
+	\label{plenoptic-function}
+\end{figure}
+
+\section{4D světelné pole}
+
 
 \section{Zachycení plenoptické fotografie}
 \begin{figure}
@@ -59,7 +107,10 @@ Plenoptická data je také možné ukládat jako point cloud\footnote{Point clou
 Tento formát již nezaznamenává paprsky světla zachycené na senzor, nýbrž rekonstruovanou trojrozměrnou scénu, kterou toto světlo reprezentuje.
 Point cloud, případně polygonová síť z point cloudu vytvořená, je vhodná pro vykreslení běžnými renderovacími algoritmy.
 
+
+
 \chapter{Principy ztrátové komprese využitelné pro plenoptická data}
+\label{kompres-teo}
 Ztrátová komprese je komprese, při které dochází k nezvratné ztrátě informací, rekonstruovaná data tedy pouze aproximují data původní.
 Výhodou dobře implementované ztrátové komprese oproti bezeztrátové kompresi je signifikantní redukce velikosti oproti zanedbatelné degradaci dat.
 Díky nedokonalosti lidských smyslů je ztrátová komprese hojně využívaná v oblasti obrazových a zvukových signálů.
@@ -69,13 +120,8 @@ U ztrátové komprese je snaha redukovat data, která mají nejmenší význam.
 Nejrozšířenějším standardem pro ztrátovou kompresi se obrazu stal formát JPEG z roku 1992.
 Tento formát je založený na diskrétní cosinově transformaci a následné kvantizaci výsledných koeficientů podle citlivosti lidského oka na jednotlivé frekvence v obrazu.
 
-\tikzstyle{block} = [draw, fill=blue!20, rectangle,
-    minimum height=3em, minimum width=6em]
-\tikzstyle{sum} = [draw, fill=blue!20, circle, node distance=1cm]
-\tikzstyle{input} = [coordinate]
-\tikzstyle{output} = [coordinate]
-\tikzstyle{pinstyle} = [pin edge={to-,thin,black}]
-
+\section{Kompresní řetězec JPEG}
+\label{jpeg}
 
 \subsubsection*{Transformace barevného prostoru}
 
@@ -158,10 +204,10 @@ Proto tato není tak často využívaná v praxi.
 Samotná amplituda není entropicky kódovaná, ale ukládá se jen na zakódovaný potřebný počet bitů.
 Záporné hodnoty amplitudy se ukládají v jedničkovém doplňku.
 
-\section{Komprese videa}
-\section{Komprese volumetrických dat}
+\chapter{Implementace kodeku plenoptických fotografií}
+\label{lfif-impl}
 
-%\chapter{Závěr}
+\chapter{Závěr}
 %\label{zaver}
 
 
