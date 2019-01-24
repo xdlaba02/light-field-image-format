@@ -331,7 +331,7 @@ void writeTraversalTable(const TraversalTable<D> &table, ofstream &output) {
 }
 
 template<size_t D>
-bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cnt, uint8_t quality, const char *output_file_name) {
+int LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cnt, uint8_t quality, const char *output_file_name) {
   size_t blocks_cnt = 1;
   size_t pixels_cnt = 1;
 
@@ -415,9 +415,13 @@ bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_c
   HuffmanCodelengths codelengths_chroma_DC = generateHuffmanCodelengths(weights_chroma_DC);
   HuffmanCodelengths codelengths_chroma_AC = generateHuffmanCodelengths(weights_chroma_AC);
 
+  size_t last_slash_pos = string(output_file_name).find_last_of('/');
+  string command("mkdir -p " + string(output_file_name).substr(0, last_slash_pos));
+  system(command.c_str());
+
   ofstream output(output_file_name);
   if (output.fail()) {
-    return false;
+    return -1;
   }
 
   char magic_number[9] = "LFIF-#D\n";
@@ -457,7 +461,7 @@ bool LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_c
 
   bitstream.flush();
 
-  return true;
+  return 0;
 }
 
 #endif

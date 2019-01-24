@@ -6,11 +6,9 @@
 #include "decompress.h"
 #include "zigzag.h"
 
-#include <iostream>
-
 #include <lfif_decoder.h>
 
-using namespace std;
+#include <iostream>
 
 RGBData zigzagDeshiftRGB(const RGBData &rgb_data, uint64_t image_count) {
   RGBData zigzag_data(rgb_data.size());
@@ -41,8 +39,21 @@ int main(int argc, char *argv[]) {
 
   RGBData rgb_data {};
 
-  if (!LFIFDecompress<3>(input_file_name, rgb_data, img_dims, image_count)) {
-    return 2;
+  int errcode = LFIFDecompress<3>(input_file_name, rgb_data, img_dims, image_count);
+
+  switch (errcode) {
+    case -1:
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << input_file_name << "\" FOR READING" << endl;
+      return 2;
+    break;
+
+    case -2:
+      cerr << "ERROR: MAGIC NUMBER MISMATCH" << endl;
+      return 2;
+    break;
+
+    default:
+    break;
   }
 
   rgb_data = zigzagDeshiftRGB(rgb_data, img_dims[2] * image_count);

@@ -6,12 +6,11 @@
 #ifndef DECOMPRESS_H
 #define DECOMPRESS_H
 
-using namespace std;
-
 #include <cstdint>
-
-#include <string>
 #include <vector>
+#include <string>
+
+using namespace std;
 
 void print_usage(const char *argv0);
 

@@ -166,17 +166,17 @@ struct convertFromBlocks<1> {
 };
 
 template<size_t D>
-bool LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img_dims[D], uint64_t &imgs_cnt) {
+int LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img_dims[D], uint64_t &imgs_cnt) {
   ifstream input(input_file_name);
   if (input.fail()) {
-    return false;
+    return -1;
   }
 
   char magic_number[9] = "LFIF-#D\n";
   magic_number[5] = D + '0';
 
   if (!checkMagicNumber(magic_number, input)) {
-    return false;
+    return -2;
   }
 
   for (size_t i = 0; i < D; i++) {
@@ -244,7 +244,7 @@ bool LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img
     decode(pairs_Cr, quant_table_chroma, traversal_table_chroma)
   );
 
-  return true;
+  return 0;
 }
 
 #endif

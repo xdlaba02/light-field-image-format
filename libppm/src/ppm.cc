@@ -7,9 +7,9 @@
 
 #include <endian.h>
 
-bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth) {
+int readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth) {
   if (!parseHeader(input, width, height, color_depth)) {
-    return false;
+    return -1;
   }
 
   size_t image_size = width * height * 3;
@@ -19,14 +19,14 @@ bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64
     rgb_data.resize(original_size + image_size);
     input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), image_size);
     if (input.fail()) {
-      return false;
+      return -2;
     }
   }
   else {
     rgb_data.resize(original_size + (2 * image_size));
     input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), 2 * image_size);
     if (input.fail()) {
-      return false;
+      return -3;
     }
     uint16_t *arr = reinterpret_cast<uint16_t *>(rgb_data.data());
     for (size_t i = 0; i < image_size; i++) {
@@ -34,10 +34,10 @@ bool readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64
     }
   }
 
-  return true;
+  return 0;
 }
 
-bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, ofstream &output) {
+int writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, ofstream &output) {
   output << "P6" << endl;
   output << width << endl;
   output << height << endl;
@@ -51,10 +51,10 @@ bool writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t
 
   output.write(reinterpret_cast<const char *>(rgb_data), image_size);
   if (output.fail()) {
-    return false;
+    return -1;
   }
 
-  return true;
+  return 0;
 }
 
 void skipUntilEol(ifstream &input) {

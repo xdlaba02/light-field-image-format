@@ -10,8 +10,6 @@
 
 #include <iostream>
 
-using namespace std;
-
 RGBData zigzagShiftRGB(const RGBData &rgb_data, uint64_t image_count) {
   RGBData zigzag_data(rgb_data.size());
 
@@ -49,15 +47,24 @@ int main(int argc, char *argv[]) {
   }
 
   if (color_depth != 255) {
-    cerr << "UNSUPPORTED COLOR DEPTH" << endl;
+    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
     return 2;
   }
 
   rgb_data = zigzagShiftRGB(rgb_data, image_count);
 
   uint64_t img_dims[] {width, height, image_count};
-  if (!LFIFCompress<3>(rgb_data, img_dims, 1, quality, output_file_name)) {
-    return 3;
+  int errcode = LFIFCompress<3>(rgb_data, img_dims, 1, quality, output_file_name);
+
+  switch (errcode) {
+    case -1:
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_name << "\" FOR WRITITNG" << endl;
+      return 3;
+    break;
+
+    default:
+      return 0;
+    break;
   }
 
   return 0;

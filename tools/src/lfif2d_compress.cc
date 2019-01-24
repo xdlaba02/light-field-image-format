@@ -9,8 +9,6 @@
 
 #include <iostream>
 
-using namespace std;
-
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
@@ -32,13 +30,22 @@ int main(int argc, char *argv[]) {
   }
 
   if (color_depth != 255) {
-    cerr << "UNSUPPORTED COLOR DEPTH" << endl;
+    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
     return 2;
   }
 
   uint64_t img_dims[] {width, height};
-  if (!LFIFCompress<2>(rgb_data, img_dims, image_count, quality, output_file_name)) {
-    return 3;
+  int errcode = LFIFCompress<2>(rgb_data, img_dims, image_count, quality, output_file_name);
+
+  switch (errcode) {
+    case -1:
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_name << "\" FOR WRITITNG" << endl;
+      return 3;
+    break;
+
+    default:
+      return 0;
+    break;
   }
 
   return 0;

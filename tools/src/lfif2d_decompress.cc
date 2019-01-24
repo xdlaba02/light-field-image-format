@@ -7,7 +7,7 @@
 
 #include <lfif_decoder.h>
 
-using namespace std;
+#include <iostream>
 
 int main(int argc, char *argv[]) {
   const char *input_file_name  {};
@@ -22,8 +22,21 @@ int main(int argc, char *argv[]) {
 
   RGBData rgb_data {};
 
-  if (!LFIFDecompress<2>(input_file_name, rgb_data, img_dims, image_count)) {
-    return 2;
+  int errcode = LFIFDecompress<2>(input_file_name, rgb_data, img_dims, image_count);
+
+  switch (errcode) {
+    case -1:
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << input_file_name << "\" FOR READING" << endl;
+      return 2;
+    break;
+
+    case -2:
+      cerr << "ERROR: MAGIC NUMBER MISMATCH" << endl;
+      return 2;
+    break;
+
+    default:
+    break;
   }
 
   if (!savePPMs(rgb_data, img_dims[0], img_dims[1], 255, image_count, output_file_mask)) {

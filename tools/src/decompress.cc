@@ -67,10 +67,14 @@ bool savePPMs(const vector<uint8_t> &rgb_data, uint64_t width, uint64_t height, 
     system(command.c_str());
     ofstream output(file_name[image]);
     if (output.fail()) {
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << file_name[image] << "\" FOR WRITING" << endl;
       return false;
     }
 
-    writePPM(rgb_data.data() + image * image_size, width, height, color_depth, output);
+    if (writePPM(rgb_data.data() + image * image_size, width, height, color_depth, output)) {
+      cerr << "ERROR: UNABLE TO WRITE PPM FILE" << endl;
+      return false;
+    }
   }
 
   return true;

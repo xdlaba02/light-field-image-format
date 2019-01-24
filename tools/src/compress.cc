@@ -13,8 +13,8 @@
 #include <iostream>
 
 void print_usage(const char *argv0) {
-  std::cerr << "Usage: " << std::endl;
-  std::cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << std::endl;
+  cerr << "Usage: " << std::endl;
+  cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << std::endl;
 }
 
 bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &quality) {
@@ -83,14 +83,14 @@ bool loadPPMs(const char *input_file_mask, vector<uint8_t> &rgb_data, uint64_t &
     uint64_t image_height      {};
     uint32_t image_color_depth {};
 
-    if (!readPPM(input, rgb_data, image_width, image_height, image_color_depth)) {
+    if (readPPM(input, rgb_data, image_width, image_height, image_color_depth)) {
       cerr << "ERROR: BAD PPM" << endl;
       return false;
     }
 
     if (width && height && color_depth) {
       if ((image_width != width) || (image_height != height) || (image_color_depth != color_depth)) {
-        cerr << "ERROR: DIMENSIONS NOT SAME" << endl;
+        cerr << "ERROR: DIMENSIONS MISMATCH" << endl;
         return false;
       }
     }
@@ -101,7 +101,7 @@ bool loadPPMs(const char *input_file_mask, vector<uint8_t> &rgb_data, uint64_t &
   }
 
   if (!image_count) {
-    cerr << "ERROR: NO IMAGE" << endl;
+    cerr << "ERROR: NO IMAGE LOADED" << endl;
     return false;
   }
 
