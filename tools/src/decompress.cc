@@ -58,9 +58,13 @@ bool savePPMs(const vector<uint8_t> &rgb_data, uint64_t width, uint64_t height, 
     image_size *= 2;
   }
 
+  size_t pos = output_file_mask.find_last_of('/');
+
   FileMask file_name(output_file_mask);
 
   for (size_t image = 0; image < image_count; image++) {
+    string command("mkdir -p " + file_name[image].substr(0, pos));
+    system(command.c_str());
     ofstream output(file_name[image]);
     if (output.fail()) {
       return false;

@@ -10,7 +10,7 @@ BINDIR = bin
 
 CC = g++
 CFLAGS = -Iinclude -I../liblfif/include -I../libppm/include -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
-LDFLAGS = -L../liblfif/bin -L../libppm/bin -llfif -lppm
+LDFLAGS = -L../liblfif/bin -L../libppm/bin -llfif -lppm -lstdc++fs
 
 CODEC = $(OBJDIR)/zigzag.o $(OBJDIR)/file_mask.o
 
