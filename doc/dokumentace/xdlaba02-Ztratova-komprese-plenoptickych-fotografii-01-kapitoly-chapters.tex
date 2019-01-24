@@ -21,7 +21,7 @@ Tato práce si klade za cíl prozkoumat další metody komprese plenoptických f
 Dále zkoumá efektivitu komprese pomocí videokodeků H.264 a H.265.
 
 Toto téma jsem si zvolil z důvodu dlouhodobého zájmu o konvenční i nekonvenční metody pro zachycení trojrozměrné scény reálného světa do digitální podoby v kombinaci se zájmem o kompresní algoritmy.
-Dále věřím, že výsledek této práce bude reálně využitelný v praxi, případně poskytne důležité poznatky pro další výzkumy na toto téma.
+Věřím, že výsledek této práce bude reálně využitelný v praxi, případně poskytne důležité poznatky pro další výzkumy na toto téma.
 
 Kapitola \ref{pleno-teo} se věnuje popisu technologie plenoptických fotografií.
 Jsou v ní vysvětleny teoretické pojmy související s plenoptickými fotografiemi, dále způsoby reprezentace a formáty pro uložení těchto dat.
@@ -66,22 +66,36 @@ Jelikož je funkce definovaná v každém bodě v časoprostoru, lze pomocí ní
 Všechno, co kdy bylo, je a bude viděno.
 Naneštěstí toto není v reálném světě možné, proto slouží plenoptická funkce pouze jako idealizovaný koncept.
 
-Tento koncept má však spoustu reálných uplatnění. Příkladem může být třeba první černobílá fotografie zachycená pomocí dírkové komory.
+Tento koncept má však spoustu reálných uplatnění. Příkladem může být třeba první monochromatická fotografie zachycená pomocí dírkové komory.
 Tuto fotografii lze definovat jako plenoptickou funkci integrovanou přes viditelné spektrum světla se souřadnicemi ve středu otvoru dírkové komory v čase pořízení a v určitém rozsahu úhlů $\theta, \phi$.
 Tyto úhly si lze volně představit jako vertikální a horizontální souřadnice na výsledné fotografii.
-Černobílá fotografie je proto dvourozměrná funkce $F(\theta, \phi)$.
+Fotografie ve stupních šedi je proto dvourozměrná funkce $F(\theta, \phi)$.
 
-Podobně lze definovat barevnou fotografii jako trojrozměrnou funkci $F(\theta, \phi, \lambda)$, kde oproti černobílé fotografii není přes vlnovou délku integrováno.
+Podobně lze definovat barevnou fotografii jako trojrozměrnou funkci $F(\theta, \phi, \lambda)$, kde oproti monochromatické fotografii není přes vlnovou délku integrováno.
 $\lambda$ se tak stává třetím parametrem.
 Pokud je k funkci dvourozměrné barevné fotografie přidán parametr $t$, který reprezentuje čas, vznikne čtyřrozměrná funkce $F(\theta, \phi, \lambda, t)$, která reprezentuje video.
 Dalším příkladem může být funkce $F(x, y, z, \theta, \phi, \lambda)$ která není parametrizována časem, ale prostorovými souřadnicemi $x, y, z$.
 Tato funkce je kompletní holografickou reprezentací zachycené scény v daném čase.
 
 Důležitost plenoptické funkce proto spočívá v tom, že pomocí jejich řezů lze definovat různé reprezentace zachycené scény.
-Jedním z těchto řezů je také 4D světelné pole.
+Jedním z těchto řezů je také 4D světelné pole, kterému se věnuje následující podkapitola.
 
 \section{4D světelné pole}
 \label{4D-light-field}
+Čtyřrozměrné světelné pole je jedním z mnoha řezů plneoptické funkce.
+Tento řez je definován funkcí $F(x, y, \theta, \phi, \lambda)$.
+Pozorný čtenář si všimne, že funkce má o jeden rozměr víc, než deklaruje její název.
+Jde o vlnovou délku $\lambda$.
+Ačkoli se v praxi s barevnými kanály pracuje, v literatuře se pro zjednodušení zanedbává, protože se světelným polem přímo nesouvisí.
+Toto zjednodušení je zavedeno i ve zbytku této kapitoly, světelné pole je tedy definováno funkcí $F(x, y, \theta, \phi)$.
+
+Vychází se z předpokladu, že světelné paprsky putující prostorem obvykle nemění svůj směr.
+Tím pádem vzniká v plenoptické funkci redundance, protože jeden světelný paprsek se promítne do všech bodů v prostoru $x, y, z$, skrz které tento paprsek prochází.
+Tato redundance je podrobněji vykreslena na obrázku \ref{redundance}.
+Světelné pole oproti tomu zachycuje paprsek právě jednou, a to v bodě, kde se tento paprsek setkává s rovinou $x, y$.
+To demonstruje obrázek \ref{neredundance}.
+
+Čtyřrozmerné světelné pole tedy obsahuje kompletní reprezentaci statické scény pozorované z jedné roviny v prostoru a slouží jako formální aparát pro plenoptické fotografie.
 
 \section{Zachycení plenoptické fotografie}
 \label{light-field-capture}
