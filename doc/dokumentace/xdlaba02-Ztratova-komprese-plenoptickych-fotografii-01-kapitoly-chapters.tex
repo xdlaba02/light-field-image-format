@@ -26,38 +26,66 @@ Dále věřím, že výsledek této práce bude reálně využitelný v praxi, p
 Kapitola \ref{pleno-teo} se věnuje popisu technologie plenoptických fotografií.
 Jsou v ní vysvětleny teoretické pojmy související s plenoptickými fotografiemi, dále způsoby reprezentace a formáty pro uložení těchto dat.
 Kapitola \ref{kompres-teo} shrnuje a prezentuje existující kompresní metody, které lze využít pro kompresi plenoptických fotografií.
-V podkapitole \ref{jpeg} je podrobně popsán kompresní řetězec metody JPEG, který je dále rozvíjen v kapitole \ref{lfif-impl}.
+V podkapitole \ref{jpeg} je podrobně popsán kompresní řetězec metody JPEG, na kterém je založeno rozšíření řešené v této práci.
+Tomuto rozšíření se věnuje kapitola \ref{lfif-impl}.
 \todo{Popsat zbytek kapitol, až budou.}
+
 
 
 \chapter{Technologie plenoptických fotografií}
 \label{pleno-teo}
-Pro pochopení plenoptické fotografie je nejprve nutné pochopit pojem plenoptická funkce.
-Tomuto pojmu se věnuje podkapitola \ref{pleno-fce}.
-
+Tato kapitola podrobně popisuje vše, co stojí za pojmem \textit{plenoptická fotografie}.
+Plenoptické funkci se věnuje podkapitola \ref{pleno-fce}.
+Tato funkce slouží jako formální základ plenoptické fotografie a na jejím pochopení jsou závislé další pojmy.
+V podkapitole \ref{4D-light-field} je popsán pojem \textit{4D světelné pole}.
+Jde o jeden z řezů plenoptické funkce, se kterým plenoptická fotografie přímo pracuje.
+Podkapitola \ref{light-field-capture} popisuje možnosti a technologie pro zachycení plenoptické fotografie.
+Poslední podkapitola \ref{light-field-formats} se věnuje přehledu formátů pro uložení plenoptických dat.
 
 \section{Plenoptická funkce}
 \label{pleno-fce}
-Plenoptická funkce $P(x, y, z, \theta, \phi, \lambda, t)$ určuje intenzitu světelného paprsku v každém bodě v časoprostoru $x, y, z, t$ pro každou vlnovou délku $\lambda$ a pro každý úhel $\theta, \phi$.
-Plenoptická funkce reprezentuje nejen všechno, co kdy bylo, je a bude viděno, ale také to, co by viděno být mohlo.
+Plenoptická funkce je sedmirozměrná funkce určující intenzitu světla v každém bodě v časoprostoru pro každý úhel paprsku a pro každou vlnovou délku.
+Některé zdroje tuto funkci často zjednodušují na pět rozměrů, zanedbávaje čas a vlnovou délku světla.
+Toto je ilustrováno na obrázku \ref{plenoptic-function}.
 
-Jelikož není možné pozorovat realitu z každého bodu v časoprostoru, slouží plenoptická funkce pouze jako idealizovaný koncept.
-Důležitost plenoptické funkce spočívá ve faktu, že svět je tvořen z objektů reálného světa, ktré své vlastnosti nepředávají jiným objektům přímo, ale pomocí světelných paprsků.
-Tyto paprsky tvoří plenoptickou funkci.
-Pozorovatel si může vzít vzorek z této funkce a na základě z něj interpretovat vlastnosti objektu.
-
-\begin{figure}
+\begin{figure}[h]
   \centering
   \includegraphics[width=.4\textwidth]{obrazky-figures/plenoptic-function.pdf}
 	\caption{Ilustrace plenoptické funkce. Pro zjednodušení není brán v úvahu čas a vlnová délka světla.}
 	\label{plenoptic-function}
 \end{figure}
 
-\section{4D světelné pole}
+Formálně lze plenoptickou funkci definovat jako $P(x, y, z, \theta, \phi, \lambda, t)$, kde
+\begin{itemize}
+  \item $x, y, z, t$ jsou časoprostorové souřadnice,
+  \item $\theta, \phi$ definují prostorový úhel světelného paprsku,
+  \item $\lambda$ je vlnová délka světelného paprsku.
+\end{itemize}
 
+Jelikož je funkce definovaná v každém bodě v časoprostoru, lze pomocí ní vyjádřit každou scénu, každou fotografii a každý film.
+Všechno, co kdy bylo, je a bude viděno.
+Naneštěstí toto není v reálném světě možné, proto slouží plenoptická funkce pouze jako idealizovaný koncept.
+
+Tento koncept má však spoustu reálných uplatnění. Příkladem může být třeba první černobílá fotografie zachycená pomocí dírkové komory.
+Tuto fotografii lze definovat jako plenoptickou funkci integrovanou přes viditelné spektrum světla se souřadnicemi ve středu otvoru dírkové komory v čase pořízení a v určitém rozsahu úhlů $\theta, \phi$.
+Tyto úhly si lze volně představit jako vertikální a horizontální souřadnice na výsledné fotografii.
+Černobílá fotografie je proto dvourozměrná funkce $F(\theta, \phi)$.
+
+Podobně lze definovat barevnou fotografii jako trojrozměrnou funkci $F(\theta, \phi, \lambda)$, kde oproti černobílé fotografii není přes vlnovou délku integrováno.
+$\lambda$ se tak stává třetím parametrem.
+Pokud je k funkci dvourozměrné barevné fotografie přidán parametr $t$, který reprezentuje čas, vznikne čtyřrozměrná funkce $F(\theta, \phi, \lambda, t)$, která reprezentuje video.
+Dalším příkladem může být funkce $F(x, y, z, \theta, \phi, \lambda)$ která není parametrizována časem, ale prostorovými souřadnicemi $x, y, z$.
+Tato funkce je kompletní holografickou reprezentací zachycené scény v daném čase.
+
+Důležitost plenoptické funkce proto spočívá v tom, že pomocí jejich řezů lze definovat různé reprezentace zachycené scény.
+Jedním z těchto řezů je také 4D světelné pole.
+
+\section{4D světelné pole}
+\label{4D-light-field}
 
 \section{Zachycení plenoptické fotografie}
-\begin{figure}
+\label{light-field-capture}
+\begin{figure}[h]
   \centering
   \includegraphics[width=.4\textwidth]{obrazky-figures/stanford-array.jpg}
 	\caption{Pole fotoaparátů sestrojené na univerzitě Stanford \cite{stanford}.}
@@ -86,6 +114,7 @@ Této jednotce se říká makropixel.
 \end{figure}
 
 \section{Formáty pro uložení plenoptických dat}
+\label{light-field-formats}
 Plenoptická data můžou mít různé formáty a každý formát je vhodný pro jiné využití.
 Na jednu stranu je potřeba s těmito daty pracovat rychle a efektivně, na stranu druhou se musí řešit paměťové nároky na uložení těchto dat a s tím související komprese.
 
