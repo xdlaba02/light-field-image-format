@@ -19,3 +19,5 @@ callgrind*
 *.out
 *.nav
 *.snm
+!doc/dokumentace/obrazky-figures/*
+!doc/dokumentace/template-fig/*
