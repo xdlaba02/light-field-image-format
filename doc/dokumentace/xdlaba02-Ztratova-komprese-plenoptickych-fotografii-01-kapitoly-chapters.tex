@@ -112,13 +112,24 @@ To demonstruje obrázek \ref{neredundance}.
 Čtyřrozmerné světelné pole tedy obsahuje kompletní reprezentaci statické scény pozorované z roviny v prostoru a slouží jako formální aparát pro plenoptické fotografie.
 
 \section{Zachycení plenoptické fotografie}
-\label{light-field-capture}
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=.4\textwidth]{obrazky-figures/stanford-array.jpg}
-	\caption{Pole fotoaparátů sestrojené na univerzitě Stanford \cite{stanford}.}
-	\label{stanfordArray}
-\end{figure}
+V předchozích podkapitolách jsou popsány řezy plenoptické funkce a jejich souvislost s metodami zachycení scény.
+Příkladem je třeba barevná fotografie, kterou lze definovat funkcí $F(\theta, \phi, \lambda)$, kde $\theta, \phi$ jsou prostorové úhly a $\lambda$ je vlnová délka světla.
+Jelikož je reálný svět spojitý, je spojitá i plenoptická funkce.
+Pokud tedy vychází definice barevné fotografie z plenoptické funkce, znamenalo by to, že scéna je zachycena pro každý úhel pohledu s nekonečnou přesností.
+
+Většina (běžných) fotoaparátů nedokáže vyfotografovat kompletní panormatickou reprezentaci scény, je proto možné funkci zachytit pouze pro určité intervaly hodnot úhlů $\theta, \phi$.
+Stejný princip se aplikuje i na další rozměry plenoptické funkce.
+Na běžné fotografii není například nutné zachytávat elektromagnetické vlnění mimo viditelné spektrum.
+Pro různé profesionální účely naopak můžou existovat kamery, které zachytávají vlnění i mimo viditelné spektrum.
+
+Zároveň není v dnešní době možné dosáhnout nekonečné přesnosti zachycení, funkci je proto pro zachycení potřeba vhodně \textit{vzorkovat}.
+Opět platí, že pro každý rozměr plnoptické funkce a pro různé účely zachycení se vzorkování liší.
+U běžné fotografie každý ocení vysoké rozlišení (jemné vzorkování úhlů $\theta, \phi$), u videa je navíc důležitá snímková frekvence (vzorkování času $t$).
+Oproti tomu vlnovou délku světla lze často pro lidské oko agregovat poze do trojice hodnot reprezentující červenou, zelenou a modrou barevnou složku (R, G, B).
+
+Všechny tyto parametry jsou dány výrobcem fotoaparátu, objektivu či jiného zachycujícího zařízení.
+Stejná pravidla se aplikují i na plenoptické fotografie.
+
 
 Nejjednoduším způsobem zachycení plenoptické fotografie je pole klasických dvourozměrných fotoaparátů, které jsou rovnoměrně rozloženy v rovině.
 Na obrázku \ref{stanfordArray} je možné vidět, jak takové pole vypadá.
@@ -127,6 +138,14 @@ Fotografie zachycená jedním fotoaparátem reprezentuje jeden snímek plenoptic
 Index pohledu je dán indexem fotoaparátu, který tento pohled vyfotografoval.
 Z pole snímků lze vypočítat hloubková data.
 
+\label{light-field-capture}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=.4\textwidth]{obrazky-figures/stanford-array.jpg}
+	\caption{Pole fotoaparátů sestrojené na univerzitě Stanford \cite{stanford}.}
+	\label{stanfordArray}
+\end{figure}
+
 Komplikovanější variantou může být specializovaný plenoptický fotoaparát.
 Oproti klasickému fotoaparátu se liší tím, že má před světlocitlivým senzorem pole mikročoček.
 Paprsek světla přicházející do fotoaparátu je nejprve hlavní čočkou soustředěn do pole mikročoek, které jej podle úhlu dopadu rozptýlí na světlocitlivý senzor.
@@ -134,7 +153,7 @@ Tento princip je vyobrazen na obrázku \ref{plenoPrincip}.
 Každá mikročočka zachytává jeden pixel scény z více pohledů.
 Této jednotce se říká makropixel.
 
-\begin{figure}
+\begin{figure}[h]
 	\centering
 		\includegraphics[width=.4\textwidth]{obrazky-figures/pleno-cam.pdf}
 		\caption{Princip plenoptického fotoaparátu. Paprsky směřující do fotoaparátu jsou před zachycením na světlocitlivý senzor rozptýleny polem mikročoček.}
