@@ -45,8 +45,10 @@ struct HuffmanTable {
 };
 
 using RGBData = vector<uint8_t>;
+using YCbCrData = vector<YCbCrDataUnit>;
 
 using RunLengthEncodedBlock = vector<RunLengthPair>;
+using RunLengthEncodedImage = vector<RunLengthEncodedBlock>;
 
 using HuffmanCodeword = vector<bool>;
 using HuffmanWeights = map<HuffmanSymbol, uint64_t>;

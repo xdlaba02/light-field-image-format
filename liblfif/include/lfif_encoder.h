@@ -10,6 +10,8 @@
 #include "dct.h"
 #include "bitstream.h"
 
+#include <iostream>
+
 void huffmanAddWeightAC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
 void huffmanAddWeightDC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
 
@@ -387,6 +389,13 @@ int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t i
 
   traversal_table_luma   = constructTraversalTableByReference<D>(reference_block_luma);
   traversal_table_chroma = constructTraversalTableByReference<D>(reference_block_chroma);
+
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 8; x++) {
+      cerr << traversal_table_luma[y*8+x] << ", ";
+    }
+    cerr << endl;
+  }
 
   prev_Y  = 0;
   prev_Cb = 0;
