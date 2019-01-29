@@ -10,8 +10,6 @@
 #include "dct.h"
 #include "bitstream.h"
 
-#include <iostream>
-
 void huffmanAddWeightAC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
 void huffmanAddWeightDC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
 
@@ -297,6 +295,7 @@ inline RunLengthEncodedBlock runLenghtEncodeBlock(const TraversedBlock<D> &input
 
 template<size_t D>
 void writeQuantTable(const QuantTable<D> &table, ofstream &output) {
+
   output.write(reinterpret_cast<const char *>(table.data()), table.size() * sizeof(QuantTable<0>::value_type));
 }
 
@@ -338,14 +337,6 @@ int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t i
   HuffmanMap huffmap_chroma_DC {};
   HuffmanMap huffmap_chroma_AC {};
 
-  blocks_cnt = 1;
-  pixels_cnt = 1;
-
-  for (size_t i = 0; i < D; i++) {
-    blocks_cnt *= ceil(img_dims[i]/8.);
-    pixels_cnt *= img_dims[i];
-  }
-
   auto blockAt = [&](size_t img, size_t block) {
     RGBDataBlock<D> output {};
 
@@ -369,6 +360,14 @@ int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t i
 
     return input;
   };
+
+  blocks_cnt = 1;
+  pixels_cnt = 1;
+
+  for (size_t i = 0; i < D; i++) {
+    blocks_cnt *= ceil(img_dims[i]/8.);
+    pixels_cnt *= img_dims[i];
+  }
 
   quant_table_luma   = scaleQuantTable<D>(baseQuantTableLuma<D>(), quality);
   quant_table_chroma = scaleQuantTable<D>(baseQuantTableChroma<D>(), quality);

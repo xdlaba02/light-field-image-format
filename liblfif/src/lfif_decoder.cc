@@ -37,13 +37,18 @@ HuffmanTable readHuffmanTable(ifstream &stream) {
   return table;
 }
 
-void decodeOneBlock(RunLengthEncodedBlock &pairs, const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream) {
-  RunLengthPair pair = decodeOnePair(hufftable_DC, bitstream);
-  pairs.push_back(pair);
+RunLengthEncodedBlock decodeOneBlock(const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream) {
+  RunLengthEncodedBlock output {};
+
+  RunLengthPair pair {};
+
+  output.push_back(decodeOnePair(hufftable_DC, bitstream));
   do {
     pair = decodeOnePair(hufftable_AC, bitstream);
-    pairs.push_back(pair);
+    output.push_back(pair);
   } while((pair.zeroes != 0) || (pair.amplitude != 0));
+
+  return output;
 }
 
 RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream) {
@@ -90,38 +95,4 @@ RunLengthAmplitudeUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stre
   }
 
   return amplitude;
-}
-
-RunLengthEncodedImage diffDecodePairs(RunLengthEncodedImage runlengths) {
-  RunLengthAmplitudeUnit prev_DC = 0;
-
-  for (auto &runlength_block: runlengths) {
-    runlength_block[0].amplitude += prev_DC;
-    prev_DC = runlength_block[0].amplitude;
-  }
-
-  return runlengths;
-}
-
-YCbCrData deshiftData(YCbCrData data) {
-  for (auto &pixel: data) {
-    pixel += 128;
-  }
-  return data;
-}
-
-RGBData YCbCrToRGB(const YCbCrData &Y_data, const YCbCrData &Cb_data, const YCbCrData &Cr_data) {
-  RGBData rgb_data(Y_data.size() * 3);
-
-  for (size_t pixel_index = 0; pixel_index < Y_data.size(); pixel_index++) {
-    YCbCrDataUnit Y  = Y_data[pixel_index];
-    YCbCrDataUnit Cb = Cb_data[pixel_index] - 128;
-    YCbCrDataUnit Cr = Cr_data[pixel_index] - 128;
-
-    rgb_data[3*pixel_index + 0] = clamp(Y +                      (1.402 * Cr), 0.0, 255.0);
-    rgb_data[3*pixel_index + 1] = clamp(Y - (0.344136 * Cb) - (0.714136 * Cr), 0.0, 255.0);
-    rgb_data[3*pixel_index + 2] = clamp(Y + (1.772    * Cb)                  , 0.0, 255.0);
-  }
-
-  return rgb_data;
 }

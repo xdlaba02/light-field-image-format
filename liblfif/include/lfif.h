@@ -45,15 +45,13 @@ struct HuffmanTable {
 };
 
 using RGBData = vector<uint8_t>;
-using YCbCrData = vector<YCbCrDataUnit>;
-
-using RunLengthEncodedBlock = vector<RunLengthPair>;
-using RunLengthEncodedImage = vector<RunLengthEncodedBlock>;
 
 using HuffmanCodeword = vector<bool>;
 using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
 using HuffmanCodelengths = vector<pair<uint64_t, uint8_t>>;
 using HuffmanMap = map<uint8_t, HuffmanCodeword>;
+
+using RunLengthEncodedBlock = vector<RunLengthPair>;
 
 template<typename T, uint8_t D>
 using Block = array<T, static_cast<size_t>(constpow(8, D))>;

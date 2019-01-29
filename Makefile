@@ -13,7 +13,7 @@ liblfif:
 libppm:
 	cd libppm && make
 
-tools:
+tools: liblfif libppm
 	cd tools && make
 
 clean:
