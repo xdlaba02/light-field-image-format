@@ -192,7 +192,7 @@ inline QuantizedBlock<D> quantizeBlock(const TransformedBlock<D> &input, const Q
 template<size_t D>
 void addToReference(const QuantizedBlock<D>& block, RefereceBlock<D>& ref) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    ref[i] += block[i];
+    ref[i] += abs(block[i]);
   }
 }
 
@@ -389,13 +389,6 @@ int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t i
 
   traversal_table_luma   = constructTraversalTableByReference<D>(reference_block_luma);
   traversal_table_chroma = constructTraversalTableByReference<D>(reference_block_chroma);
-
-  for (size_t y = 0; y < 8; y++) {
-    for (size_t x = 0; x < 8; x++) {
-      cerr << traversal_table_luma[y*8+x] << ", ";
-    }
-    cerr << endl;
-  }
 
   prev_Y  = 0;
   prev_Cb = 0;
