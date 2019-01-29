@@ -10,12 +10,8 @@
 #include "dct.h"
 #include "bitstream.h"
 
-YCbCrData shiftData(YCbCrData data);
-
-void huffmanGetWeightsAC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights);
-void huffmanGetWeightsDC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights);
-
-RunLengthEncodedImage diffEncodePairs(RunLengthEncodedImage runlengths);
+void huffmanAddWeightAC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
+void huffmanAddWeightDC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
 
 HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights);
 HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths);
@@ -41,23 +37,6 @@ inline YCbCrDataUnit RGBtoCb(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
 
 inline YCbCrDataUnit RGBtoCr(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
   return 128 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
-}
-
-template <typename F>
-inline YCbCrData convertRGB(const RGBData &rgb_data, F &&function) {
-  size_t pixels_cnt = rgb_data.size()/3;
-
-  YCbCrData data(pixels_cnt);
-
-  for (size_t pixel_index = 0; pixel_index < pixels_cnt; pixel_index++) {
-    RGBDataUnit R = rgb_data[3*pixel_index + 0];
-    RGBDataUnit G = rgb_data[3*pixel_index + 1];
-    RGBDataUnit B = rgb_data[3*pixel_index + 2];
-
-    data[pixel_index] = function(R, G, B);
-  }
-
-  return data;
 }
 
 template<size_t D>
@@ -116,9 +95,9 @@ inline QuantTable<D> scaleQuantTable(QuantTable<D> quant_table, const uint8_t qu
 }
 
 template<size_t D>
-struct convertToBlocks {
+struct getBlock {
   template <typename IF, typename OF>
-  convertToBlocks(IF &&input, const size_t dims[D], OF &&output) {
+  getBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
     size_t blocks_x = 1;
     size_t size_x   = 1;
 
@@ -127,87 +106,91 @@ struct convertToBlocks {
       size_x *= dims[i];
     }
 
-    size_t blocks = ceil(dims[D-1]/8.0);
+    for (size_t pixel = 0; pixel < 8; pixel++) {
+      size_t image_y = (block / blocks_x) * 8 + pixel;
 
-    for (size_t block = 0; block < blocks; block++) {
-      for (size_t pixel = 0; pixel < 8; pixel++) {
-        size_t image = block * 8 + pixel;
-
-        if (image >= dims[D-1]) {
-          image = dims[D-1] - 1;
-        }
-
-        auto inputF = [&](size_t image_index){
-          return input(image * size_x + image_index);
-        };
-
-        auto outputF = [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{
-          return output((block * blocks_x) + block_index, (pixel * constpow(8, D-1)) + pixel_index);
-        };
-
-        convertToBlocks<D-1>(inputF, dims, outputF);
+      if (image_y >= dims[D-1]) {
+        image_y = dims[D-1] - 1;
       }
+
+      auto inputF = [&](size_t image_index){
+        return input(image_y * size_x * 3 + image_index);
+      };
+
+      auto outputF = [&](size_t pixel_index) -> RGBDataPixel &{
+        return output(pixel * constpow(8, D-1) + pixel_index);
+      };
+
+      getBlock<D-1>(inputF, block % blocks_x, dims, outputF);
     }
   }
 };
 
 template<>
-struct convertToBlocks<1> {
+struct getBlock<1> {
   template <typename IF, typename OF>
-  convertToBlocks(IF &&input, const size_t dims[1], OF &&output) {
-    size_t blocks = ceil(dims[0]/8.0);
+  getBlock(IF &&input, const size_t block, const size_t dims[1], OF &&output) {
+    for (size_t pixel = 0; pixel < 8; pixel++) {
+      size_t image = block * 8 + pixel;
 
-    for (size_t block = 0; block < blocks; block++) {
-      for (size_t pixel = 0; pixel < 8; pixel++) {
-        size_t image = block * 8 + pixel;
-
-        if (image >= dims[0]) {
-          image = dims[0] - 1;
-        }
-
-        output(block, pixel) = input(image);
+      if (image >= dims[0]) {
+        image = dims[0] - 1;
       }
+
+      output(pixel).r = input(image * 3 + 0);
+      output(pixel).g = input(image * 3 + 1);
+      output(pixel).b = input(image * 3 + 2);
     }
   }
 };
 
 template<size_t D>
-vector<TransformedBlock<D>> transformBlocks(const vector<YCbCrDataBlock<D>> &blocks) {
-  vector<TransformedBlock<D>> blocks_transformed(blocks.size());
+inline YCbCrDataBlock<D> convertRGBDataBlock(const RGBDataBlock<D> &input, function<YCbCrDataUnit(RGBDataUnit, RGBDataUnit, RGBDataUnit)> &&f) {
+  YCbCrDataBlock<D> output {};
 
-  auto dct = [](const YCbCrDataBlock<D> &block, TransformedBlock<D> &block_transformed){
-    fdct<D>([&](size_t index) -> DCTDataUnit { return block[index];}, [&](size_t index) -> DCTDataUnit & { return block_transformed[index]; });
-  };
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    RGBDataUnit R = input[i].r;
+    RGBDataUnit G = input[i].g;
+    RGBDataUnit B = input[i].b;
 
-  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
-    dct(blocks[block_index], blocks_transformed[block_index]);
+    output[i] = f(R, G, B);
   }
 
-  return blocks_transformed;
+  return output;
 }
 
 template<size_t D>
-inline vector<QuantizedBlock<D>> quantizeBlocks(const vector<TransformedBlock<D>> &blocks, const QuantTable<D> &quant_table) {
-  vector<QuantizedBlock<D>> blocks_quantized(blocks.size());
-
-  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const TransformedBlock<D> &block            = blocks[block_index];
-    QuantizedBlock<D>         &block_quantized  = blocks_quantized[block_index];
-
-    for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_quantized[pixel_index] = block[pixel_index] / quant_table[pixel_index];
-    }
+inline YCbCrDataBlock<D> shiftBlock(YCbCrDataBlock<D> input) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    input[i] -= 128;
   }
-
-  return blocks_quantized;
+  return input;
 }
 
 template<size_t D>
-inline void getReference(const vector<QuantizedBlock<D>> &blocks, RefereceBlock<D> &ref_block) {
-  for (auto &block: blocks) {
-    for (size_t i = 0; i < constpow(8, D); i++) {
-      ref_block[i] += abs(block[i]);
-    }
+inline TransformedBlock<D> transformBlock(const YCbCrDataBlock<D> &input) {
+  TransformedBlock<D> output {};
+
+  fdct<D>([&](size_t index) -> DCTDataUnit { return input[index];}, [&](size_t index) -> DCTDataUnit & { return output[index]; });
+
+  return output;
+}
+
+template<size_t D>
+inline QuantizedBlock<D> quantizeBlock(const TransformedBlock<D> &input, const QuantTable<D> &quant_table) {
+  QuantizedBlock<D> output;
+
+  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
+    output[pixel_index] = input[pixel_index] / quant_table[pixel_index];
+  }
+
+  return output;
+}
+
+template<size_t D>
+void addToReference(const QuantizedBlock<D>& block, RefereceBlock<D>& ref) {
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    ref[i] += block[i];
   }
 }
 
@@ -274,50 +257,40 @@ inline TraversalTable<D> constructTraversalTableByDiagonals() {
 }
 
 template<size_t D>
-inline vector<TraversedBlock<D>> traverseBlocks(const vector<QuantizedBlock<D>> &blocks, const TraversalTable<D> &traversal_table) {
-  vector<TraversedBlock<D>> blocks_traversed(blocks.size());
+inline TraversedBlock<D> traverseBlock(const QuantizedBlock<D> &input, const TraversalTable<D> &traversal_table) {
+  TraversedBlock<D> output {};
 
-  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const QuantizedBlock<D> &block          = blocks[block_index];
-    TraversedBlock<D>       &block_traversed = blocks_traversed[block_index];
-
-    for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-      block_traversed[traversal_table[pixel_index]] = block[pixel_index];
-    }
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    output[traversal_table[i]] = input[i];
   }
 
-  return blocks_traversed;
+  return output;
 }
 
 template<size_t D>
-inline RunLengthEncodedImage runLenghtEncodeBlocks(const vector<TraversedBlock<D>> &blocks) {
-  RunLengthEncodedImage runlengths(blocks.size());
+inline RunLengthEncodedBlock runLenghtEncodeBlock(const TraversedBlock<D> &input) {
+  RunLengthEncodedBlock output {};
 
-  for (size_t block_index = 0; block_index < blocks.size(); block_index++) {
-    const TraversedBlock<D>  &block     = blocks[block_index];
-    RunLengthEncodedBlock &runlength = runlengths[block_index];
+  output.push_back({0, static_cast<RunLengthAmplitudeUnit>(input[0])});
 
-    runlength.push_back({0, static_cast<RunLengthAmplitudeUnit>(block[0])});
-
-    size_t zeroes = 0;
-    for (size_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
-      if (block[pixel_index] == 0) {
-        zeroes++;
-      }
-      else {
-        while (zeroes >= 16) {
-          runlength.push_back({15, 0});
-          zeroes -= 16;
-        }
-        runlength.push_back({static_cast<RunLengthZeroesCountUnit>(zeroes), block[pixel_index]});
-        zeroes = 0;
-      }
+  size_t zeroes = 0;
+  for (size_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
+    if (input[pixel_index] == 0) {
+      zeroes++;
     }
-
-    runlength.push_back({0, 0});
+    else {
+      while (zeroes >= 16) {
+        output.push_back({15, 0});
+        zeroes -= 16;
+      }
+      output.push_back({static_cast<RunLengthZeroesCountUnit>(zeroes), input[pixel_index]});
+      zeroes = 0;
+    }
   }
 
-  return runlengths;
+  output.push_back({0, 0});
+
+  return output;
 }
 
 template<size_t D>
@@ -331,89 +304,120 @@ void writeTraversalTable(const TraversalTable<D> &table, ofstream &output) {
 }
 
 template<size_t D>
-int LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cnt, uint8_t quality, const char *output_file_name) {
-  size_t blocks_cnt = 1;
-  size_t pixels_cnt = 1;
+int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cnt, uint8_t quality, const char *output_file_name) {
+  size_t blocks_cnt {};
+  size_t pixels_cnt {};
+
+  QuantTable<D> quant_table_luma   {};
+  QuantTable<D> quant_table_chroma {};
+
+  RefereceBlock<D> reference_block_luma   {};
+  RefereceBlock<D> reference_block_chroma {};
+
+  TraversalTable<D> traversal_table_luma   {};
+  TraversalTable<D> traversal_table_chroma {};
+
+  HuffmanWeights weights_luma_AC   {};
+  HuffmanWeights weights_luma_DC   {};
+  HuffmanWeights weights_chroma_AC {};
+  HuffmanWeights weights_chroma_DC {};
+
+  HuffmanCodelengths codelengths_luma_DC   {};
+  HuffmanCodelengths codelengths_luma_AC   {};
+  HuffmanCodelengths codelengths_chroma_DC {};
+  HuffmanCodelengths codelengths_chroma_AC {};
+
+  RunLengthAmplitudeUnit prev_Y  {};
+  RunLengthAmplitudeUnit prev_Cb {};
+  RunLengthAmplitudeUnit prev_Cr {};
+
+  HuffmanMap huffmap_luma_DC   {};
+  HuffmanMap huffmap_luma_AC   {};
+  HuffmanMap huffmap_chroma_DC {};
+  HuffmanMap huffmap_chroma_AC {};
+
+  blocks_cnt = 1;
+  pixels_cnt = 1;
 
   for (size_t i = 0; i < D; i++) {
     blocks_cnt *= ceil(img_dims[i]/8.);
     pixels_cnt *= img_dims[i];
   }
 
-  auto blockize = [&](const YCbCrData &input) {
-    vector<YCbCrDataBlock<D>> output(blocks_cnt * imgs_cnt);
+  auto blockAt = [&](size_t img, size_t block) {
+    RGBDataBlock<D> output {};
 
-    for (size_t i = 0; i < imgs_cnt; i++) {
-      auto inputF = [&](size_t index) {
-        return input[i * pixels_cnt + index];
-      };
+    auto inputF = [&](size_t index) {
+      return rgb_data[img * pixels_cnt * 3 + index];
+    };
 
-      auto outputF = [&](size_t block_index, size_t pixel_index) -> YCbCrDataUnit &{
-        return output[i * blocks_cnt + block_index][pixel_index];
-      };
+    auto outputF = [&](size_t index) -> RGBDataPixel &{
+      return output[index];
+    };
 
-      convertToBlocks<D>(inputF, img_dims, outputF);
-    }
+    getBlock<D>(inputF, block, img_dims, outputF);
 
     return output;
   };
 
-  QuantTable<D> quant_table_luma = scaleQuantTable<D>(baseQuantTableLuma<D>(), quality);
-  QuantTable<D> quant_table_chroma = scaleQuantTable<D>(baseQuantTableChroma<D>(), quality);
+  auto diffEncodeBlock = [&](RunLengthEncodedBlock input, RunLengthAmplitudeUnit &prev) {
+    RunLengthAmplitudeUnit curr = input[0].amplitude;
+    input[0].amplitude -= prev;
+    prev = curr;
 
-  vector<QuantizedBlock<D>> quantized_Y  = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoY)))), quant_table_luma);
-  vector<QuantizedBlock<D>> quantized_Cb = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCb)))), quant_table_chroma);
-  vector<QuantizedBlock<D>> quantized_Cr = quantizeBlocks<D>(transformBlocks<D>(blockize(shiftData(convertRGB(rgb_data, RGBtoCr)))), quant_table_chroma);
+    return input;
+  };
 
-  /********************************************\
-  * Free unused RGB Buffer
-  \********************************************/
-  RGBData().swap(rgb_data);
+  quant_table_luma   = scaleQuantTable<D>(baseQuantTableLuma<D>(), quality);
+  quant_table_chroma = scaleQuantTable<D>(baseQuantTableChroma<D>(), quality);
 
-  /********************************************\
-  * Construt traversal table by reference block
-  \********************************************/
-  RefereceBlock<D> reference_block_luma {};
-  RefereceBlock<D> reference_block_chroma {};
+  for (size_t img = 0; img < imgs_cnt; img++) {
+    for (size_t block = 0; block < blocks_cnt; block++) {
+      RGBDataBlock<D> rgb_block = blockAt(img, block);
 
-  getReference<D>(quantized_Y,  reference_block_luma);
+      QuantizedBlock<D> quantized_Y  = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoY))),  quant_table_luma);
+      QuantizedBlock<D> quantized_Cb = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCb))), quant_table_chroma);
+      QuantizedBlock<D> quantized_Cr = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCr))), quant_table_chroma);
 
-  getReference<D>(quantized_Cb, reference_block_chroma);
-  getReference<D>(quantized_Cr, reference_block_chroma);
+      addToReference<D>(quantized_Y,  reference_block_luma);
+      addToReference<D>(quantized_Cb, reference_block_chroma);
+      addToReference<D>(quantized_Cr, reference_block_chroma);
+    }
+  }
 
-  TraversalTable<D> traversal_table_luma = constructTraversalTableByReference<D>(reference_block_luma);
-  TraversalTable<D> traversal_table_chroma = constructTraversalTableByReference<D>(reference_block_chroma);
+  traversal_table_luma   = constructTraversalTableByReference<D>(reference_block_luma);
+  traversal_table_chroma = constructTraversalTableByReference<D>(reference_block_chroma);
 
-  RunLengthEncodedImage runlength_Y  = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Y,  traversal_table_luma)));
-  RunLengthEncodedImage runlength_Cb = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cb, traversal_table_chroma)));
-  RunLengthEncodedImage runlength_Cr = diffEncodePairs(runLenghtEncodeBlocks<D>(traverseBlocks<D>(quantized_Cr, traversal_table_chroma)));
+  prev_Y  = 0;
+  prev_Cb = 0;
+  prev_Cr = 0;
 
-  /********************************************\
-  * Free unused vectors
-  \********************************************/
-  vector<QuantizedBlock<D>>().swap(quantized_Y);
-  vector<QuantizedBlock<D>>().swap(quantized_Cb);
-  vector<QuantizedBlock<D>>().swap(quantized_Cr);
+  for (size_t img = 0; img < imgs_cnt; img++) {
+    for (size_t block = 0; block < blocks_cnt; block++) {
+      RGBDataBlock<D> rgb_block = blockAt(img, block);
 
+      QuantizedBlock<D> quantized_Y  = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoY))),  quant_table_luma);
+      QuantizedBlock<D> quantized_Cb = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCb))), quant_table_chroma);
+      QuantizedBlock<D> quantized_Cr = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCr))), quant_table_chroma);
 
-  HuffmanWeights weights_luma_AC   {};
-  HuffmanWeights weights_luma_DC   {};
+      RunLengthEncodedBlock runlength_Y  = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Y,  traversal_table_luma)),   prev_Y);
+      RunLengthEncodedBlock runlength_Cb = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cb, traversal_table_chroma)), prev_Cb);
+      RunLengthEncodedBlock runlength_Cr = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cr, traversal_table_chroma)), prev_Cr);
 
-  huffmanGetWeightsAC(runlength_Y,  weights_luma_AC);
-  huffmanGetWeightsDC(runlength_Y,  weights_luma_DC);
+      huffmanAddWeightAC(runlength_Y,  weights_luma_AC);
+      huffmanAddWeightDC(runlength_Y,  weights_luma_DC);
 
-  HuffmanWeights weights_chroma_AC {};
-  HuffmanWeights weights_chroma_DC {};
+      huffmanAddWeightAC(runlength_Cb, weights_chroma_AC);
+      huffmanAddWeightAC(runlength_Cr, weights_chroma_AC);
+      huffmanAddWeightDC(runlength_Cb, weights_chroma_DC);
+      huffmanAddWeightDC(runlength_Cr, weights_chroma_DC);
+    }
+  }
 
-  huffmanGetWeightsAC(runlength_Cb, weights_chroma_AC);
-  huffmanGetWeightsAC(runlength_Cr, weights_chroma_AC);
-  huffmanGetWeightsDC(runlength_Cb, weights_chroma_DC);
-  huffmanGetWeightsDC(runlength_Cr, weights_chroma_DC);
-
-  HuffmanCodelengths codelengths_luma_DC   = generateHuffmanCodelengths(weights_luma_DC);
-  HuffmanCodelengths codelengths_luma_AC   = generateHuffmanCodelengths(weights_luma_AC);
-  HuffmanCodelengths codelengths_chroma_DC = generateHuffmanCodelengths(weights_chroma_DC);
-  HuffmanCodelengths codelengths_chroma_AC = generateHuffmanCodelengths(weights_chroma_AC);
+  codelengths_luma_DC   = generateHuffmanCodelengths(weights_luma_DC);
+  codelengths_luma_AC   = generateHuffmanCodelengths(weights_luma_AC);
+  codelengths_chroma_DC = generateHuffmanCodelengths(weights_chroma_DC);
+  codelengths_chroma_AC = generateHuffmanCodelengths(weights_chroma_AC);
 
   size_t last_slash_pos = string(output_file_name).find_last_of('/');
   string command("mkdir -p " + string(output_file_name).substr(0, last_slash_pos));
@@ -446,17 +450,33 @@ int LFIFCompress(RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cn
   writeHuffmanTable(codelengths_chroma_DC, output);
   writeHuffmanTable(codelengths_chroma_AC, output);
 
-  HuffmanMap huffmap_luma_DC   = generateHuffmanMap(codelengths_luma_DC);
-  HuffmanMap huffmap_luma_AC   = generateHuffmanMap(codelengths_luma_AC);
-  HuffmanMap huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
-  HuffmanMap huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
+  huffmap_luma_DC   = generateHuffmanMap(codelengths_luma_DC);
+  huffmap_luma_AC   = generateHuffmanMap(codelengths_luma_AC);
+  huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
+  huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
+
+  prev_Y  = 0;
+  prev_Cb = 0;
+  prev_Cr = 0;
 
   OBitstream bitstream(output);
 
-  for (size_t i = 0; i < blocks_cnt * imgs_cnt; i++) {
-    encodeOneBlock(runlength_Y[i], huffmap_luma_DC, huffmap_luma_AC, bitstream);
-    encodeOneBlock(runlength_Cb[i], huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
-    encodeOneBlock(runlength_Cr[i], huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+  for (size_t img = 0; img < imgs_cnt; img++) {
+    for (size_t block = 0; block < blocks_cnt; block++) {
+      RGBDataBlock<D> rgb_block = blockAt(img, block);
+
+      QuantizedBlock<D> quantized_Y  = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoY))), quant_table_luma);
+      QuantizedBlock<D> quantized_Cb = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCb))), quant_table_chroma);
+      QuantizedBlock<D> quantized_Cr = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCr))), quant_table_chroma);
+
+      RunLengthEncodedBlock runlength_Y  = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Y,  traversal_table_luma)),   prev_Y);
+      RunLengthEncodedBlock runlength_Cb = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cb, traversal_table_chroma)), prev_Cb);
+      RunLengthEncodedBlock runlength_Cr = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cr, traversal_table_chroma)), prev_Cr);
+
+      encodeOneBlock(runlength_Y,  huffmap_luma_DC, huffmap_luma_AC, bitstream);
+      encodeOneBlock(runlength_Cb, huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+      encodeOneBlock(runlength_Cr, huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+    }
   }
 
   bitstream.flush();

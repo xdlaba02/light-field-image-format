@@ -28,6 +28,12 @@ using RunLengthAmplitudeUnit = int16_t;
 using HuffmanClass = uint8_t;
 using HuffmanSymbol = uint8_t;
 
+struct RGBDataPixel {
+  RGBDataUnit r;
+  RGBDataUnit g;
+  RGBDataUnit b;
+};
+
 struct RunLengthPair {
   RunLengthZeroesCountUnit zeroes;
   RunLengthAmplitudeUnit amplitude;
@@ -39,10 +45,8 @@ struct HuffmanTable {
 };
 
 using RGBData = vector<uint8_t>;
-using YCbCrData = vector<YCbCrDataUnit>;
 
 using RunLengthEncodedBlock = vector<RunLengthPair>;
-using RunLengthEncodedImage = vector<RunLengthEncodedBlock>;
 
 using HuffmanCodeword = vector<bool>;
 using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
@@ -51,6 +55,9 @@ using HuffmanMap = map<uint8_t, HuffmanCodeword>;
 
 template<typename T, uint8_t D>
 using Block = array<T, static_cast<size_t>(constpow(8, D))>;
+
+template<size_t D>
+using RGBDataBlock = Block<RGBDataPixel, D>;
 
 template<size_t D>
 using YCbCrDataBlock = Block<YCbCrDataUnit, D>;

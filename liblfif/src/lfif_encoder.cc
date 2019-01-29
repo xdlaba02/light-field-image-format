@@ -9,37 +9,14 @@
 
 using namespace std;
 
-YCbCrData shiftData(YCbCrData data) {
-  for (auto &pixel: data) {
-    pixel -= 128;
-  }
-  return data;
-}
-
-void huffmanGetWeightsAC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights) {
-  for (auto &vec: pairvecs) {
-    for (size_t i = 1; i < vec.size(); i++) {
-      weights[huffmanSymbol(vec[i])]++;
-    }
+void huffmanAddWeightAC(const RunLengthEncodedBlock &input, HuffmanWeights &weights) {
+  for (size_t i = 1; i < input.size(); i++) {
+    weights[huffmanSymbol(input[i])]++;
   }
 }
 
-void huffmanGetWeightsDC(const RunLengthEncodedImage &pairvecs, HuffmanWeights &weights) {
-  for (auto &vec: pairvecs) {
-    weights[huffmanSymbol(vec[0])]++;
-  }
-}
-
-RunLengthEncodedImage diffEncodePairs(RunLengthEncodedImage runlengths) {
-  RunLengthAmplitudeUnit prev_DC = 0;
-
-  for (auto &runlength: runlengths) {
-    RunLengthAmplitudeUnit prev = runlength[0].amplitude;
-    runlength[0].amplitude -= prev_DC;
-    prev_DC = prev;
-  }
-
-  return runlengths;
+void huffmanAddWeightDC(const RunLengthEncodedBlock &input, HuffmanWeights &weights) {
+  weights[huffmanSymbol(input[0])]++;
 }
 
 HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights) {
