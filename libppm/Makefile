@@ -9,7 +9,7 @@ OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -fPIC
+CFLAGS = -Iinclude -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -fPIC
 LDFLAGS = -shared
 
 TARGET = $(BINDIR)/libppm.so $(BINDIR)/libppm.a
