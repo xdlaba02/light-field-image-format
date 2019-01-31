@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     break;
   }
 
-  rgb_data = zigzagDeshiftRGB(rgb_data, img_dims[2] * image_count);
+  //rgb_data = zigzagDeshiftRGB(rgb_data, img_dims[2] * image_count);
 
   if (!savePPMs(rgb_data, img_dims[0], img_dims[1], 255, img_dims[2] * image_count, output_file_mask)) {
     return 3;

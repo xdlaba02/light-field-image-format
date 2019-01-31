@@ -52,7 +52,8 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  rgb_data = zigzagShiftRGB(rgb_data, image_count);
+  //rgb_data = zigzagShiftRGB(rgb_data, image_count);
+  //TODO 
 
   uint64_t img_dims[] {width, height, image_count};
   int errcode = LFIFCompress<3>(rgb_data, img_dims, 1, quality, output_file_name);

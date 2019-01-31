@@ -254,9 +254,17 @@ int main(int argc, char *argv[]) {
       thr_4D = thread(method4D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D);
     }
 
-    thr_2D.join();
-    thr_3D.join();
-    thr_4D.join();
+    if (output_file_2D) {
+      thr_2D.join();
+    }
+
+    if (output_file_3D) {
+      thr_3D.join();
+    }
+
+    if (output_file_4D) {
+      thr_4D.join();
+    }
   }
 
   return 0;
