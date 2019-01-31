@@ -4,13 +4,12 @@
 \******************************************************************************/
 
 #include "decompress.h"
-#include "file_mask.h"
-
-#include <ppm.h>
 
 #include <getopt.h>
 
 #include <iostream>
+
+using namespace std;
 
 void print_usage(const char *argv0) {
   cerr << "Usage: " << endl;
@@ -46,35 +45,6 @@ bool parse_args(int argc, char *argv[], const char *&input_file_name, const char
   if ((!input_file_name) || (!output_file_mask)) {
     print_usage(argv[0]);
     return false;
-  }
-
-  return true;
-}
-
-bool savePPMs(const vector<uint8_t> &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, const string &output_file_mask) {
-  size_t image_size = width * height * 3;
-
-  if (color_depth >= 256) {
-    image_size *= 2;
-  }
-
-  size_t pos = output_file_mask.find_last_of('/');
-
-  FileMask file_name(output_file_mask);
-
-  for (size_t image = 0; image < image_count; image++) {
-    string command("mkdir -p " + file_name[image].substr(0, pos));
-    system(command.c_str());
-    ofstream output(file_name[image]);
-    if (output.fail()) {
-      cerr << "ERROR: UNABLE TO OPEN FILE \"" << file_name[image] << "\" FOR WRITING" << endl;
-      return false;
-    }
-
-    if (writePPM(rgb_data.data() + image * image_size, width, height, color_depth, output)) {
-      cerr << "ERROR: UNABLE TO WRITE PPM FILE" << endl;
-      return false;
-    }
   }
 
   return true;

@@ -1,0 +1,263 @@
+/******************************************************************************\
+* SOUBOR: lfiftest.cc
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+\******************************************************************************/
+
+#include "lfiftest.h"
+#include "lfifppm.h"
+
+#include <getopt.h>
+#include <math.h>
+
+#include <thread>
+
+void print_usage(char *argv0) {
+  cerr << "Usage: " << endl;
+  cerr << argv0 << " -i <input-file-mask> [-2 <output-filename>] [-3 <output-filename>] [-4 <output-filename>] [-s <quality-step>] []" << endl;
+}
+
+double PSNR(const RGBData &original, const RGBData &compared) {
+  double mse  {};
+
+  if (original.size() != compared.size()) {
+    return 0.0;
+  }
+
+  for (size_t i = 0; i < original.size(); i++) {
+    mse += (original[i] - compared[i]) * (original[i] - compared[i]);
+  }
+
+  mse /= original.size();
+
+  if (!mse) {
+    return 0;
+  }
+
+  return 10 * log10((255 * 255) / mse);
+}
+
+int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+  ofstream output(output_filename);
+  output << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+
+  size_t image_pixels = width * height * image_count;
+
+  for (size_t quality = q_step; quality <= 100; quality += q_step) {
+    cerr << "LFIF2D: Q" << quality << " STARTED" << endl;
+    size_t   compressed_image_size    {};
+    RGBData  decompressed_rgb_data    {};
+    uint64_t decompressed_image_count {};
+    uint64_t img_dims[2]              {width, height};
+
+    compressed_image_size = encode<2>(original, img_dims, image_count, quality, "/tmp/lfiftest.lfi2d");
+    if (!compressed_image_size) {
+      return 3;
+    }
+
+    if (decode<2>("/tmp/lfiftest.lfi2d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+      return 3;
+    }
+
+    cerr << "LFIF2D: " << quality  << " " << PSNR(original, decompressed_rgb_data) << " " << compressed_image_size * 8.0 / image_pixels << endl;
+    output << quality  << " " << PSNR(original, decompressed_rgb_data) << " " << compressed_image_size * 8.0 / image_pixels << endl;
+  }
+
+  return 0;
+}
+
+int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+  ofstream output(output_filename);
+  output << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+
+  size_t image_pixels = width * height * image_count;
+
+  for (size_t quality = q_step; quality <= 100; quality += q_step) {
+    cerr << "LFIF3D: Q" << quality << " STARTED" << endl;
+    size_t   compressed_image_size    {};
+    RGBData  decompressed_rgb_data    {};
+    uint64_t decompressed_image_count {};
+    uint64_t img_dims[3]              {width, height, image_count};
+
+    compressed_image_size = encode<3>(original, img_dims, 1, quality, "/tmp/lfiftest.lfi3d");
+    if (!compressed_image_size) {
+      return 3;
+    }
+
+    if (decode<3>("/tmp/lfiftest.lfi3d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+      return 3;
+    }
+
+    cerr << "LFIF3D: " << quality  << " " << PSNR(original, decompressed_rgb_data) << " " << compressed_image_size * 8.0 / image_pixels << endl;
+    output << quality  << " " << PSNR(original, decompressed_rgb_data) << " " << compressed_image_size * 8.0 / image_pixels << endl;
+  }
+
+  return 0;
+}
+
+int method4D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+  ofstream output(output_filename);
+  output << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+
+  size_t image_pixels = width * height * image_count;
+
+  for (size_t quality = q_step; quality <= 100; quality += q_step) {
+    cerr << "LFIF4D: Q" << quality << " STARTED" << endl;
+    size_t   compressed_image_size    {};
+    RGBData  decompressed_rgb_data    {};
+    uint64_t decompressed_image_count {};
+    uint64_t img_dims[4]              {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
+
+    compressed_image_size = encode<4>(original, img_dims, 1, quality, "/tmp/lfiftest.lfi4d");
+    if (!compressed_image_size) {
+      return 3;
+    }
+
+    if (decode<4>("/tmp/lfiftest.lfi4d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+      return 3;
+    }
+
+    cerr << "LFIF4D: " << quality  << " " << PSNR(original, decompressed_rgb_data) << " " << compressed_image_size * 8.0 / image_pixels << endl;
+    output << quality  << " " << PSNR(original, decompressed_rgb_data) << " " << compressed_image_size * 8.0 / image_pixels << endl;
+  }
+
+  return 0;
+}
+
+int main(int argc, char *argv[]) {
+  const char *input_file_mask {};
+  const char *output_file_2D  {};
+  const char *output_file_3D  {};
+  const char *output_file_4D  {};
+
+  const char *quality_step    {};
+
+  bool nothreads {};
+
+  uint8_t q_step  {};
+
+  RGBData original_rgb_data     {};
+
+  uint64_t original_width       {};
+  uint64_t original_height      {};
+  uint32_t original_color_depth {};
+  uint64_t original_image_count {};
+
+  char opt {};
+  while ((opt = getopt(argc, argv, "i:s:2:3:4:n")) >= 0) {
+    switch (opt) {
+      case 'i':
+        if (!input_file_mask) {
+          input_file_mask = optarg;
+          continue;
+        }
+      break;
+
+      case 's':
+        if (!quality_step) {
+          quality_step = optarg;
+          continue;
+        }
+      break;
+
+      case '2':
+        if (!output_file_2D) {
+          output_file_2D = optarg;;
+          continue;
+        }
+      break;
+
+      case '3':
+        if (!output_file_3D) {
+          output_file_3D = optarg;;
+          continue;
+        }
+      break;
+
+      case '4':
+        if (!output_file_4D) {
+          output_file_4D = optarg;;
+          continue;
+        }
+      break;
+
+      case 'n':
+        if (!nothreads) {
+          nothreads = true;;
+          continue;
+        }
+      break;
+
+      default:
+        print_usage(argv[0]);
+        return 1;
+      break;
+    }
+  }
+
+  if (!input_file_mask) {
+    print_usage(argv[0]);
+    return 1;
+  }
+
+  if (!output_file_2D && !output_file_3D && !output_file_4D) {
+    cerr << "Please specify one or more options [-2 <output-filename>] [-3 <output-filename>] [-4 <output-filename>]." << endl;
+    print_usage(argv[0]);
+    return 1;
+  }
+
+  if (!quality_step) {
+    q_step = 1;
+  }
+  else {
+    int tmp = atoi(quality_step);
+    if ((tmp < 1) || (tmp > 100)) {
+      print_usage(argv[0]);
+      return 1;
+    }
+    q_step = tmp;
+  }
+
+  if (!loadPPMs(input_file_mask, original_rgb_data, original_width, original_height, original_color_depth, original_image_count)) {
+    return 2;
+  }
+
+  if (original_color_depth != 255) {
+    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
+    return 2;
+  }
+
+  if (nothreads) {
+    if (output_file_2D) {
+      method2D(original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_2D);
+    }
+    if (output_file_3D) {
+      method3D(original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_3D);
+    }
+    if (output_file_4D) {
+      method4D(original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D);
+    }
+  }
+  else {
+    thread thr_2D {};
+    thread thr_3D {};
+    thread thr_4D {};
+
+    if (output_file_2D) {
+      thr_2D = thread(method2D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_2D);
+    }
+
+    if (output_file_3D) {
+      thr_3D = thread(method3D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_3D);
+    }
+
+    if (output_file_4D) {
+      thr_4D = thread(method4D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D);
+    }
+
+    thr_2D.join();
+    thr_3D.join();
+    thr_4D.join();
+  }
+
+  return 0;
+}

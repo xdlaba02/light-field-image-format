@@ -5,6 +5,7 @@
 
 #include "decompress.h"
 #include "zigzag.h"
+#include "lfifppm.h"
 
 #include <lfif_decoder.h>
 

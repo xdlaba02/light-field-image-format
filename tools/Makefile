@@ -10,15 +10,15 @@ BINDIR = bin
 
 CC = g++
 CFLAGS = -Iinclude -I../liblfif/include -I../libppm/include -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
-LDFLAGS = -L../liblfif/bin -L../libppm/bin -llfif -lppm -lstdc++fs
+LDFLAGS = -L../liblfif/bin -L../libppm/bin -llfif -lppm -lm -pthread
 
-CODEC = $(OBJDIR)/zigzag.o $(OBJDIR)/file_mask.o
+CODEC = $(OBJDIR)/zigzag.o $(OBJDIR)/file_mask.o $(OBJDIR)/lfifppm.o
 
 ENCODER = $(OBJDIR)/compress.o $(CODEC)
 
 DECODER = $(OBJDIR)/decompress.o $(CODEC)
 
-all: $(BINDIR) $(OBJDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
+all: $(BINDIR) $(OBJDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfiftest
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(ENCODER)
 	$(CC) $(LDFLAGS) $^ -o $@
@@ -37,6 +37,10 @@ $(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress.o $(OBJDIR)/zigzag.o $(
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(DECODER)
+	$(CC) $(LDFLAGS) $^ -o $@
+
+
+$(BINDIR)/lfiftest: $(OBJDIR)/lfiftest.o $(CODEC)
 	$(CC) $(LDFLAGS) $^ -o $@
 
 
@@ -70,6 +74,12 @@ $(OBJDIR)/decompress.o: $(SRCDIR)/decompress.cc $(INCDIR)/decompress.h $(INCDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/zigzag.o: $(SRCDIR)/zigzag.cc $(INCDIR)/zigzag.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/lfifppm.o: $(SRCDIR)/lfifppm.cc $(INCDIR)/lfifppm.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/lfiftest.o: $(SRCDIR)/lfiftest.cc
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BINDIR):
