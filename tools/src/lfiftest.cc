@@ -238,32 +238,22 @@ int main(int argc, char *argv[]) {
     }
   }
   else {
-    thread thr_2D {};
-    thread thr_3D {};
-    thread thr_4D {};
+    vector<thread> threads {};
 
     if (output_file_2D) {
-      thr_2D = thread(method2D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_2D);
+      threads.push_back(thread(method2D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_2D));
     }
 
     if (output_file_3D) {
-      thr_3D = thread(method3D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_3D);
+      threads.push_back(thread(method3D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_3D));
     }
 
     if (output_file_4D) {
-      thr_4D = thread(method4D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D);
+      threads.push_back(thread(method4D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D));
     }
 
-    if (output_file_2D) {
-      thr_2D.join();
-    }
-
-    if (output_file_3D) {
-      thr_3D.join();
-    }
-
-    if (output_file_4D) {
-      thr_4D.join();
+    for (auto &thread: threads) {
+      thread.join();
     }
   }
 
