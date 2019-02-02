@@ -1,12 +1,10 @@
+/******************************************************************************\
+* SOUBOR: traversal.h
+* AUTOR: Drahomir Dlabaja (xdlaba02)
+\******************************************************************************/
+
 #ifndef TRAVERSAL_H
 #define TRAVERSAL_H
-
-template<size_t D>
-void addToReference(const QuantizedBlock<D>& block, RefereceBlock<D>& ref) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
-    ref[i] += abs(block[i]);
-  }
-}
 
 template<size_t D>
 inline TraversalTable<D> constructTraversalTableByReference(const RefereceBlock<D> &ref_block) {
