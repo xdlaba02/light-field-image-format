@@ -27,10 +27,10 @@ $(BINDIR)/liblfif.a: $(OBJS)
 $(OBJDIR)/bitstream.o: $(SRCDIR)/bitstream.cc $(INCDIR)/bitstream.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/lfif_decoder.o: $(SRCDIR)/lfif_decoder.cc $(INCDIR)/lfif_decoder.h $(INCDIR)/lfif.h $(INCDIR)/dct.h $(INCDIR)/bitstream.h $(INCDIR)/constpow.h
+$(OBJDIR)/lfif_decoder.o: $(SRCDIR)/lfif_decoder.cc $(INCDIR)/lfif_decoder.h $(INCDIR)/lfif.h $(INCDIR)/dct.h $(INCDIR)/bitstream.h $(INCDIR)/constpow.h $(INCDIR)/traversal.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/lfif_encoder.o: $(SRCDIR)/lfif_encoder.cc $(INCDIR)/lfif_encoder.h $(INCDIR)/lfif.h $(INCDIR)/dct.h $(INCDIR)/bitstream.h $(INCDIR)/constpow.h
+$(OBJDIR)/lfif_encoder.o: $(SRCDIR)/lfif_encoder.cc $(INCDIR)/lfif_encoder.h $(INCDIR)/lfif.h $(INCDIR)/dct.h $(INCDIR)/bitstream.h $(INCDIR)/constpow.h $(INCDIR)/traversal.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BINDIR):

@@ -9,6 +9,7 @@
 #include "lfif.h"
 #include "dct.h"
 #include "bitstream.h"
+#include "traversal.h"
 
 using namespace std;
 
