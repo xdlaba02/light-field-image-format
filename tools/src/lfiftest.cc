@@ -13,7 +13,7 @@
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> [-2 <output-filename>] [-3 <output-filename>] [-4 <output-filename>] [-s <quality-step>] []" << endl;
+  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-s <quality-step>]" << endl;
 }
 
 double PSNR(const RGBData &original, const RGBData &compared) {
@@ -33,7 +33,7 @@ double PSNR(const RGBData &original, const RGBData &compared) {
     return 0;
   }
 
-  return 10 * log10((255 * 255) / mse);
+  return 10 * log10((255.0 * 255.0) / mse);
 }
 
 int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {

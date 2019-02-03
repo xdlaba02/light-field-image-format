@@ -18,7 +18,7 @@ ENCODER = $(OBJDIR)/compress.o $(CODEC)
 
 DECODER = $(OBJDIR)/decompress.o $(CODEC)
 
-all: $(BINDIR) $(OBJDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfiftest
+all: $(BINDIR) $(OBJDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfiftest $(BINDIR)/moztest
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(ENCODER)
 	$(CC) $(LDFLAGS) $^ -o $@
@@ -42,6 +42,9 @@ $(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(DECODER)
 
 $(BINDIR)/lfiftest: $(OBJDIR)/lfiftest.o $(CODEC)
 	$(CC) $(LDFLAGS) $^ -o $@
+
+$(BINDIR)/moztest: $(OBJDIR)/moztest.o /opt/mozjpeg/lib64/libjpeg.a $(CODEC)
+	$(CC) -L../libppm/bin -lppm -lm $^ -o $@
 
 
 $(OBJDIR)/lfif2d_compress.o: $(SRCDIR)/lfif2d_compress.cc $(INCDIR)/compress.h
@@ -79,8 +82,11 @@ $(OBJDIR)/zigzag.o: $(SRCDIR)/zigzag.cc $(INCDIR)/zigzag.h
 $(OBJDIR)/lfifppm.o: $(SRCDIR)/lfifppm.cc $(INCDIR)/lfifppm.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/lfiftest.o: $(SRCDIR)/lfiftest.cc
+$(OBJDIR)/lfiftest.o: $(SRCDIR)/lfiftest.cc $(INCDIR)/lfiftest.h
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/moztest.o: $(SRCDIR)/moztest.cc
+	$(CC) -Iinclude -I/opt/mozjpeg/include -I../libppm/include -I../liblfif/include -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -c $< -o $@
 
 $(BINDIR):
 	mkdir -p $(BINDIR)
