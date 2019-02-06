@@ -4,7 +4,7 @@
 \******************************************************************************/
 
 #include "decompress.h"
-#include "lfifppm.h"
+#include "plenoppm.h"
 
 #include <lfif_decoder.h>
 

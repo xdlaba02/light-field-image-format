@@ -1,10 +1,10 @@
 /******************************************************************************\
-* SOUBOR: lfifppm.h
+* SOUBOR: plenoppm.h
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#ifndef LFIFPPM_H
-#define LFIFPPM_H
+#ifndef PLENOPPM_H
+#define PLENOPPM_H
 
 #include <cstdint>
 #include <vector>

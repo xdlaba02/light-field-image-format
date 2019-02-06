@@ -1,15 +1,15 @@
 /******************************************************************************\
-* SOUBOR: lfiftest.cc
+* SOUBOR: moztest.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#include "lfif.h"
-#include "lfifppm.h"
+#include "plenoppm.h"
 
-#include "jpeglib.h"
+#include <jpeglib.h>
 
 #include <getopt.h>
-#include <math.h>
+
+#include <cmath>
 
 #include <iostream>
 #include <fstream>
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
   uint8_t q_step  {};
 
-  RGBData original_rgb_data     {};
+  vector<uint8_t> original_rgb_data {};
 
   uint64_t original_width       {};
   uint64_t original_height      {};
@@ -141,8 +141,8 @@ int main(int argc, char *argv[]) {
     cinfo.comp_info[2].v_samp_factor = 1;
 
     for (size_t i = 0; i < original_image_count; i++) {
-      RGBDataUnit *original = &original_rgb_data[i * original_width * original_height * 3];
-      RGBData  decompressed_rgb_data(original_width * original_height * 3);
+      uint8_t *original = &original_rgb_data[i * original_width * original_height * 3];
+      vector<uint8_t>  decompressed_rgb_data(original_width * original_height * 3);
 
       if ((outfile = fopen("/tmp/moztest.jpeg", "wb")) == NULL) {
         fprintf(stderr, "can't open %s\n", "/tmp/moztest.jpeg");

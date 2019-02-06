@@ -5,12 +5,12 @@
 
 #include "compress.h"
 #include "zigzag.h"
-#include "lfifppm.h"
+#include "plenoppm.h"
 
 #include <lfif_encoder.h>
 
 #include <iostream>
-
+/*
 RGBData zigzagShiftRGB(const RGBData &rgb_data, uint64_t image_count) {
   RGBData zigzag_data(rgb_data.size());
 
@@ -26,7 +26,7 @@ RGBData zigzagShiftRGB(const RGBData &rgb_data, uint64_t image_count) {
 
   return zigzag_data;
 }
-
+*/
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
   }
 
   //rgb_data = zigzagShiftRGB(rgb_data, image_count);
-  //TODO 
+  //TODO
 
   uint64_t img_dims[] {width, height, image_count};
   int errcode = LFIFCompress<3>(rgb_data, img_dims, 1, quality, output_file_name);

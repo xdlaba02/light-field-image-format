@@ -4,7 +4,7 @@
 \******************************************************************************/
 
 #include "compress.h"
-#include "lfifppm.h"
+#include "plenoppm.h"
 
 #include <lfif_encoder.h>
 

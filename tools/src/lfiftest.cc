@@ -4,10 +4,11 @@
 \******************************************************************************/
 
 #include "lfiftest.h"
-#include "lfifppm.h"
+#include "plenoppm.h"
 
 #include <getopt.h>
-#include <math.h>
+
+#include <cmath>
 
 #include <thread>
 

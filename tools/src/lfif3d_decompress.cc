@@ -5,12 +5,12 @@
 
 #include "decompress.h"
 #include "zigzag.h"
-#include "lfifppm.h"
+#include "plenoppm.h"
 
 #include <lfif_decoder.h>
 
 #include <iostream>
-
+/*
 RGBData zigzagDeshiftRGB(const RGBData &rgb_data, uint64_t image_count) {
   RGBData zigzag_data(rgb_data.size());
 
@@ -26,7 +26,7 @@ RGBData zigzagDeshiftRGB(const RGBData &rgb_data, uint64_t image_count) {
 
   return zigzag_data;
 }
-
+*/
 int main(int argc, char *argv[]) {
   const char *input_file_name  {};
   const char *output_file_mask {};

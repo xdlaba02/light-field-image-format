@@ -12,8 +12,8 @@
 using namespace std;
 
 void print_usage(const char *argv0) {
-  cerr << "Usage: " << std::endl;
-  cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << std::endl;
+  cerr << "Usage: " << endl;
+  cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << endl;
 }
 
 bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &quality) {

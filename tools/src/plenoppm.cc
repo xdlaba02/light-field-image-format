@@ -1,9 +1,9 @@
 /******************************************************************************\
-* SOUBOR: lfifppm.cc
+* SOUBOR: plenoppm.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#include "lfifppm.h"
+#include "plenoppm.h"
 #include "file_mask.h"
 
 #include <ppm.h>
