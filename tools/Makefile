@@ -69,7 +69,7 @@ $(BINDIR)/moztest: $(OBJDIR)/moztest.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/x265test: $(OBJDIR)/x265test.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
-	$(CC) -lm  -lavutil -lavformat -lavcodec $^ -o $@
+	$(CC) -lm  -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 
 $(OBJDIR)/lfiftest.o: $(SRCDIR)/lfiftest.cc $(INCDIR)/lfiftest.h

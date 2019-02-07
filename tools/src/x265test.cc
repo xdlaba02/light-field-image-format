@@ -7,6 +7,7 @@
 
 extern "C" {
   #include <libavcodec/avcodec.h>
+  #include <libswscale/swscale.h>
 }
 
 #include <getopt.h>
@@ -150,10 +151,14 @@ int main(int argc, char *argv[]) {
   AVCodec *coder              {};
   AVFrame *in_frame           {};
   AVCodecContext *in_context  {};
+  SwsContext *in_convert_ctx  {};
 
   AVCodec *decoder            {};
   AVFrame *out_frame          {};
   AVCodecContext *out_context {};
+  SwsContext *out_convert_ctx {};
+
+  AVFrame *rgb_frame          {};
 
   pkt = av_packet_alloc();
   if (!pkt) {
@@ -177,6 +182,21 @@ int main(int argc, char *argv[]) {
   in_frame->height = height;
 
   if (av_frame_get_buffer(in_frame, 32) < 0) {
+    cerr << "Could not allocate the video frame data" << endl;
+    exit(1);
+  }
+
+  rgb_frame = av_frame_alloc();
+  if (!rgb_frame) {
+    cerr << "Could not allocate video frame" << endl;
+    exit(1);
+  }
+
+  rgb_frame->format = AV_PIX_FMT_RGB24;
+  rgb_frame->width  = width;
+  rgb_frame->height = height;
+
+  if (av_frame_get_buffer(rgb_frame, 32) < 0) {
     cerr << "Could not allocate the video frame data" << endl;
     exit(1);
   }
@@ -214,8 +234,24 @@ int main(int argc, char *argv[]) {
   in_context->gop_size = image_count;
   in_context->pix_fmt = AV_PIX_FMT_YUV444P;
 
-  for (double bpp = 0.5; bpp < 5; bpp += .5) {
+  in_convert_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24, width, height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
+  if (!in_convert_ctx) {
+    cerr << "Could not get image conversion context" << endl;
+    exit(1);
+  }
+
+  out_convert_ctx = sws_getContext(width, height, AV_PIX_FMT_YUV444P, width, height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+  if (!out_convert_ctx) {
+    cerr << "Could not get image conversion context" << endl;
+    exit(1);
+  }
+
+  ofstream output(output_file);
+  output << "'x265' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+
+  for (double bpp = 0.1; bpp <= 10; bpp *= 1.25893) {
     vector<uint8_t> out_rgb_data {};
+    size_t compressed_size = 0;
 
     in_context->bit_rate = bpp * image_pixels;
 
@@ -230,31 +266,24 @@ int main(int argc, char *argv[]) {
     }
 
     auto saveFrame = [&](AVFrame *frame) {
-      for (int y = 0; y < frame->height; y++) {
-        for (int x = 0; x < frame->width; x++) {
-          out_rgb_data.push_back(frame->data[0][y * frame->width + x]);
-          out_rgb_data.push_back(frame->data[1][y * frame->width + x]);
-          out_rgb_data.push_back(frame->data[2][y * frame->width + x]);
-        }
+      sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, height, rgb_frame->data, rgb_frame->linesize);
+
+      for (int i = 0; i < rgb_frame->width * rgb_frame->height * 3; i++) {
+        out_rgb_data.push_back(rgb_frame->data[0][i]);
       }
     };
 
     auto decodePkt = [&](AVPacket *pkt) {
+      if (pkt) {
+        compressed_size += pkt->size;
+      }
       decode(out_context, out_frame, pkt, saveFrame);
     };
 
     for (size_t image = 0; image < image_count; image++) {
-      if (av_frame_make_writable(in_frame) < 0) {
-        exit(1);
-      }
-
-      for (int y = 0; y < in_context->height; y++) {
-        for (int x = 0; x < in_context->width; x++) {
-          in_frame->data[0][y * width + x] = in_rgb_data[((image * height + y) * width + x) * 3 + 0];
-          in_frame->data[1][y * width + x] = in_rgb_data[((image * height + y) * width + x) * 3 + 1];
-          in_frame->data[2][y * width + x] = in_rgb_data[((image * height + y) * width + x) * 3 + 2];
-        }
-      }
+      uint8_t *inData[1] = { &in_rgb_data[image * width * height * 3] };
+      int inLinesize[1] = { static_cast<int>(3 * width) };
+      sws_scale(in_convert_ctx, inData, inLinesize, 0, height, in_frame->data, in_frame->linesize);
 
       in_frame->pts = image;
 
@@ -265,17 +294,21 @@ int main(int argc, char *argv[]) {
 
     decodePkt(nullptr);
 
-    cerr << bpp << " " << PSNR(in_rgb_data, out_rgb_data) << endl;
-
     avcodec_close(in_context);
     avcodec_close(out_context);
+
+    cerr << bpp << " " << PSNR(in_rgb_data, out_rgb_data) << " " << compressed_size * 8.0 / image_pixels << endl;
+    output << bpp << " " << PSNR(in_rgb_data, out_rgb_data) << " " << compressed_size * 8.0 / image_pixels << endl;
   }
 
   avcodec_free_context(&in_context);
   avcodec_free_context(&out_context);
   av_frame_free(&in_frame);
   av_frame_free(&out_frame);
+  av_frame_free(&rgb_frame);
   av_packet_free(&pkt);
+  free(in_convert_ctx);
+  free(out_convert_ctx);
 
   return 0;
 }
