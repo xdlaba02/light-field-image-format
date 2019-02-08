@@ -6,6 +6,9 @@
 #ifndef QTABLE_H
 #define QTABLE_H
 
+#include <algorithm>
+#include <fstream>
+
 template<size_t D>
 inline constexpr QuantTable<D> baseQuantTableLuma() {
   constexpr QuantTable<2> base_luma {
@@ -48,6 +51,51 @@ inline constexpr QuantTable<D> baseQuantTableChroma() {
   }
 
   return quant_table;
+}
+
+template<size_t D>
+inline QuantTable<D> scaleQuantTable(QuantTable<D> quant_table, const uint8_t quality) {
+  float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
+
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    quant_table[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
+  }
+
+  return quant_table;
+}
+
+template<size_t D>
+inline QuantizedBlock<D> quantizeBlock(const TransformedBlock<D> &input, const QuantTable<D> &quant_table) {
+  QuantizedBlock<D> output;
+
+  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
+    output[pixel_index] = input[pixel_index] / quant_table[pixel_index];
+  }
+
+  return output;
+}
+
+template<size_t D>
+inline TransformedBlock<D> dequantizeBlock(const QuantizedBlock<D> &input, const QuantTable<D> &quant_table) {
+  TransformedBlock<D> output {};
+
+  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
+    output[pixel_index] = input[pixel_index] * quant_table[pixel_index];
+  }
+
+  return output;
+}
+
+template<size_t D>
+QuantTable<D> readQuantTable(ifstream &input) {
+  QuantTable<D> table {};
+  input.read(reinterpret_cast<char *>(table.data()), table.size());
+  return table;
+}
+
+template<size_t D>
+void writeQuantTable(const QuantTable<D> &table, ofstream &output) {
+  output.write(reinterpret_cast<const char *>(table.data()), table.size());
 }
 
 #endif

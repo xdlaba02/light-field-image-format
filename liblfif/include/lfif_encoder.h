@@ -6,198 +6,27 @@
 #ifndef LFIF_ENCODER_H
 #define LFIF_ENCODER_H
 
-#include "lfif.h"
-#include "dct.h"
-#include "bitstream.h"
-#include "traversal.h"
+#include "lfiftypes.h"
+#include "block.h"
 #include "qtable.h"
+#include "dct.h"
+#include "shift.h"
+#include "colorspace.h"
+#include "traversal.h"
+#include "runlength.h"
+#include "huffman.h"
 
-void huffmanAddWeightAC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
-void huffmanAddWeightDC(const RunLengthEncodedBlock &input, HuffmanWeights &weights);
+#include <fstream>
 
-HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights);
-HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths);
+using namespace std;
 
-void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream);
-
-void encodeOneBlock(const RunLengthEncodedBlock &runlength, const HuffmanMap &huffmap_DC, const HuffmanMap &huffmap_AC, OBitstream &stream);
-void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream &stream);
-
-HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude);
-HuffmanSymbol huffmanSymbol(const RunLengthPair &pair);
-
-void writeMagicNumber(const char *number, ofstream &output);
-void writeDimension(uint64_t dim, ofstream &output);
-
-inline YCbCrDataUnit RGBtoY(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
-  return (0.299 * R) + (0.587 * G) + (0.114 * B);
+inline void writeMagicNumber(const char *number, ofstream &output) {
+  output.write(number, 8);
 }
 
-inline YCbCrDataUnit RGBtoCb(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
-  return 128 - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
-}
-
-inline YCbCrDataUnit RGBtoCr(RGBDataUnit R, RGBDataUnit G, RGBDataUnit B) {
-  return 128 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
-}
-
-template<size_t D>
-inline QuantTable<D> scaleQuantTable(QuantTable<D> quant_table, const uint8_t quality) {
-  float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
-
-  for (size_t i = 0; i < constpow(8, D); i++) {
-    quant_table[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
-  }
-
-  return quant_table;
-}
-
-template<size_t D>
-struct getBlock {
-  template <typename IF, typename OF>
-  getBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
-    size_t blocks_x = 1;
-    size_t size_x   = 1;
-
-    for (size_t i = 0; i < D - 1; i++) {
-      blocks_x *= ceil(dims[i]/8.0);
-      size_x *= dims[i];
-    }
-
-    for (size_t pixel = 0; pixel < 8; pixel++) {
-      size_t image_y = (block / blocks_x) * 8 + pixel;
-
-      if (image_y >= dims[D-1]) {
-        image_y = dims[D-1] - 1;
-      }
-
-      auto inputF = [&](size_t image_index){
-        return input(image_y * size_x * 3 + image_index);
-      };
-
-      auto outputF = [&](size_t pixel_index) -> RGBDataPixel &{
-        return output(pixel * constpow(8, D-1) + pixel_index);
-      };
-
-      getBlock<D-1>(inputF, block % blocks_x, dims, outputF);
-    }
-  }
-};
-
-template<>
-struct getBlock<1> {
-  template <typename IF, typename OF>
-  getBlock(IF &&input, const size_t block, const size_t dims[1], OF &&output) {
-    for (size_t pixel = 0; pixel < 8; pixel++) {
-      size_t image = block * 8 + pixel;
-
-      if (image >= dims[0]) {
-        image = dims[0] - 1;
-      }
-
-      output(pixel).r = input(image * 3 + 0);
-      output(pixel).g = input(image * 3 + 1);
-      output(pixel).b = input(image * 3 + 2);
-    }
-  }
-};
-
-template<size_t D>
-inline YCbCrDataBlock<D> convertRGBDataBlock(const RGBDataBlock<D> &input, function<YCbCrDataUnit(RGBDataUnit, RGBDataUnit, RGBDataUnit)> &&f) {
-  YCbCrDataBlock<D> output {};
-
-  for (size_t i = 0; i < constpow(8, D); i++) {
-    RGBDataUnit R = input[i].r;
-    RGBDataUnit G = input[i].g;
-    RGBDataUnit B = input[i].b;
-
-    output[i] = f(R, G, B);
-  }
-
-  return output;
-}
-
-template<size_t D>
-inline YCbCrDataBlock<D> shiftBlock(YCbCrDataBlock<D> input) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
-    input[i] -= 128;
-  }
-  return input;
-}
-
-template<size_t D>
-inline TransformedBlock<D> transformBlock(const YCbCrDataBlock<D> &input) {
-  TransformedBlock<D> output {};
-
-  fdct<D>([&](size_t index) -> DCTDataUnit { return input[index];}, [&](size_t index) -> DCTDataUnit & { return output[index]; });
-
-  return output;
-}
-
-template<size_t D>
-inline QuantizedBlock<D> quantizeBlock(const TransformedBlock<D> &input, const QuantTable<D> &quant_table) {
-  QuantizedBlock<D> output;
-
-  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-    output[pixel_index] = input[pixel_index] / quant_table[pixel_index];
-  }
-
-  return output;
-}
-
-template<size_t D>
-void addToReference(const QuantizedBlock<D>& block, RefereceBlock<D>& ref) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
-    ref[i] += abs(block[i]);
-  }
-}
-
-template<size_t D>
-inline TraversedBlock<D> traverseBlock(const QuantizedBlock<D> &input, const TraversalTable<D> &traversal_table) {
-  TraversedBlock<D> output {};
-
-  for (size_t i = 0; i < constpow(8, D); i++) {
-    output[traversal_table[i]] = input[i];
-  }
-
-  return output;
-}
-
-template<size_t D>
-inline RunLengthEncodedBlock runLenghtEncodeBlock(const TraversedBlock<D> &input) {
-  RunLengthEncodedBlock output {};
-
-  output.push_back({0, static_cast<RunLengthAmplitudeUnit>(input[0])});
-
-  size_t zeroes = 0;
-  for (size_t pixel_index = 1; pixel_index < constpow(8, D); pixel_index++) {
-    if (input[pixel_index] == 0) {
-      zeroes++;
-    }
-    else {
-      while (zeroes >= 16) {
-        output.push_back({15, 0});
-        zeroes -= 16;
-      }
-      output.push_back({static_cast<RunLengthZeroesCountUnit>(zeroes), input[pixel_index]});
-      zeroes = 0;
-    }
-  }
-
-  output.push_back({0, 0});
-
-  return output;
-}
-
-template<size_t D>
-void writeQuantTable(const QuantTable<D> &table, ofstream &output) {
-
-  output.write(reinterpret_cast<const char *>(table.data()), table.size() * sizeof(QuantTable<0>::value_type));
-}
-
-template<size_t D>
-void writeTraversalTable(const TraversalTable<D> &table, ofstream &output) {
-  output.write(reinterpret_cast<const char *>(table.data()), table.size() * sizeof(TraversalTable<0>::value_type));
+inline void writeDimension(uint64_t dim, ofstream &output) {
+  uint64_t raw = htobe64(dim);
+  output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
 }
 
 template<size_t D>

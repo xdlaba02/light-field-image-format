@@ -1,22 +1,23 @@
 /******************************************************************************\
-* SOUBOR: lfif.h
+* SOUBOR: lfiftypes.h
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#ifndef LFIF_H
-#define LFIF_H
+#ifndef LFIFTYPES_H
+#define LFIFTYPES_H
 
-#include "dct.h"
+#include "constpow.h"
 
 #include <cstdint>
-#include <array>
+
 #include <vector>
 #include <map>
 
 using namespace std;
 
 using RGBDataUnit = uint8_t;
-using YCbCrDataUnit = float;
+using YCbCrDataUnit = double;
+using DCTDataUnit = double;
 using QuantizedDataunit = int16_t;
 using RefereceBlockUnit = double;
 using QuantTableUnit = uint8_t;
@@ -27,6 +28,16 @@ using RunLengthAmplitudeUnit = int16_t;
 
 using HuffmanClass = uint8_t;
 using HuffmanSymbol = uint8_t;
+
+using HuffmanCodeword = vector<bool>;
+using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
+using HuffmanCodelengths = vector<pair<uint64_t, uint8_t>>;
+using HuffmanMap = map<uint8_t, HuffmanCodeword>;
+
+struct HuffmanTable {
+  vector<uint8_t> counts;
+  vector<uint8_t> symbols;
+};
 
 struct RGBDataPixel {
   RGBDataUnit r;
@@ -39,17 +50,7 @@ struct RunLengthPair {
   RunLengthAmplitudeUnit amplitude;
 };
 
-struct HuffmanTable {
-  vector<uint8_t> counts;
-  vector<uint8_t> symbols;
-};
-
 using RGBData = vector<uint8_t>;
-
-using HuffmanCodeword = vector<bool>;
-using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
-using HuffmanCodelengths = vector<pair<uint64_t, uint8_t>>;
-using HuffmanMap = map<uint8_t, HuffmanCodeword>;
 
 using RunLengthEncodedBlock = vector<RunLengthPair>;
 
@@ -79,5 +80,7 @@ using QuantTable = Block<QuantTableUnit, D>;
 
 template<size_t D>
 using TraversalTable = Block<TraversalTableUnit, D>;
+
+
 
 #endif

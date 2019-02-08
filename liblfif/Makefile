@@ -14,7 +14,7 @@ LDFLAGS = -shared
 
 TARGET = $(BINDIR)/liblfif.so $(BINDIR)/liblfif.a
 
-OBJS = $(OBJDIR)/bitstream.o $(OBJDIR)/lfif_decoder.o $(OBJDIR)/lfif_encoder.o
+OBJS = $(OBJDIR)/bitstream.o $(OBJDIR)/huffman.o
 
 all: $(BINDIR) $(OBJDIR) $(TARGET)
 
@@ -27,10 +27,7 @@ $(BINDIR)/liblfif.a: $(OBJS)
 $(OBJDIR)/bitstream.o: $(SRCDIR)/bitstream.cc $(INCDIR)/bitstream.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/lfif_decoder.o: $(SRCDIR)/lfif_decoder.cc $(INCDIR)/lfif_decoder.h $(INCDIR)/lfif.h $(INCDIR)/dct.h $(INCDIR)/bitstream.h $(INCDIR)/constpow.h $(INCDIR)/traversal.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/lfif_encoder.o: $(SRCDIR)/lfif_encoder.cc $(INCDIR)/lfif_encoder.h $(INCDIR)/lfif.h $(INCDIR)/dct.h $(INCDIR)/bitstream.h $(INCDIR)/constpow.h $(INCDIR)/traversal.h $(INCDIR)/qtable.h
+$(OBJDIR)/huffman.o: $(SRCDIR)/huffman.cc $(INCDIR)/huffman.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BINDIR):

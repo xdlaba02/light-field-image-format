@@ -1,13 +1,13 @@
 /******************************************************************************\
-* SOUBOR: lfif_encoder.cc
+* SOUBOR: huffman.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#include "lfif_encoder.h"
+#include "huffman.h"
 
+#include <numeric>
+#include <algorithm>
 #include <bitset>
-
-using namespace std;
 
 void huffmanAddWeightAC(const RunLengthEncodedBlock &input, HuffmanWeights &weights) {
   for (size_t i = 1; i < input.size(); i++) {
@@ -118,23 +118,22 @@ HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths) {
   return map;
 }
 
-void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream) {
-  uint8_t codelengths_cnt = codelengths.back().first + 1;
-  stream.put(codelengths_cnt);
-
-  auto it = codelengths.begin();
-  for (uint8_t i = 0; i < codelengths_cnt; i++) {
-    size_t leaves = 0;
-    while ((it < codelengths.end()) && ((*it).first == i)) {
-      leaves++;
-      it++;
-    }
-    stream.put(leaves);
+HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude) {
+  if (amplitude < 0) {
+    amplitude = -amplitude;
   }
 
-  for (auto &pair: codelengths) {
-    stream.put(pair.second);
+  HuffmanClass huff_class = 0;
+  while (amplitude > 0) {
+    amplitude = amplitude >> 1;
+    huff_class++;
   }
+
+  return huff_class;
+}
+
+HuffmanSymbol huffmanSymbol(const RunLengthPair &pair) {
+  return pair.zeroes << 4 | huffmanClass(pair.amplitude);
 }
 
 void encodeOneBlock(const RunLengthEncodedBlock &runlength, const HuffmanMap &huffmap_DC, const HuffmanMap &huffmap_AC, OBitstream &stream) {
@@ -162,29 +161,93 @@ void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream 
   }
 }
 
-HuffmanClass huffmanClass(RunLengthAmplitudeUnit amplitude) {
-  if (amplitude < 0) {
-    amplitude = -amplitude;
+RunLengthEncodedBlock decodeOneBlock(const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream) {
+  RunLengthEncodedBlock output {};
+
+  RunLengthPair pair {};
+
+  output.push_back(decodeOnePair(hufftable_DC, bitstream));
+  do {
+    pair = decodeOnePair(hufftable_AC, bitstream);
+    output.push_back(pair);
+  } while((pair.zeroes != 0) || (pair.amplitude != 0));
+
+  return output;
+}
+
+RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream) {
+  size_t symbol_index = decodeOneHuffmanSymbolIndex(table.counts, stream);
+  RunLengthAmplitudeUnit amplitude = decodeOneAmplitude(table.symbols[symbol_index] & 0x0f, stream);
+  return {static_cast<RunLengthZeroesCountUnit>(table.symbols[symbol_index] >> 4), amplitude};
+}
+
+size_t decodeOneHuffmanSymbolIndex(const vector<uint8_t> &counts, IBitstream &stream) {
+  uint16_t code  = 0;
+  uint16_t first = 0;
+  uint16_t index = 0;
+  uint16_t count = 0;
+
+  for (size_t len = 1; len < counts.size(); len++) {
+    code |= stream.readBit();
+    count = counts[len];
+    if (code - count < first) {
+      return index + (code - first);
+    }
+    index += count;
+    first += count;
+    first <<= 1;
+    code <<= 1;
   }
 
-  HuffmanClass huff_class = 0;
-  while (amplitude > 0) {
-    amplitude = amplitude >> 1;
-    huff_class++;
+  return 0;
+}
+
+RunLengthAmplitudeUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stream) {
+  RunLengthAmplitudeUnit amplitude = 0;
+
+  if (length != 0) {
+    for (HuffmanSymbol i = 0; i < length; i++) {
+      amplitude <<= 1;
+      amplitude |= stream.readBit();
+    }
+
+    if (amplitude < (1 << (length - 1))) {
+      amplitude |= 0xffff << length;
+      amplitude = ~amplitude;
+      amplitude = -amplitude;
+    }
   }
 
-  return huff_class;
+  return amplitude;
 }
 
-HuffmanSymbol huffmanSymbol(const RunLengthPair &pair) {
-  return pair.zeroes << 4 | huffmanClass(pair.amplitude);
+void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream) {
+  uint8_t codelengths_cnt = codelengths.back().first + 1;
+  stream.put(codelengths_cnt);
+
+  auto it = codelengths.begin();
+  for (uint8_t i = 0; i < codelengths_cnt; i++) {
+    size_t leaves = 0;
+    while ((it < codelengths.end()) && ((*it).first == i)) {
+      leaves++;
+      it++;
+    }
+    stream.put(leaves);
+  }
+
+  for (auto &pair: codelengths) {
+    stream.put(pair.second);
+  }
 }
 
-void writeMagicNumber(const char *number, ofstream &output) {
-  output.write(number, 8);
-}
+HuffmanTable readHuffmanTable(ifstream &stream) {
+  HuffmanTable table {};
 
-void writeDimension(uint64_t dim, ofstream &output) {
-  uint64_t raw = htobe64(dim);
-  output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
+  table.counts.resize(stream.get());
+  stream.read(reinterpret_cast<char *>(table.counts.data()), table.counts.size());
+
+  table.symbols.resize(accumulate(table.counts.begin(), table.counts.end(), 0, plus<uint8_t>()));
+  stream.read(reinterpret_cast<char *>(table.symbols.data()), table.symbols.size());
+
+  return table;
 }

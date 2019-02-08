@@ -7,14 +7,9 @@
 #define DCT_H
 
 #include "constpow.h"
+#include "lfiftypes.h"
 
-#include <cstdint>
 #include <cmath>
-#include <functional>
-
-using namespace std;
-
-using DCTDataUnit = float;
 
 constexpr array<DCTDataUnit, 64> init_coefs() {
   array<DCTDataUnit, 64> c {};
@@ -80,5 +75,19 @@ struct idct<1> {
     }
   }
 };
+
+template<size_t D>
+inline TransformedBlock<D> transformBlock(const YCbCrDataBlock<D> &input) {
+  TransformedBlock<D> output {};
+  fdct<D>([&](size_t index) -> DCTDataUnit { return input[index];}, [&](size_t index) -> DCTDataUnit & { return output[index]; });
+  return output;
+}
+
+template<size_t D>
+inline YCbCrDataBlock<D> detransformBlock(const TransformedBlock<D> &input) {
+  YCbCrDataBlock<D> output {};
+  idct<D>([&](size_t index) -> DCTDataUnit { return input[index]; }, [&](size_t index) -> DCTDataUnit & { return output[index]; });
+  return output;
+}
 
 #endif

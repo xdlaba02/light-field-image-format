@@ -6,155 +6,29 @@
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
 
-#include "lfif.h"
-#include "dct.h"
-#include "bitstream.h"
+#include "lfiftypes.h"
+#include "block.h"
+#include "qtable.h"
 #include "traversal.h"
+#include "huffman.h"
+#include "shift.h"
+#include "dct.h"
+#include "runlength.h"
+#include "colorspace.h"
 
-using namespace std;
+#include <fstream>
 
-bool checkMagicNumber(const string &cmp, ifstream &input);
-uint64_t readDimension(ifstream &input);
-HuffmanTable readHuffmanTable(ifstream &stream);
-
-RunLengthEncodedBlock decodeOneBlock(const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream);
-RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream);
-size_t decodeOneHuffmanSymbolIndex(const vector<uint8_t> &counts, IBitstream &stream);
-RunLengthAmplitudeUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stream);
-
-template<size_t D>
-QuantTable<D> readQuantTable(ifstream &input) {
-  QuantTable<D> table {};
-  input.read(reinterpret_cast<char *>(table.data()), table.size() * sizeof(QuantTable<0>::value_type));
-  return table;
+inline bool checkMagicNumber(const string &cmp, ifstream &input) {
+  char magic_number[9] {};
+  input.read(magic_number, 8);
+  return string(magic_number) == cmp;
 }
 
-template<size_t D>
-TraversalTable<D> readTraversalTable(ifstream &input) {
-  TraversalTable<D> table {};
-  input.read(reinterpret_cast<char *>(table.data()), table.size() * sizeof(TraversalTable<0>::value_type));
-  return table;
+inline uint64_t readDimension(ifstream &input) {
+  uint64_t raw {};
+  input.read(reinterpret_cast<char *>(&raw), sizeof(uint64_t));
+  return be64toh(raw);
 }
-
-template<size_t D>
-inline TraversedBlock<D> runLenghtDecodeBlock(const RunLengthEncodedBlock &input) {
-  TraversedBlock<D> output {};
-
-  size_t pixel_index = 0;
-  for (auto &pair: input) {
-    pixel_index += pair.zeroes;
-    output[pixel_index] = pair.amplitude;
-    pixel_index++;
-  }
-
-  return output;
-}
-
-template<size_t D>
-inline QuantizedBlock<D> detraverseBlock(const TraversedBlock<D> &input, const TraversalTable<D> &traversal_table) {
-  QuantizedBlock<D> output {};
-
-  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-    output[pixel_index] = input[traversal_table[pixel_index]];
-  }
-
-  return output;
-}
-
-template<size_t D>
-inline TransformedBlock<D> dequantizeBlock(const QuantizedBlock<D> &input, const QuantTable<D> &quant_table) {
-  TransformedBlock<D> output {};
-
-  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-    output[pixel_index] = input[pixel_index] * quant_table[pixel_index];
-  }
-
-  return output;
-}
-
-template<size_t D>
-inline YCbCrDataBlock<D> detransformBlock(const TransformedBlock<D> &input) {
-  YCbCrDataBlock<D> output {};
-
-  idct<D>([&](size_t index) -> DCTDataUnit { return input[index]; }, [&](size_t index) -> DCTDataUnit & { return output[index]; });
-
-  return output;
-}
-
-template<size_t D>
-inline YCbCrDataBlock<D> deshiftBlock(YCbCrDataBlock<D> input) {
-  for (auto &pixel: input) {
-    pixel += 128;
-  }
-  return input;
-}
-
-template<size_t D>
-RGBDataBlock<D> YCbCrDataBlockToRGBDataBlock(const YCbCrDataBlock<D> &input_Y, const YCbCrDataBlock<D> &input_Cb, const YCbCrDataBlock<D> &input_Cr) {
-  RGBDataBlock<D> output {};
-
-  for (size_t pixel_index = 0; pixel_index < constpow(8, D); pixel_index++) {
-    YCbCrDataUnit Y  = input_Y[pixel_index];
-    YCbCrDataUnit Cb = input_Cb[pixel_index] - 128;
-    YCbCrDataUnit Cr = input_Cr[pixel_index] - 128;
-
-    output[pixel_index].r = clamp(Y +                      (1.402 * Cr), 0.0, 255.0);
-    output[pixel_index].g = clamp(Y - (0.344136 * Cb) - (0.714136 * Cr), 0.0, 255.0);
-    output[pixel_index].b = clamp(Y + (1.772    * Cb)                  , 0.0, 255.0);
-  }
-
-  return output;
-}
-
-template<size_t D>
-struct putBlock {
-  template <typename IF, typename OF>
-  putBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
-    size_t blocks_x = 1;
-    size_t size_x   = 1;
-
-    for (size_t i = 0; i < D - 1; i++) {
-      blocks_x *= ceil(dims[i]/8.0);
-      size_x *= dims[i];
-    }
-
-    for (size_t pixel = 0; pixel < 8; pixel++) {
-      size_t image = (block / blocks_x) * 8 + pixel;
-
-      if (image >= dims[D-1]) {
-        break;
-      }
-
-      auto inputF = [&](size_t pixel_index){
-        return input(pixel * constpow(8, D-1) + pixel_index);
-      };
-
-      auto outputF = [&](size_t image_index)-> RGBDataUnit &{
-        return output(image * size_x * 3 + image_index);
-      };
-
-      putBlock<D-1>(inputF, block % blocks_x, dims, outputF);
-    }
-  }
-};
-
-template<>
-struct putBlock<1> {
-  template <typename IF, typename OF>
-  putBlock(IF &&input, size_t block, const size_t dims[1], OF &&output) {
-    for (size_t pixel = 0; pixel < 8; pixel++) {
-      size_t image = block * 8 + pixel;
-
-      if (image >= dims[0]) {
-        break;
-      }
-
-      output(image * 3 + 0) = input(pixel).r;
-      output(image * 3 + 1) = input(pixel).g;
-      output(image * 3 + 2) = input(pixel).b;
-    }
-  }
-};
 
 template<size_t D>
 int LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img_dims[D], uint64_t &imgs_cnt) {
