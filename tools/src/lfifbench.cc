@@ -1,9 +1,9 @@
 /******************************************************************************\
-* SOUBOR: lfiftest.cc
+* SOUBOR: lfifbench.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#include "lfiftest.h"
+#include "lfifbench.h"
 #include "plenoppm.h"
 
 #include <getopt.h>
@@ -50,12 +50,12 @@ int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
     uint64_t decompressed_image_count {};
     uint64_t img_dims[2]              {width, height};
 
-    compressed_image_size = encode<2>(original, img_dims, image_count, quality, "/tmp/lfiftest.lfi2d");
+    compressed_image_size = encode<2>(original, img_dims, image_count, quality, "/tmp/lfifbench.lfi2d");
     if (!compressed_image_size) {
       return 3;
     }
 
-    if (decode<2>("/tmp/lfiftest.lfi2d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+    if (decode<2>("/tmp/lfifbench.lfi2d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
       return 3;
     }
 
@@ -79,12 +79,12 @@ int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
     uint64_t decompressed_image_count {};
     uint64_t img_dims[3]              {width, height, image_count};
 
-    compressed_image_size = encode<3>(original, img_dims, 1, quality, "/tmp/lfiftest.lfi3d");
+    compressed_image_size = encode<3>(original, img_dims, 1, quality, "/tmp/lfifbench.lfi3d");
     if (!compressed_image_size) {
       return 3;
     }
 
-    if (decode<3>("/tmp/lfiftest.lfi3d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+    if (decode<3>("/tmp/lfifbench.lfi3d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
       return 3;
     }
 
@@ -108,12 +108,12 @@ int method4D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
     uint64_t decompressed_image_count {};
     uint64_t img_dims[4]              {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
 
-    compressed_image_size = encode<4>(original, img_dims, 1, quality, "/tmp/lfiftest.lfi4d");
+    compressed_image_size = encode<4>(original, img_dims, 1, quality, "/tmp/lfifbench.lfi4d");
     if (!compressed_image_size) {
       return 3;
     }
 
-    if (decode<4>("/tmp/lfiftest.lfi4d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+    if (decode<4>("/tmp/lfifbench.lfi4d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
       return 3;
     }
 
@@ -206,10 +206,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (!quality_step) {
-    q_step = 1;
-  }
-  else {
+  q_step = 1;
+  if (quality_step) {
     int tmp = atoi(quality_step);
     if ((tmp < 1) || (tmp > 100)) {
       print_usage(argv[0]);

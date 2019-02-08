@@ -11,7 +11,7 @@ BINDIR = bin
 CC = g++
 CFLAGS = -Iinclude -I../liblfif/include -I../libppm/include -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 
-all: $(BINDIR) $(OBJDIR) lfiftools testtools
+all: $(BINDIR) $(OBJDIR) lfiftools benchtools
 
 lfiftools: $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
 
@@ -60,26 +60,27 @@ $(OBJDIR)/lfif4d_decompress.o: $(SRCDIR)/lfif4d_decompress.cc $(INCDIR)/decompre
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
-testtools: $(BINDIR)/lfiftest $(BINDIR)/moztest $(BINDIR)/x265test
+benchtools: $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
 
-$(BINDIR)/lfiftest: $(OBJDIR)/lfiftest.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a
+$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a
 	$(CC) -lm -pthread $^ -o $@
 
-$(BINDIR)/moztest: $(OBJDIR)/moztest.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a /opt/mozjpeg/lib64/libjpeg.a
+$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a /opt/mozjpeg/lib64/libjpeg.a
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/x265test: $(OBJDIR)/x265test.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
+$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
 	$(CC) -lm  -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 
-$(OBJDIR)/lfiftest.o: $(SRCDIR)/lfiftest.cc $(INCDIR)/lfiftest.h
+$(OBJDIR)/lfifbench.o: $(SRCDIR)/lfifbench.cc $(INCDIR)/lfifbench.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/moztest.o: $(SRCDIR)/moztest.cc
+$(OBJDIR)/mozbench.o: $(SRCDIR)/mozbench.cc
 	$(CC) $(CFLAGS) -I/opt/mozjpeg/include -c $< -o $@
 
-$(OBJDIR)/x265test.o: $(SRCDIR)/x265test.cc
+$(OBJDIR)/x265bench.o: $(SRCDIR)/x265bench.cc
 	$(CC) $(CFLAGS) -I/usr/include/ffmpeg -c $< -o $@
+
 
 
 $(OBJDIR)/compress.o: $(SRCDIR)/compress.cc $(INCDIR)/compress.h $(INCDIR)/file_mask.h

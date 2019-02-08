@@ -1,5 +1,5 @@
 /******************************************************************************\
-* SOUBOR: x265test.cc
+* SOUBOR: x265bench.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
@@ -22,25 +22,6 @@ extern "C" {
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
   cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-s <quality-step>]" << endl;
-}
-
-double PSNR(const vector<uint8_t> &original, const vector<uint8_t> &compared) {
-  double mse  {};
-  size_t size {};
-
-  size = original.size() < compared.size() ? original.size() : compared.size();
-
-  for (size_t i = 0; i < size; i++) {
-    mse += (original[i] - compared[i]) * (original[i] - compared[i]);
-  }
-
-  mse /= size;
-
-  if (!mse) {
-    return 0;
-  }
-
-  return 10 * log10((255.0 * 255.0) / mse);
 }
 
 void encode(AVCodecContext *context, AVFrame *frame, AVPacket *pkt, const function<void(AVPacket *)> &callback) {
@@ -91,7 +72,7 @@ int main(int argc, char *argv[]) {
   const char *input_file_mask {};
   const char *output_file     {};
 
-  vector<uint8_t> in_rgb_data  {};
+  vector<uint8_t> rgb_data  {};
 
   uint64_t width       {};
   uint64_t height      {};
@@ -124,18 +105,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (!input_file_mask) {
+  if (!input_file_mask || !output_file) {
     print_usage(argv[0]);
     return 1;
   }
 
-  if (!output_file) {
-    cerr << "Please specify -o <output-file-name>." << endl;
-    print_usage(argv[0]);
-    return 1;
-  }
-
-  if (!loadPPMs(input_file_mask, in_rgb_data, width, height, color_depth, image_count)) {
+  if (!loadPPMs(input_file_mask, rgb_data, width, height, color_depth, image_count)) {
     return 2;
   }
 
@@ -265,11 +240,16 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
+    double mse = 0;
+    size_t input_iterator = 0;
+
     auto saveFrame = [&](AVFrame *frame) {
       sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, height, rgb_frame->data, rgb_frame->linesize);
 
-      for (int i = 0; i < rgb_frame->width * rgb_frame->height * 3; i++) {
-        out_rgb_data.push_back(rgb_frame->data[0][i]);
+      for (int pix = 0; pix < rgb_frame->width * rgb_frame->height * 3; pix++) {
+        double tmp = rgb_data[input_iterator] - rgb_frame->data[0][pix];
+        mse += tmp * tmp;
+        input_iterator++;
       }
     };
 
@@ -281,7 +261,7 @@ int main(int argc, char *argv[]) {
     };
 
     for (size_t image = 0; image < image_count; image++) {
-      uint8_t *inData[1] = { &in_rgb_data[image * width * height * 3] };
+      uint8_t *inData[1] = { &rgb_data[image * width * height * 3] };
       int inLinesize[1] = { static_cast<int>(3 * width) };
       sws_scale(in_convert_ctx, inData, inLinesize, 0, height, in_frame->data, in_frame->linesize);
 
@@ -297,8 +277,14 @@ int main(int argc, char *argv[]) {
     avcodec_close(in_context);
     avcodec_close(out_context);
 
-    cerr << bpp << " " << PSNR(in_rgb_data, out_rgb_data) << " " << compressed_size * 8.0 / image_pixels << endl;
-    output << bpp << " " << PSNR(in_rgb_data, out_rgb_data) << " " << compressed_size * 8.0 / image_pixels << endl;
+
+    mse /= image_count * width * height * 3;
+
+    double out_bpp = compressed_size * 8.0 / image_pixels;
+    double psnr = 10 * log10((255 * 255) / mse);
+
+    cerr << bpp << " " << psnr << " " << out_bpp << endl;
+    output << bpp << " " << psnr << " " << out_bpp << endl;
   }
 
   avcodec_free_context(&in_context);

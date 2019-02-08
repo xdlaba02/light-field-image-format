@@ -1,5 +1,5 @@
 /******************************************************************************\
-* SOUBOR: moztest.cc
+* SOUBOR: mozbench.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
@@ -73,21 +73,14 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (!input_file_mask) {
+  if (!input_file_mask || !output_file) {
     print_usage(argv[0]);
     return 1;
   }
 
-  if (!output_file) {
-    cerr << "Please specify -o <output-file-name>." << endl;
-    print_usage(argv[0]);
-    return 1;
-  }
+  q_step = 1;
 
-  if (!quality_step) {
-    q_step = 1;
-  }
-  else {
+  if (quality_step) {
     int tmp = atoi(quality_step);
     if ((tmp < 1) || (tmp > 100)) {
       print_usage(argv[0]);
@@ -144,8 +137,8 @@ int main(int argc, char *argv[]) {
       uint8_t *original = &original_rgb_data[i * original_width * original_height * 3];
       vector<uint8_t>  decompressed_rgb_data(original_width * original_height * 3);
 
-      if ((outfile = fopen("/tmp/moztest.jpeg", "wb")) == NULL) {
-        fprintf(stderr, "can't open %s\n", "/tmp/moztest.jpeg");
+      if ((outfile = fopen("/tmp/mozbench.jpeg", "wb")) == NULL) {
+        fprintf(stderr, "can't open %s\n", "/tmp/mozbench.jpeg");
         exit(1);
       }
 
@@ -165,8 +158,8 @@ int main(int argc, char *argv[]) {
 
       /**/
 
-      if ((infile = fopen("/tmp/moztest.jpeg", "rb")) == NULL) {
-        fprintf(stderr, "can't open %s\n", "/tmp/moztest.jpeg");
+      if ((infile = fopen("/tmp/mozbench.jpeg", "rb")) == NULL) {
+        fprintf(stderr, "can't open %s\n", "/tmp/mozbench.jpeg");
         return 0;
       }
 

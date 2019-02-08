@@ -1,10 +1,10 @@
 /******************************************************************************\
-* SOUBOR: lfiftest.h
+* SOUBOR: lfifbench.h
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#ifndef LFIFTEST_H
-#define LFIFTEST_H
+#ifndef LFIFBENCH_H
+#define LFIFBENCH_H
 
 #include <lfif_encoder.h>
 #include <lfif_decoder.h>
