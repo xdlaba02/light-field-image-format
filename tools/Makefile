@@ -13,7 +13,7 @@ CFLAGS = -Iinclude -I../liblfif/include -I../libppm/include -O3 -std=c++17 -Wall
 
 all: $(BINDIR) $(OBJDIR) lfiftools benchtools
 
-lfiftools: $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
+lfiftools: $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif16_compress $(BINDIR)/lfif16_decompress
 
 LFIFTOOLSLDFLAGS = -lm
 
@@ -21,23 +21,30 @@ COMPRESS = $(OBJDIR)/compress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../li
 DECOMPRESS = $(OBJDIR)/decompress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(COMPRESS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
 
 $(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress.o $(COMPRESS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
 
 $(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(COMPRESS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
 
 
 $(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress.o $(DECOMPRESS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
 
 $(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress.o $(DECOMPRESS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
 
 $(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(DECOMPRESS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+
+
+$(BINDIR)/lfif16_compress: $(OBJDIR)/lfif16_compress.o ../liblfif/bin/liblfif16.a ../libppm/bin/libppm.a
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+
+$(BINDIR)/lfif16_decompress: $(OBJDIR)/lfif16_decompress.o ../liblfif/bin/liblfif16.a ../libppm/bin/libppm.a
+	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
 
 
 $(OBJDIR)/lfif2d_compress.o: $(SRCDIR)/lfif2d_compress.cc $(INCDIR)/compress.h
@@ -57,6 +64,13 @@ $(OBJDIR)/lfif3d_decompress.o: $(SRCDIR)/lfif3d_decompress.cc $(INCDIR)/decompre
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/lfif4d_decompress.o: $(SRCDIR)/lfif4d_decompress.cc $(INCDIR)/decompress.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+$(OBJDIR)/lfif16_compress.o: $(SRCDIR)/lfif16_compress.cc
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/lfif16_decompress.o: $(SRCDIR)/lfif16_decompress.cc
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
