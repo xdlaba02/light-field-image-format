@@ -5,55 +5,26 @@
 
 #include "ppm.h"
 
-int readPPM(ifstream &input, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth) {
-  if (!parseHeader(input, width, height, color_depth)) {
-    return -1;
-  }
+#include <string>
 
-  size_t image_size = width * height * 3;
-  size_t original_size = rgb_data.size();
+using namespace std;
 
-  if (color_depth < 256) {
-    rgb_data.resize(original_size + image_size);
-    input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), image_size);
-    if (input.fail()) {
-      return -2;
-    }
-  }
-  else {
-    rgb_data.resize(original_size + (2 * image_size));
-    input.read(reinterpret_cast<char *>(rgb_data.data() + original_size), 2 * image_size);
-    if (input.fail()) {
-      return -2;
-    }
-  }
+enum PPMHeaderParserState {
+  STATE_INIT,
+  STATE_P,
+  STATE_P6,
+  STATE_P6_SPACE,
+  STATE_WIDTH,
+  STATE_WIDTH_SPACE,
+  STATE_HEIGHT,
+  STATE_HEIGHT_SPACE,
+  STATE_DEPTH,
+  STATE_END
+};
 
-  return 0;
-}
-
-int writePPM(const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, ofstream &output) {
-  output << "P6" << endl;
-  output << width << endl;
-  output << height << endl;
-  output << color_depth << endl;
-
-  size_t image_size = width * height * 3;
-
-  if (color_depth >= 256) {
-    image_size *= 2;
-  }
-
-  output.write(reinterpret_cast<const char *>(rgb_data), image_size);
-  if (output.fail()) {
-    return -1;
-  }
-
-  return 0;
-}
-
-void skipUntilEol(ifstream &input) {
-  char c {};
-  while(input.get(c)) {
+void skipUntilEol(FILE *input) {
+  int c {};
+  while((c = getc(input)) != EOF) {
     if (c == '\n') {
       return;
     }
@@ -61,26 +32,22 @@ void skipUntilEol(ifstream &input) {
   return;
 }
 
-bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &depth) {
+int readPPMHeader(PPMFileStruct *ppm) {
   string str_width  {};
   string str_height {};
   string str_depth  {};
 
-  State state = STATE_INIT;
+  PPMHeaderParserState state = STATE_INIT;
 
-  char c {};
-  while(input.get(c)) {
-    if (input.eof()) {
-      return false;
-    }
-
+  int c {};
+  while((c = getc(ppm->file)) != EOF) {
     switch (state) {
       case STATE_INIT:
       if (c == 'P') {
         state = STATE_P;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
@@ -89,26 +56,26 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         state = STATE_P6;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_P6:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
         state = STATE_P6_SPACE;
       }
       else if (isspace(c)) {
         state = STATE_P6_SPACE;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_P6_SPACE:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
       }
       else if (isspace(c)) {
         // STAY HERE
@@ -118,13 +85,13 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         state = STATE_WIDTH;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_WIDTH:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
         state = STATE_WIDTH_SPACE;
       }
       else if (isspace(c)) {
@@ -134,13 +101,13 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         str_width += c;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_WIDTH_SPACE:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
       }
       else if (isspace(c)) {
         // STAY HERE
@@ -150,13 +117,13 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         state = STATE_HEIGHT;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_HEIGHT:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
         state = STATE_HEIGHT_SPACE;
       }
       else if (isspace(c)) {
@@ -166,13 +133,13 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         str_height += c;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_HEIGHT_SPACE:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
       }
       else if (isspace(c)) {
         // STAY HERE
@@ -182,13 +149,13 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         state = STATE_DEPTH;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_DEPTH:
       if (c == '#') {
-        skipUntilEol(input);
+        skipUntilEol(ppm->file);
         state = STATE_END;
       }
       else if (isspace(c)) {
@@ -198,32 +165,122 @@ bool parseHeader(ifstream &input, uint64_t &width, uint64_t &height, uint32_t &d
         str_depth += c;
       }
       else {
-        return false;
+        return -1;
       }
       break;
 
       case STATE_END:
-      input.unget();
+      ungetc(c, ppm->file);
 
-      width = stoi(str_width);
+      int64_t width = stoi(str_width);
       if (width <= 0) {
-        return false;
+        return -1;
       }
 
-      height = stoi(str_height);
+      int64_t height = stoi(str_height);
       if (height <= 0) {
-        return false;
+        return -1;
       }
 
-      depth = stoi(str_depth);
+      int64_t depth = stoi(str_depth);
       if (depth > 65535 || depth <= 0) {
-        return false;
+        return -1;
       }
 
-      return true;
+      ppm->width = width;
+      ppm->height = height;
+      ppm->color_depth = depth;
+
+      return 0;
       break;
     }
   }
 
-  return false;
+  return -1;
+}
+
+int readPPMRow(PPMFileStruct *ppm, Pixel *buffer) {
+  size_t units_read = 0;
+
+  if (ppm->color_depth < 256) {
+    for (size_t i = 0; i < ppm->width; i++) {
+      uint8_t tmp {};
+
+      units_read += fread(&tmp, 1, 1, ppm->file);
+      buffer[i].r = tmp;
+
+      units_read += fread(&tmp, 1, 1, ppm->file);
+      buffer[i].g = tmp;
+
+      units_read += fread(&tmp, 1, 1, ppm->file);
+      buffer[i].b = tmp;
+    }
+  }
+  else {
+    for (size_t i = 0; i < ppm->width; i++) {
+      uint16_t tmp {};
+
+      units_read += fread(&tmp, 2, 1, ppm->file);
+      buffer[i].r = be16toh(tmp);
+
+      units_read += fread(&tmp, 2, 1, ppm->file);
+      buffer[i].g = be16toh(tmp);
+
+      units_read += fread(&tmp, 2, 1, ppm->file);
+      buffer[i].b = be16toh(tmp);
+    }
+  }
+
+  if (units_read != ppm->width * 3) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int writePPMHeader(const PPMFileStruct *ppm) {
+  if (fprintf(ppm->file, "P6\n%lu\n%lu\n%u", ppm->width, ppm->height, ppm->color_depth) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int writePPMRow(PPMFileStruct *ppm, Pixel *buffer) {
+  size_t units_written = 0;
+
+  if (ppm->color_depth < 256) {
+    for (size_t i = 0; i < ppm->width; i++) {
+      uint8_t tmp {};
+
+      tmp = buffer[i].r;
+      units_written += fwrite(&tmp, 1, 1, ppm->file);
+
+      tmp = buffer[i].g;
+      units_written += fwrite(&tmp, 1, 1, ppm->file);
+
+      tmp = buffer[i].b;
+      units_written += fwrite(&tmp, 1, 1, ppm->file);
+    }
+  }
+  else {
+    for (size_t i = 0; i < ppm->width; i++) {
+      uint16_t tmp {};
+
+      tmp = htobe16(buffer[i].r);
+      units_written += fwrite(&tmp, 2, 1, ppm->file);
+
+      tmp = htobe16(buffer[i].g);
+      units_written += fwrite(&tmp, 2, 1, ppm->file);
+
+      tmp = htobe16(buffer[i].b);
+      units_written += fwrite(&tmp, 2, 1, ppm->file);
+    }
+  }
+
+  if (units_written != ppm->width * 3) {
+    return -1;
+  }
+
+  return 0;
 }
