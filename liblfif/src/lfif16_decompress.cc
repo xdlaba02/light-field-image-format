@@ -16,6 +16,8 @@
 #include <fstream>
 #include <numeric>
 
+#include <iostream>
+
 using namespace std;
 
 inline void putBlock(uint16_t *rgb_data, const uint64_t img_dims[2], size_t block, const uint16_t in_block[64*3]) {
@@ -36,18 +38,18 @@ inline void putBlock(uint16_t *rgb_data, const uint64_t img_dims[2], size_t bloc
         break;
       }
 
-      rgb_data[image_y * size_x * 3 + image_x * 3 + 0] = in_block[pixel_y * 8 * 3 + pixel_x + 0];
-      rgb_data[image_y * size_x * 3 + image_x * 3 + 1] = in_block[pixel_y * 8 * 3 + pixel_x + 1];
-      rgb_data[image_y * size_x * 3 + image_x * 3 + 2] = in_block[pixel_y * 8 * 3 + pixel_x + 2];
+      rgb_data[(image_y * size_x + image_x) * 3 + 0] = in_block[(pixel_y * 8 + pixel_x) * 3 + 0];
+      rgb_data[(image_y * size_x + image_x) * 3 + 1] = in_block[(pixel_y * 8 + pixel_x) * 3 + 1];
+      rgb_data[(image_y * size_x + image_x) * 3 + 2] = in_block[(pixel_y * 8 + pixel_x) * 3 + 2];
     }
   }
 }
 
 inline void YCbCrDataBlockToRGBDataBlock(const double input_Y[64], const double input_Cb[64], const double input_Cr[64], uint16_t output[3*64]) {
   for (size_t pixel_index = 0; pixel_index < 64; pixel_index++) {
-    double Y  = input_Y[pixel_index] + 32768;
-    double Cb = input_Cb[pixel_index];
-    double Cr = input_Cr[pixel_index];
+    double Y  = input_Y[pixel_index];
+    double Cb = input_Cb[pixel_index] - 32768;
+    double Cr = input_Cr[pixel_index] - 32768;
 
     output[pixel_index * 3 + 0] = clamp(Y +                      (1.402 * Cr), 0.0, 65535.0);
     output[pixel_index * 3 + 1] = clamp(Y - (0.344136 * Cb) - (0.714136 * Cr), 0.0, 65535.0);
@@ -55,33 +57,9 @@ inline void YCbCrDataBlockToRGBDataBlock(const double input_Y[64], const double 
   }
 }
 
-constexpr array<double, 64> dct_coefs() {
-  array<double, 64> coefs {};
-  for(size_t u = 0; u < 8; u++) {
-    for(size_t x = 0; x < 8; x++) {
-      coefs[u * 8 + x] = cos(((2 * x + 1) * u * M_PI ) / 16) * sqrt(0.25) * (u == 0 ? (1 / sqrt(2)) : 1);
-    }
-  }
-  return coefs;
-}
-
-constexpr array<double, 64> coefs = dct_coefs();
-
-inline void idct(double input[64]) {
-  double tmp[64] {};
-  for (size_t slice = 0; slice < 8; slice++) {
-    for (size_t x = 0; x < 8; x++) {
-      for (size_t u = 0; u < 8; u++) {
-        tmp[slice * 8 + x] += input[slice * 8 + u] * coefs[u * 8 + x];
-      }
-    }
-  }
-  for (size_t noodle = 0; noodle < 8; noodle++) {
-    for (size_t x = 0; x < 8; x++) {
-      for (size_t u = 0; u < 8; u++) {
-        input[x * 8 + noodle] += tmp[u * 8 + noodle] * coefs[u * 8 + x];
-      }
-    }
+inline void deshiftBlock(double input[64]) {
+  for (size_t i = 0; i < 64; i++) {
+    input[i] += 32768;
   }
 }
 
@@ -278,17 +256,19 @@ int LFIFDecompress16(const char *input_file_name, vector<uint16_t> &rgb_data, ui
   previous_DCs[2] = 0;
 
   for (size_t block = 0; block < blocks_cnt; block++) {
-    uint16_t block_rgb[64*3]   {};
-    double   blocks_raw[64][3] {};
+    uint16_t block_rgb[64*3]  {};
+    double  blocks_raw[3][64] {};
 
     for (size_t channel = 0; channel < 3; channel++) {
-      int32_t               block_quant[64] {};
+      int32_t block_quant[64]   {};
+      double  blocks_coefs[64]  {};
 
       runLenghtDecodeBlock(decodeOneBlock(hufftables[channel], bitstream), block_quant);
       diffDecodeDC(block_quant[0], previous_DCs[channel]);
       detraverseBlock(block_quant, traversal_tables[channel]);
-      dequantizeBlock(block_quant, quant_tables[channel], blocks_raw[channel]);
-      idct(blocks_raw[channel]);
+      dequantizeBlock(block_quant, quant_tables[channel], blocks_coefs);
+      idct<2>([&](size_t index){ return blocks_coefs[index];}, [&](size_t index) -> double & { return blocks_raw[channel][index];});
+      deshiftBlock(blocks_raw[channel]);
     }
 
     YCbCrDataBlockToRGBDataBlock(blocks_raw[0], blocks_raw[1], blocks_raw[2], block_rgb);

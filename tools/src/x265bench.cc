@@ -16,6 +16,9 @@ extern "C" {
 #include <iostream>
 #include <fstream>
 #include <functional>
+#include <iostream>
+
+using namespace std;
 
 #define INBUF_SIZE 4096
 
@@ -110,13 +113,14 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (!loadPPMs(input_file_mask, rgb_data, width, height, color_depth, image_count)) {
+  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
     return 2;
   }
 
-  if (color_depth != 255) {
-    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
-    return 2;
+  rgb_data.resize(width * height * image_count * 3);
+
+  if (!loadPPMs(input_file_mask, rgb_data.data())) {
+    return 3;
   }
 
   image_pixels = width * height * image_count;

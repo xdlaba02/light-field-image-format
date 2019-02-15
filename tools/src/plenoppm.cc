@@ -10,36 +10,45 @@
 
 #include <iostream>
 
-bool loadPPMs(const char *input_file_mask, vector<uint8_t> &rgb_data, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
+bool isSquare(uint64_t num) {
+  for (size_t i = 0; i * i <= num; i++) {
+    if (i * i == num) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool checkPPMheaders(const char *input_file_mask, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {
+  PPMFileStruct ppm {};
   FileMask file_name(input_file_mask);
 
   for (size_t image = 0; image < file_name.count(); image++) {
-    ifstream input(file_name[image]);
-    if (input.fail()) {
+    ppm.file = fopen(file_name[image].c_str(), "rb");
+    if (!ppm.file) {
       continue;
     }
 
     image_count++;
 
-    uint64_t image_width       {};
-    uint64_t image_height      {};
-    uint32_t image_color_depth {};
-
-    if (readPPM(input, rgb_data, image_width, image_height, image_color_depth)) {
-      cerr << "ERROR: BAD PPM" << endl;
+    if (readPPMHeader(&ppm)) {
+      cerr << "ERROR: BAD PPM HEADER" << endl;
       return false;
     }
 
+    fclose(ppm.file);
+
     if (width && height && color_depth) {
-      if ((image_width != width) || (image_height != height) || (image_color_depth != color_depth)) {
-        cerr << "ERROR: DIMENSIONS MISMATCH" << endl;
+      if ((ppm.width != width) || (ppm.height != height) || (ppm.color_depth != color_depth)) {
+        cerr << "ERROR: PPMs DIMENSIONS MISMATCH" << endl;
         return false;
       }
     }
 
-    width       = image_width;
-    height      = image_height;
-    color_depth = image_color_depth;
+    width       = ppm.width;
+    height      = ppm.height;
+    color_depth = ppm.color_depth;
   }
 
   if (!image_count) {
@@ -47,41 +56,110 @@ bool loadPPMs(const char *input_file_mask, vector<uint8_t> &rgb_data, uint64_t &
     return false;
   }
 
-  for (size_t i = 0; i * i <= image_count; i++) {
-    if (i * i == image_count) {
-      return true;
-    }
+  if (!isSquare(image_count)) {
+    cerr << "ERROR: NOT SQUARE" << endl;
+    return false;
   }
 
-  cerr << "ERROR: NOT SQUARE" << endl;
-  return false;
+  if (color_depth != 255) {
+    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
+    return false;
+  }
+
+  return true;
 }
 
-bool savePPMs(const vector<uint8_t> &rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count, const string &output_file_mask) {
-  size_t image_size = width * height * 3;
+bool loadPPMs(const char *input_file_mask, uint8_t *rgb_data) {
+  PPMFileStruct ppm {};
+  Pixel *ppm_row    {};
+  FileMask file_name(input_file_mask);
 
-  if (color_depth >= 256) {
-    image_size *= 2;
+  size_t real_image = 0;
+
+  for (size_t image = 0; image < file_name.count(); image++) {
+    ppm.file = fopen(file_name[image].c_str(), "rb");
+    if (!ppm.file) {
+      continue;
+    }
+
+    readPPMHeader(&ppm);
+
+    if (!ppm_row) {
+      ppm_row = allocPPMRow(ppm.width);
+    }
+
+    for (size_t row = 0; row < ppm.height; row++) {
+      if (readPPMRow(&ppm, ppm_row)) {
+        cerr << "ERROR: BAD PPM" << endl;
+        fclose(ppm.file);
+        return false;
+      }
+
+      for (size_t col = 0; col < ppm.width; col++) {
+        rgb_data[((real_image * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
+        rgb_data[((real_image * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
+        rgb_data[((real_image * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+      }
+    }
+
+    fclose(ppm.file);
+
+    real_image++;
   }
 
-  size_t pos = output_file_mask.find_last_of('/');
+  freePPMRow(ppm_row);
+
+  return true;
+}
+
+bool savePPMs(const char *output_file_mask, const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count) {
+  PPMFileStruct ppm {};
+  Pixel *ppm_row    {};
+
+  ppm.width = width;
+  ppm.height = height;
+  ppm.color_depth = color_depth;
+
+  ppm_row = allocPPMRow(width);
+
+  size_t last_slash_pos = string(output_file_mask).find_last_of('/');
 
   FileMask file_name(output_file_mask);
 
   for (size_t image = 0; image < image_count; image++) {
-    string command("mkdir -p " + file_name[image].substr(0, pos));
-    system(command.c_str());
-    ofstream output(file_name[image]);
-    if (output.fail()) {
-      cerr << "ERROR: UNABLE TO OPEN FILE \"" << file_name[image] << "\" FOR WRITING" << endl;
+    if (last_slash_pos != string::npos) {
+      string command("mkdir -p " + file_name[image].substr(0, last_slash_pos));
+      system(command.c_str());
+    }
+
+    ppm.file = fopen(file_name[image].c_str(), "wb");
+    if (!ppm.file) {
+      cerr << "ERROR: CANNOT OPEN " << file_name[image] << "FOR WRITING" << endl;
       return false;
     }
 
-    if (writePPM(rgb_data.data() + image * image_size, width, height, color_depth, output)) {
-      cerr << "ERROR: UNABLE TO WRITE PPM FILE" << endl;
+    if (writePPMHeader(&ppm)) {
+      cerr << "ERROR: CANNOT WRITE TO " << file_name[image] << endl;
       return false;
     }
+
+    for (size_t row = 0; row < height; row++) {
+      for (size_t col = 0; col < ppm.width; col++) {
+        ppm_row[col].r = rgb_data[((image * ppm.height + row) * ppm.width + col) * 3 + 0];
+        ppm_row[col].g = rgb_data[((image * ppm.height + row) * ppm.width + col) * 3 + 1];
+        ppm_row[col].b = rgb_data[((image * ppm.height + row) * ppm.width + col) * 3 + 2];
+      }
+
+      if (writePPMRow(&ppm, ppm_row)) {
+        cerr << "ERROR: CANNOT WRITE TO " << file_name[image] << endl;
+        return false;
+      }
+    }
+
+    fclose(ppm.file);
   }
+
+  freePPMRow(ppm_row);
 
   return true;
 }

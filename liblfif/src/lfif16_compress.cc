@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <fstream>
 
+#include <iostream>
+
 using namespace std;
 
 inline void getBlock(const uint16_t *rgb_data, const uint64_t img_dims[2], size_t block, uint16_t out_block[64*3]) {
@@ -35,23 +37,23 @@ inline void getBlock(const uint16_t *rgb_data, const uint64_t img_dims[2], size_
         image_x = img_dims[0] - 1;
       }
 
-      out_block[pixel_y * 8 * 3 + pixel_x + 0] = rgb_data[image_y * size_x * 3 + image_x * 3 + 0];
-      out_block[pixel_y * 8 * 3 + pixel_x + 1] = rgb_data[image_y * size_x * 3 + image_x * 3 + 1];
-      out_block[pixel_y * 8 * 3 + pixel_x + 2] = rgb_data[image_y * size_x * 3 + image_x * 3 + 2];
+      out_block[(pixel_y * 8 + pixel_x) * 3 + 0] = rgb_data[(image_y * size_x + image_x) * 3 + 0];
+      out_block[(pixel_y * 8 + pixel_x) * 3 + 1] = rgb_data[(image_y * size_x + image_x) * 3 + 1];
+      out_block[(pixel_y * 8 + pixel_x) * 3 + 2] = rgb_data[(image_y * size_x + image_x) * 3 + 2];
     }
   }
 }
 
 inline double RGBtoY(uint16_t R, uint16_t G, uint16_t B) {
-  return (0.299 * R) + (0.587 * G) + (0.114 * B) - 32768;
+  return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
 
 inline double RGBtoCb(uint16_t R, uint16_t G, uint16_t B) {
-  return (0.168736 * R) - (0.331264 * G) + (0.5 * B);
+  return 32768 - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
 }
 
 inline double RGBtoCr(uint16_t R, uint16_t G, uint16_t B) {
-  return (0.5 * R) - (0.418688 * G) - (0.081312 * B);
+  return 32768 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
 inline void convertRGBDataBlock(const uint16_t input[64*3], double (*f)(uint16_t, uint16_t, uint16_t), double output[64]) {
@@ -63,33 +65,9 @@ inline void convertRGBDataBlock(const uint16_t input[64*3], double (*f)(uint16_t
   }
 }
 
-constexpr array<double, 64> dct_coefs() {
-  array<double, 64> coefs {};
-  for(size_t u = 0; u < 8; u++) {
-    for(size_t x = 0; x < 8; x++) {
-      coefs[u * 8 + x] = cos(((2 * x + 1) * u * M_PI ) / 16) * sqrt(0.25) * (u == 0 ? (1 / sqrt(2)) : 1);
-    }
-  }
-  return coefs;
-}
-
-constexpr array<double, 64> coefs = dct_coefs();
-
-inline void fdct(double input[64]) {
-  double tmp[64] {};
-  for (size_t slice = 0; slice < 8; slice++) {
-    for (size_t u = 0; u < 8; u++) {
-      for (size_t x = 0; x < 8; x++) {
-        tmp[slice * 8 + u] += input[slice * 8 + x] * coefs[u * 8 + x];
-      }
-    }
-  }
-  for (size_t noodle = 0; noodle < 8; noodle++) {
-    for (size_t u = 0; u < 8; u++) {
-      for (size_t x = 0; x < 8; x++) {
-        input[u * 8 + noodle] += tmp[x * 8 + noodle] * coefs[u * 8 + x];
-      }
-    }
+inline void shiftBlock(double input[64]) {
+  for (size_t i = 0; i < 64; i++) {
+    input[i] -= 32768;
   }
 }
 
@@ -394,8 +372,8 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
   blocks_cnt = ceil(img_dims[0]/8.) * ceil(img_dims[1]/8.);
 
   colorspace_convertors[0] = RGBtoY;
-  colorspace_convertors[1] = RGBtoY;
-  colorspace_convertors[2] = RGBtoY;
+  colorspace_convertors[1] = RGBtoCb;
+  colorspace_convertors[2] = RGBtoCr;
 
   quant_tables[0] = quant_table_luma;
   quant_tables[1] = quant_table_chroma;
@@ -423,12 +401,14 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
     getBlock(rgb_data, img_dims, block, block_rgb);
 
     for (size_t channel = 0; channel < 3; channel++) {
-      double                block_raw[64]   {};
-      int32_t               block_quant[64] {};
+      double   block_raw[64]   {};
+      double   block_coefs[64] {};
+      int32_t  block_quant[64] {};
 
       convertRGBDataBlock(block_rgb, colorspace_convertors[channel], block_raw);
-      fdct(block_raw);
-      quantizeBlock(block_raw, quant_tables[channel], block_quant);
+      shiftBlock(block_raw);
+      fdct<2>([&](size_t index) { return block_raw[index]; }, [&](size_t index) -> double & { return block_coefs[index]; });
+      quantizeBlock(block_coefs, quant_tables[channel], block_quant);
       addToReference(block_quant, reference_blocks[channel]);
     }
   }
@@ -446,13 +426,15 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
     getBlock(rgb_data, img_dims, block, block_rgb);
 
     for (size_t channel = 0; channel < 3; channel++) {
-      double                block_raw[64]   {};
-      int32_t               block_quant[64] {};
+      double   block_raw[64]   {};
+      double   block_coefs[64] {};
+      int32_t  block_quant[64] {};
 
       convertRGBDataBlock(block_rgb, colorspace_convertors[channel], block_raw);
-      fdct(block_raw);
-      quantizeBlock(block_raw,  quant_tables[channel], block_quant);
-      traverseBlock(block_quant,  traversal_tables[channel]);
+      shiftBlock(block_raw);
+      fdct<2>([&](size_t index) { return block_raw[index]; }, [&](size_t index) -> double & { return block_coefs[index]; });
+      quantizeBlock(block_coefs, quant_tables[channel], block_quant);
+      traverseBlock(block_quant, traversal_tables[channel]);
       diffEncodeDC(block_quant[0], previous_DCs[channel]);
       huffmanAddWeights(runLenghtEncodeBlock(block_quant), huffman_weights[channel]);
     }
@@ -508,12 +490,14 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
     getBlock(rgb_data, img_dims, block, block_rgb);
 
     for (size_t channel = 0; channel < 3; channel++) {
-      double                block_raw[64]   {};
-      int32_t               block_quant[64] {};
+      double   block_raw[64]   {};
+      double   block_coefs[64] {};
+      int32_t  block_quant[64] {};
 
       convertRGBDataBlock(block_rgb, colorspace_convertors[channel], block_raw);
-      fdct(block_raw);
-      quantizeBlock(block_raw,  quant_tables[channel], block_quant);
+      shiftBlock(block_raw);
+      fdct<2>([&](size_t index) { return block_raw[index]; }, [&](size_t index) -> double & { return block_coefs[index]; });
+      quantizeBlock(block_coefs, quant_tables[channel], block_quant);
       traverseBlock(block_quant,  traversal_tables[channel]);
       diffEncodeDC(block_quant[0], previous_DCs[channel]);
       encodeOneBlock(runLenghtEncodeBlock(block_quant), huffmaps[channel], bitstream);

@@ -39,6 +39,10 @@ double PSNR(const RGBData &original, const RGBData &compared) {
 
 int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
   ofstream output(output_filename);
+  if (output.fail()) {
+    return 1;
+  }
+
   output << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
   size_t image_pixels = width * height * image_count;
@@ -68,6 +72,10 @@ int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
 
 int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
   ofstream output(output_filename);
+  if (output.fail()) {
+    return 1;
+  }
+
   output << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
   size_t image_pixels = width * height * image_count;
@@ -97,6 +105,10 @@ int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
 
 int method4D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
   ofstream output(output_filename);
+  if (output.fail()) {
+    return 1;
+  }
+
   output << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
   size_t image_pixels = width * height * image_count;
@@ -129,19 +141,16 @@ int main(int argc, char *argv[]) {
   const char *output_file_2D  {};
   const char *output_file_3D  {};
   const char *output_file_4D  {};
-
   const char *quality_step    {};
+  bool nothreads              {};
+  uint8_t q_step              {};
 
-  bool nothreads {};
+  vector<uint8_t> rgb_data    {};
 
-  uint8_t q_step  {};
-
-  RGBData original_rgb_data     {};
-
-  uint64_t original_width       {};
-  uint64_t original_height      {};
-  uint32_t original_color_depth {};
-  uint64_t original_image_count {};
+  uint64_t width       {};
+  uint64_t height      {};
+  uint32_t color_depth {};
+  uint64_t image_count {};
 
   char opt {};
   while ((opt = getopt(argc, argv, "i:s:2:3:4:n")) >= 0) {
@@ -216,39 +225,45 @@ int main(int argc, char *argv[]) {
     q_step = tmp;
   }
 
-  if (!loadPPMs(input_file_mask, original_rgb_data, original_width, original_height, original_color_depth, original_image_count)) {
+  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
     return 2;
   }
 
-  if (original_color_depth != 255) {
+  rgb_data.resize(width * height * image_count * 3);
+
+  if (!loadPPMs(input_file_mask, rgb_data.data())) {
+    return 3;
+  }
+
+  if (color_depth != 255) {
     cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
     return 2;
   }
 
   if (nothreads) {
     if (output_file_2D) {
-      method2D(original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_2D);
+      method2D(rgb_data, width, height, image_count, q_step, output_file_2D);
     }
     if (output_file_3D) {
-      method3D(original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_3D);
+      method3D(rgb_data, width, height, image_count, q_step, output_file_3D);
     }
     if (output_file_4D) {
-      method4D(original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D);
+      method4D(rgb_data, width, height, image_count, q_step, output_file_4D);
     }
   }
   else {
     vector<thread> threads {};
 
     if (output_file_2D) {
-      threads.push_back(thread(method2D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_2D));
+      threads.push_back(thread(method2D, rgb_data, width, height, image_count, q_step, output_file_2D));
     }
 
     if (output_file_3D) {
-      threads.push_back(thread(method3D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_3D));
+      threads.push_back(thread(method3D, rgb_data, width, height, image_count, q_step, output_file_3D));
     }
 
     if (output_file_4D) {
-      threads.push_back(thread(method4D, original_rgb_data, original_width, original_height, original_image_count, q_step, output_file_4D));
+      threads.push_back(thread(method4D, rgb_data, width, height, image_count, q_step, output_file_4D));
     }
 
     for (auto &thread: threads) {

@@ -22,6 +22,13 @@ enum PPMHeaderParserState {
   STATE_END
 };
 
+Pixel *allocPPMRow(size_t width) {
+  return new Pixel[width];
+}
+void freePPMRow(Pixel *row) {
+  delete [] row;
+}
+
 void skipUntilEol(FILE *input) {
   int c {};
   while((c = getc(input)) != EOF) {
@@ -239,14 +246,14 @@ int readPPMRow(PPMFileStruct *ppm, Pixel *buffer) {
 }
 
 int writePPMHeader(const PPMFileStruct *ppm) {
-  if (fprintf(ppm->file, "P6\n%lu\n%lu\n%u", ppm->width, ppm->height, ppm->color_depth) < 0) {
+  if (fprintf(ppm->file, "P6\n%lu\n%lu\n%u\n", ppm->width, ppm->height, ppm->color_depth) < 0) {
     return -1;
   }
 
   return 0;
 }
 
-int writePPMRow(PPMFileStruct *ppm, Pixel *buffer) {
+int writePPMRow(PPMFileStruct *ppm, const Pixel *buffer) {
   size_t units_written = 0;
 
   if (ppm->color_depth < 256) {

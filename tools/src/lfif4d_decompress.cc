@@ -14,14 +14,13 @@ int main(int argc, char *argv[]) {
   const char *input_file_name  {};
   const char *output_file_mask {};
 
+  vector<uint8_t> rgb_data     {};
+  uint64_t img_dims[4]         {};
+  uint64_t image_count         {};
+
   if (!parse_args(argc, argv, input_file_name, output_file_mask)) {
     return 1;
   }
-
-  uint64_t img_dims[4] {};
-  uint64_t image_count {};
-
-  RGBData rgb_data {};
 
   int errcode = LFIFDecompress<4>(input_file_name, rgb_data, img_dims, image_count);
 
@@ -40,7 +39,7 @@ int main(int argc, char *argv[]) {
     break;
   }
 
-  if (!savePPMs(rgb_data, img_dims[0], img_dims[1], 255, img_dims[2] * img_dims[3] * image_count, output_file_mask)) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), img_dims[0], img_dims[1], 255, img_dims[2] * img_dims[3] * image_count)) {
     return 3;
   }
 

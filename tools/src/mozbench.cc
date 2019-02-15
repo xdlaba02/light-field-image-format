@@ -5,7 +5,6 @@
 
 #include "plenoppm.h"
 
-#include <jpeglib.h>
 
 #include <getopt.h>
 
@@ -13,6 +12,11 @@
 
 #include <iostream>
 #include <fstream>
+#include <vector>
+
+#include <jpeglib.h>
+
+using namespace std;
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
@@ -27,12 +31,12 @@ int main(int argc, char *argv[]) {
 
   uint8_t q_step  {};
 
-  vector<uint8_t> original_rgb_data {};
+  vector<uint8_t> rgb_data {};
 
-  uint64_t original_width       {};
-  uint64_t original_height      {};
-  uint32_t original_color_depth {};
-  uint64_t original_image_count {};
+  uint64_t width       {};
+  uint64_t height      {};
+  uint32_t color_depth {};
+  uint64_t image_count {};
 
   jpeg_compress_struct cinfo   {};
   jpeg_decompress_struct dinfo {};
@@ -89,13 +93,14 @@ int main(int argc, char *argv[]) {
     q_step = tmp;
   }
 
-  if (!loadPPMs(input_file_mask, original_rgb_data, original_width, original_height, original_color_depth, original_image_count)) {
+  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
     return 2;
   }
 
-  if (original_color_depth != 255) {
-    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
-    return 2;
+  rgb_data.resize(width * height * image_count * 3);
+
+  if (!loadPPMs(input_file_mask, rgb_data.data())) {
+    return 3;
   }
 
   cinfo.err = jpeg_std_error(&jerr);
@@ -104,19 +109,19 @@ int main(int argc, char *argv[]) {
   jpeg_create_compress(&cinfo);
   jpeg_create_decompress(&dinfo);
 
-  cinfo.image_width = original_width;
-  cinfo.image_height = original_height;
+  cinfo.image_width = width;
+  cinfo.image_height = height;
   cinfo.input_components = 3;
   cinfo.in_color_space = JCS_RGB;
 
   jpeg_set_defaults(&cinfo);
 
-  row_stride = original_width * 3;
+  row_stride = width * 3;
 
   ofstream output(output_file);
   output << "'mozjpeg' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
-  size_t image_pixels = original_width * original_height * original_image_count;
+  size_t image_pixels = width * height * image_count;
 
   for (size_t quality = q_step; quality <= 100; quality += q_step) {
     cerr << "Q" << quality << " STARTED" << endl;
@@ -133,9 +138,9 @@ int main(int argc, char *argv[]) {
     cinfo.comp_info[2].h_samp_factor = 1;
     cinfo.comp_info[2].v_samp_factor = 1;
 
-    for (size_t i = 0; i < original_image_count; i++) {
-      uint8_t *original = &original_rgb_data[i * original_width * original_height * 3];
-      vector<uint8_t>  decompressed_rgb_data(original_width * original_height * 3);
+    for (size_t i = 0; i < image_count; i++) {
+      uint8_t *original = &rgb_data[i * width * height * 3];
+      vector<uint8_t>  decompressed_rgb_data(width * height * 3);
 
       if ((outfile = fopen("/tmp/mozbench.jpeg", "wb")) == NULL) {
         fprintf(stderr, "can't open %s\n", "/tmp/mozbench.jpeg");
@@ -184,7 +189,7 @@ int main(int argc, char *argv[]) {
 
     }
 
-    mse /= original_image_count * original_width * original_height * 3;
+    mse /= image_count * width * height * 3;
 
     double bpp = compressed_size * 8.0 / image_pixels;
     double psnr = 10 * log10((255 * 255) / mse);

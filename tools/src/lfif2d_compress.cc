@@ -13,35 +13,35 @@
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
-  uint8_t quality         {};
+  uint8_t quality              {};
+
+  vector<uint8_t> rgb_data     {};
+  uint64_t width               {};
+  uint64_t height              {};
+  uint32_t color_depth         {};
+  uint64_t image_count         {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return 1;
   }
 
-  uint64_t width       {};
-  uint64_t height      {};
-  uint32_t color_depth {};
-  uint64_t image_count {};
-
-  RGBData rgb_data {};
-
-  if (!loadPPMs(input_file_mask, rgb_data, width, height, color_depth, image_count)) {
+  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
     return 2;
   }
 
-  if (color_depth != 255) {
-    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
-    return 2;
+  rgb_data.resize(width * height * image_count * 3);
+
+  if (!loadPPMs(input_file_mask, rgb_data.data())) {
+    return 3;
   }
 
-  uint64_t img_dims[] {width, height};
+  uint64_t img_dims[2] {width, height};
   int errcode = LFIFCompress<2>(rgb_data, img_dims, image_count, quality, output_file_name);
 
   switch (errcode) {
     case -1:
       cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_name << "\" FOR WRITITNG" << endl;
-      return 3;
+      return 4;
     break;
 
     default:
