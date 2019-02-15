@@ -71,6 +71,13 @@ inline void shiftBlock(double input[64]) {
   }
 }
 
+inline void scaleQuantTable(uint16_t quant_table[64], const uint8_t quality) {
+  float scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
+  for (size_t i = 0; i < 64; i++) {
+    quant_table[i] = clamp<float>(quant_table[i] * scale_coef, 1, 255);
+  }
+}
+
 inline void quantizeBlock(const double input[64], const uint16_t quant_table[64], int32_t output[64]) {
   for (size_t pixel_index = 0; pixel_index < 64; pixel_index++) {
     output[pixel_index] = input[pixel_index] / quant_table[pixel_index];
@@ -345,6 +352,11 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
     99, 99, 99, 99, 99, 99, 99, 99,
   };
 
+  for (size_t i = 0; i < 64; i++) {
+    quant_table_luma[i] *= 655535/255;
+    quant_table_chroma[i] *= 655535/255;
+  }
+
   double reference_block_luma[64]   {};
   double reference_block_chroma[64] {};
 
@@ -394,6 +406,9 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
   huffmaps[0] = huffmap_luma;
   huffmaps[1] = huffmap_chroma;
   huffmaps[2] = huffmap_chroma;
+
+  scaleQuantTable(quant_table_luma, quality);
+  scaleQuantTable(quant_table_chroma, quality);
 
   for (size_t block = 0; block < blocks_cnt; block++) {
     uint16_t block_rgb[64*3] {};
