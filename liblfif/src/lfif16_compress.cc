@@ -44,15 +44,15 @@ inline void getBlock(const uint16_t *rgb_data, const uint64_t img_dims[2], size_
   }
 }
 
-inline double RGBtoY(uint16_t R, uint16_t G, uint16_t B) {
+inline double RGBToY(uint16_t R, uint16_t G, uint16_t B) {
   return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
 
-inline double RGBtoCb(uint16_t R, uint16_t G, uint16_t B) {
+inline double RGBToCb(uint16_t R, uint16_t G, uint16_t B) {
   return 32768 - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
 }
 
-inline double RGBtoCr(uint16_t R, uint16_t G, uint16_t B) {
+inline double RGBToCr(uint16_t R, uint16_t G, uint16_t B) {
   return 32768 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
@@ -383,9 +383,9 @@ int LFIFCompress16(const uint16_t *rgb_data, const uint64_t img_dims[2], uint8_t
 
   blocks_cnt = ceil(img_dims[0]/8.) * ceil(img_dims[1]/8.);
 
-  colorspace_convertors[0] = RGBtoY;
-  colorspace_convertors[1] = RGBtoCb;
-  colorspace_convertors[2] = RGBtoCr;
+  colorspace_convertors[0] = RGBToY;
+  colorspace_convertors[1] = RGBToCb;
+  colorspace_convertors[2] = RGBToCr;
 
   quant_tables[0] = quant_table_luma;
   quant_tables[1] = quant_table_chroma;

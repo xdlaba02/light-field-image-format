@@ -6,85 +6,57 @@
 #ifndef LFIF_ENCODER_H
 #define LFIF_ENCODER_H
 
-#include "lfiftypes.h"
-#include "block.h"
-#include "qtable.h"
-#include "dct.h"
-#include "shift.h"
+#include "block_compress_chain.h"
 #include "colorspace.h"
-#include "traversal.h"
-#include "runlength.h"
-#include "huffman.h"
 
 #include <fstream>
 
 using namespace std;
 
-inline void writeMagicNumber(const char *number, ofstream &output) {
-  output.write(number, 8);
-}
-
-inline void writeDimension(uint64_t dim, ofstream &output) {
-  uint64_t raw = htobe64(dim);
-  output.write(reinterpret_cast<char *>(&raw),  sizeof(raw));
-}
-
 template<size_t D>
-int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t imgs_cnt, uint8_t quality, const char *output_file_name) {
+int LFIFCompress(const RGBDataUnit *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, const char *output_file_name) {
+  BlockCompressChain<D> block_compress_chain     {};
+  QuantTable<D>         quant_table[2]           {};
+  ReferenceBlock<D>     reference_block[2]       {};
+  TraversalTable<D>     traversal_table[2]       {};
+  QuantizedDataUnit     previous_DC[3]           {};
+  HuffmanWeights        huffman_weight[2][2]     {};
+  HuffmanCodelengths    huffman_codelength[2][2] {};
+  HuffmanMap            huffman_map[2][2]        {};
+
+  YCbCrUnit        (*color_convertors[3]) (RGBDataUnit, RGBDataUnit, RGBDataUnit) {};
+  QuantTable<D>     *quant_tables[3]     {};
+  ReferenceBlock<D> *reference_blocks[3] {};
+  TraversalTable<D> *traversal_tables[3] {};
+  HuffmanWeights    *huffman_weights[3]  {};
+  HuffmanMap        *huffman_maps[3]     {};
+
   size_t blocks_cnt {};
   size_t pixels_cnt {};
 
-  QuantTable<D> quant_table_luma   {};
-  QuantTable<D> quant_table_chroma {};
+  color_convertors[0] = RGBToY;
+  color_convertors[1] = RGBToCb;
+  color_convertors[2] = RGBToCr;
 
-  RefereceBlock<D> reference_block_luma   {};
-  RefereceBlock<D> reference_block_chroma {};
+  quant_tables[0] = &quant_table[0];
+  quant_tables[1] = &quant_table[1];
+  quant_tables[2] = &quant_table[1];
 
-  TraversalTable<D> traversal_table_luma   {};
-  TraversalTable<D> traversal_table_chroma {};
+  reference_blocks[0] = &reference_block[0];
+  reference_blocks[1] = &reference_block[1];
+  reference_blocks[2] = &reference_block[1];
 
-  HuffmanWeights weights_luma_AC   {};
-  HuffmanWeights weights_luma_DC   {};
-  HuffmanWeights weights_chroma_AC {};
-  HuffmanWeights weights_chroma_DC {};
+  traversal_tables[0] = &traversal_table[0];
+  traversal_tables[1] = &traversal_table[1];
+  traversal_tables[2] = &traversal_table[1];
 
-  HuffmanCodelengths codelengths_luma_DC   {};
-  HuffmanCodelengths codelengths_luma_AC   {};
-  HuffmanCodelengths codelengths_chroma_DC {};
-  HuffmanCodelengths codelengths_chroma_AC {};
+  huffman_weights[0] = huffman_weight[0];
+  huffman_weights[1] = huffman_weight[1];
+  huffman_weights[2] = huffman_weight[1];
 
-  RunLengthAmplitudeUnit prev_Y  {};
-  RunLengthAmplitudeUnit prev_Cb {};
-  RunLengthAmplitudeUnit prev_Cr {};
-
-  HuffmanMap huffmap_luma_DC   {};
-  HuffmanMap huffmap_luma_AC   {};
-  HuffmanMap huffmap_chroma_DC {};
-  HuffmanMap huffmap_chroma_AC {};
-
-  auto blockAt = [&](size_t img, size_t block) {
-    RGBDataBlock<D> output {};
-
-    auto inputF = [&](size_t index) {
-      return rgb_data[img * pixels_cnt * 3 + index];
-    };
-
-    auto outputF = [&](size_t index) -> RGBDataPixel &{
-      return output[index];
-    };
-
-    getBlock<D>(inputF, block, img_dims, outputF);
-
-    return output;
-  };
-
-  auto diffEncodeBlock = [&](RunLengthEncodedBlock input, RunLengthAmplitudeUnit &prev) {
-    RunLengthAmplitudeUnit curr = input[0].amplitude;
-    input[0].amplitude -= prev;
-    prev = curr;
-
-    return input;
-  };
+  huffman_maps[0] = huffman_map[0];
+  huffman_maps[1] = huffman_map[1];
+  huffman_maps[2] = huffman_map[1];
 
   blocks_cnt = 1;
   pixels_cnt = 1;
@@ -94,60 +66,74 @@ int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t i
     pixels_cnt *= img_dims[i];
   }
 
-  quant_table_luma   = scaleQuantTable<D>(baseQuantTableLuma<D>(), quality);
-  quant_table_chroma = scaleQuantTable<D>(baseQuantTableChroma<D>(), quality);
+  quant_table[0]
+  . baseLuma();
 
-  for (size_t img = 0; img < imgs_cnt; img++) {
+  quant_table[1]
+  . baseChroma();
+
+  for (size_t i = 0; i < 2; i++) {
+    quant_table[i]
+    . scaleByQuality(quality);
+  }
+
+  for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
-      RGBDataBlock<D> rgb_block = blockAt(img, block);
+      block_compress_chain
+      . newRGBBlock(&rgb_data[img * pixels_cnt * 3], img_dims, block);
 
-      QuantizedBlock<D> quantized_Y  = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoY))),  quant_table_luma);
-      QuantizedBlock<D> quantized_Cb = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCb))), quant_table_chroma);
-      QuantizedBlock<D> quantized_Cr = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCr))), quant_table_chroma);
-
-      addToReference<D>(quantized_Y,  reference_block_luma);
-      addToReference<D>(quantized_Cb, reference_block_chroma);
-      addToReference<D>(quantized_Cr, reference_block_chroma);
+      for (size_t channel = 0; channel < 3; channel++) {
+        block_compress_chain
+        . colorConvert(color_convertors[channel])
+        . centerValues()
+        . forwardDiscreteCosineTransform()
+        . quantize(*quant_tables[channel])
+        . addToReferenceBlock(*reference_blocks[channel]);
+      }
     }
   }
 
-  traversal_table_luma   = constructTraversalTableByReference<D>(reference_block_luma);
-  traversal_table_chroma = constructTraversalTableByReference<D>(reference_block_chroma);
+  for (size_t i = 0; i < 2; i++) {
+    traversal_table[i]
+    . constructByReference(reference_block[i]);
+  }
 
-  prev_Y  = 0;
-  prev_Cb = 0;
-  prev_Cr = 0;
+  previous_DC[0] = 0;
+  previous_DC[1] = 0;
+  previous_DC[2] = 0;
 
-  for (size_t img = 0; img < imgs_cnt; img++) {
+  for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
-      RGBDataBlock<D> rgb_block = blockAt(img, block);
+      block_compress_chain
+      . newRGBBlock(&rgb_data[img * pixels_cnt * 3], img_dims, block);
 
-      QuantizedBlock<D> quantized_Y  = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoY))),  quant_table_luma);
-      QuantizedBlock<D> quantized_Cb = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCb))), quant_table_chroma);
-      QuantizedBlock<D> quantized_Cr = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCr))), quant_table_chroma);
-
-      RunLengthEncodedBlock runlength_Y  = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Y,  traversal_table_luma)),   prev_Y);
-      RunLengthEncodedBlock runlength_Cb = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cb, traversal_table_chroma)), prev_Cb);
-      RunLengthEncodedBlock runlength_Cr = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cr, traversal_table_chroma)), prev_Cr);
-
-      huffmanAddWeightAC(runlength_Y,  weights_luma_AC);
-      huffmanAddWeightDC(runlength_Y,  weights_luma_DC);
-
-      huffmanAddWeightAC(runlength_Cb, weights_chroma_AC);
-      huffmanAddWeightAC(runlength_Cr, weights_chroma_AC);
-      huffmanAddWeightDC(runlength_Cb, weights_chroma_DC);
-      huffmanAddWeightDC(runlength_Cr, weights_chroma_DC);
+      for (size_t channel = 0; channel < 3; channel++) {
+        block_compress_chain
+        . colorConvert(color_convertors[channel])
+        . centerValues()
+        . forwardDiscreteCosineTransform()
+        . quantize(*quant_tables[channel])
+        . diffEncodeDC(previous_DC[channel])
+        . traverse(*traversal_tables[channel])
+        . runLengthEncode()
+        . huffmanAddWeights(huffman_weights[channel]);
+      }
     }
   }
 
-  codelengths_luma_DC   = generateHuffmanCodelengths(weights_luma_DC);
-  codelengths_luma_AC   = generateHuffmanCodelengths(weights_luma_AC);
-  codelengths_chroma_DC = generateHuffmanCodelengths(weights_chroma_DC);
-  codelengths_chroma_AC = generateHuffmanCodelengths(weights_chroma_AC);
+  for (size_t y = 0; y < 2; y++) {
+    for (size_t x = 0; x < 2; x++) {
+      huffman_codelength[y][x] = generateHuffmanCodelengths(huffman_weights[y][x]);
+      huffman_map[y][x]        = generateHuffmanMap(huffman_codelength[y][x]);
+    }
+  }
 
   size_t last_slash_pos = string(output_file_name).find_last_of('/');
-  string command("mkdir -p " + string(output_file_name).substr(0, last_slash_pos));
-  system(command.c_str());
+
+  if (last_slash_pos != string::npos) {
+    string command("mkdir -p " + string(output_file_name).substr(0, last_slash_pos));
+    system(command.c_str());
+  }
 
   ofstream output(output_file_name);
   if (output.fail()) {
@@ -157,51 +143,51 @@ int LFIFCompress(const RGBData &rgb_data, const uint64_t img_dims[D], uint64_t i
   char magic_number[9] = "LFIF-#D\n";
   magic_number[5] = D + '0';
 
-  writeMagicNumber(magic_number, output);
+  output.write(magic_number, 8);
 
-  for (size_t i = 0; i < D; i++) {
-    writeDimension(img_dims[i], output);
+  for (size_t i = 0; i < D+1; i++) {
+    uint64_t tmp = htobe64(img_dims[i]);
+    output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
   }
 
-  writeDimension(imgs_cnt, output);
+  for (size_t i = 0; i < 2; i++) {
+    quant_table[i]
+    . writeToStream(output);
+  }
 
-  writeQuantTable<D>(quant_table_luma, output);
-  writeQuantTable<D>(quant_table_chroma, output);
+  for (size_t i = 0; i < 2; i++) {
+    traversal_table[i]
+    . writeToStream(output);
+  }
 
-  writeTraversalTable<D>(traversal_table_luma, output);
-  writeTraversalTable<D>(traversal_table_chroma, output);
-
-  writeHuffmanTable(codelengths_luma_DC, output);
-  writeHuffmanTable(codelengths_luma_AC, output);
-  writeHuffmanTable(codelengths_chroma_DC, output);
-  writeHuffmanTable(codelengths_chroma_AC, output);
-
-  huffmap_luma_DC   = generateHuffmanMap(codelengths_luma_DC);
-  huffmap_luma_AC   = generateHuffmanMap(codelengths_luma_AC);
-  huffmap_chroma_DC = generateHuffmanMap(codelengths_chroma_DC);
-  huffmap_chroma_AC = generateHuffmanMap(codelengths_chroma_AC);
-
-  prev_Y  = 0;
-  prev_Cb = 0;
-  prev_Cr = 0;
+  for (size_t y = 0; y < 2; y++) {
+    for (size_t x = 0; x < 2; x++) {
+      writeHuffmanTable(huffman_codelength[y][x], output);
+    }
+  }
 
   OBitstream bitstream(output);
 
-  for (size_t img = 0; img < imgs_cnt; img++) {
+  previous_DC[0] = 0;
+  previous_DC[1] = 0;
+  previous_DC[2] = 0;
+
+  for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
-      RGBDataBlock<D> rgb_block = blockAt(img, block);
+      block_compress_chain
+      . newRGBBlock(&rgb_data[img * pixels_cnt * 3], img_dims, block);
 
-      QuantizedBlock<D> quantized_Y  = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoY))), quant_table_luma);
-      QuantizedBlock<D> quantized_Cb = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCb))), quant_table_chroma);
-      QuantizedBlock<D> quantized_Cr = quantizeBlock<D>(transformBlock<D>(shiftBlock<D>(convertRGBDataBlock<D>(rgb_block, RGBtoCr))), quant_table_chroma);
-
-      RunLengthEncodedBlock runlength_Y  = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Y,  traversal_table_luma)),   prev_Y);
-      RunLengthEncodedBlock runlength_Cb = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cb, traversal_table_chroma)), prev_Cb);
-      RunLengthEncodedBlock runlength_Cr = diffEncodeBlock(runLenghtEncodeBlock<D>(traverseBlock<D>(quantized_Cr, traversal_table_chroma)), prev_Cr);
-
-      encodeOneBlock(runlength_Y,  huffmap_luma_DC, huffmap_luma_AC, bitstream);
-      encodeOneBlock(runlength_Cb, huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
-      encodeOneBlock(runlength_Cr, huffmap_chroma_DC, huffmap_chroma_AC, bitstream);
+      for (size_t channel = 0; channel < 3; channel++) {
+        block_compress_chain
+        . colorConvert(color_convertors[channel])
+        . centerValues()
+        . forwardDiscreteCosineTransform()
+        . quantize(*quant_tables[channel])
+        . diffEncodeDC(previous_DC[channel])
+        . traverse(*traversal_tables[channel])
+        . runLengthEncode()
+        . encodeToStream(huffman_maps[channel], bitstream);
+      }
     }
   }
 

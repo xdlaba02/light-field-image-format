@@ -11,6 +11,8 @@
 
 #include <cmath>
 
+using DCTDataUnit = double;
+
 constexpr array<DCTDataUnit, 64> init_coefs() {
   array<DCTDataUnit, 64> c {};
   for(size_t u = 0; u < 8; ++u) {
@@ -75,19 +77,5 @@ struct idct<1> {
     }
   }
 };
-
-template<size_t D>
-inline TransformedBlock<D> transformBlock(const YCbCrDataBlock<D> &input) {
-  TransformedBlock<D> output {};
-  fdct<D>([&](size_t index) -> DCTDataUnit { return input[index];}, [&](size_t index) -> DCTDataUnit & { return output[index]; });
-  return output;
-}
-
-template<size_t D>
-inline YCbCrDataBlock<D> detransformBlock(const TransformedBlock<D> &input) {
-  YCbCrDataBlock<D> output {};
-  idct<D>([&](size_t index) -> DCTDataUnit { return input[index]; }, [&](size_t index) -> DCTDataUnit & { return output[index]; });
-  return output;
-}
 
 #endif

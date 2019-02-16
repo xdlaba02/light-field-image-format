@@ -6,101 +6,19 @@
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
 
-#include "lfiftypes.h"
-#include "block.h"
-#include "qtable.h"
-#include "traversal.h"
-#include "huffman.h"
-#include "shift.h"
-#include "dct.h"
-#include "runlength.h"
-#include "colorspace.h"
-
-#include <fstream>
-
-inline bool checkMagicNumber(const string &cmp, ifstream &input) {
-  char magic_number[9] {};
-  input.read(magic_number, 8);
-  return string(magic_number) == cmp;
-}
-
-inline uint64_t readDimension(ifstream &input) {
-  uint64_t raw {};
-  input.read(reinterpret_cast<char *>(&raw), sizeof(uint64_t));
-  return be64toh(raw);
-}
+#include "block_decompress_chain.h"
+#include "traversal_table.h"
 
 template<size_t D>
-int LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img_dims[D], uint64_t &imgs_cnt) {
-  ifstream input {};
-
-  QuantTable<D> quant_table_luma   {};
-  QuantTable<D> quant_table_chroma {};
-
-  TraversalTable<D> traversal_table_luma   {};
-  TraversalTable<D> traversal_table_chroma {};
-
-  HuffmanTable hufftable_luma_DC   {};
-  HuffmanTable hufftable_luma_AC   {};
-  HuffmanTable hufftable_chroma_DC {};
-  HuffmanTable hufftable_chroma_AC {};
+int LFIFDecompress(const char *input_file_name, RGBDataUnit *rgb_data, uint64_t img_dims[D+1]) {
+  BlockDecompressChain<D> block_decompress_chain {};
+  QuantTable<D>           quant_table[2]         {};
+  TraversalTable<D>       traversal_table[2]     {};
+  HuffmanTable            huffman_table[2][2]    {};
+  QuantizedDataUnit       previous_DC[3]         {};
 
   size_t blocks_cnt {};
   size_t pixels_cnt {};
-
-  RunLengthAmplitudeUnit prev_Y  {};
-  RunLengthAmplitudeUnit prev_Cb {};
-  RunLengthAmplitudeUnit prev_Cr {};
-
-
-  auto diffDecodeBlock = [&](RunLengthEncodedBlock input, RunLengthAmplitudeUnit &prev) {
-    input[0].amplitude += prev;
-    prev = input[0].amplitude;
-
-    return input;
-  };
-
-  auto blockTo = [&](const RGBDataBlock<D> &input, size_t img, size_t block) {
-    auto inputF = [&](size_t pixel_index){
-      return input[pixel_index];
-    };
-
-    auto outputF = [&](size_t index) -> RGBDataUnit &{
-      return rgb_data[img * pixels_cnt * 3 + index];
-    };
-
-    putBlock<D>(inputF, block, img_dims, outputF);
-  };
-
-
-  input.open(input_file_name);
-  if (input.fail()) {
-    return -1;
-  }
-
-  char magic_number[9] = "LFIF-#D\n";
-  magic_number[5] = D + '0';
-
-  if (!checkMagicNumber(magic_number, input)) {
-    return -2;
-  }
-
-  for (size_t i = 0; i < D; i++) {
-    img_dims[i] = readDimension(input);
-  }
-
-  imgs_cnt = readDimension(input);
-
-  quant_table_luma = readQuantTable<D>(input);
-  quant_table_chroma = readQuantTable<D>(input);
-
-  traversal_table_luma = readTraversalTable<D>(input);
-  traversal_table_chroma = readTraversalTable<D>(input);
-
-  hufftable_luma_DC = readHuffmanTable(input);
-  hufftable_luma_AC = readHuffmanTable(input);
-  hufftable_chroma_DC = readHuffmanTable(input);
-  hufftable_chroma_AC = readHuffmanTable(input);
 
   blocks_cnt = 1;
   pixels_cnt = 1;
@@ -110,21 +28,65 @@ int LFIFDecompress(const char *input_file_name, RGBData &rgb_data, uint64_t img_
     pixels_cnt *= img_dims[i];
   }
 
-  rgb_data.resize(pixels_cnt * imgs_cnt * 3);
+  ifstream input.open(input_file_name);
+  if (input.fail()) {
+    return -1;
+  }
 
-  prev_Y  = 0;
-  prev_Cb = 0;
-  prev_Cr = 0;
+  char cmp_number[9] {"LFIF-#D\n"};
+  cmp_number[5] = D + '0';
+
+  char magic_number[9] {};
+  input.read(magic_number, 8);
+
+  if (string(magic_number) != cmp) {
+    return -2
+  }
+
+  for (size_t i = 0; i < D+1; i++) {
+    uint64_t tmp {};
+    input.read(reinterpret_cast<char *>(&tmp), sizeof(tmp));
+    img_dims[i] = be64toh(tmp);
+  }
+
+  for (size_t i = 0; i < 2; i++) {
+    quant_table[i]
+    . readFromStream(output);
+  }
+
+  for (size_t i = 0; i < 2; i++) {
+    traversal_table[i]
+    . readFromStream(output);
+  }
+
+  for (size_t y = 0; y < 2; y++) {
+    for (size_t x = 0; x < 2; x++) {
+      huffman_table[y][x] = readHuffmanTable(input);
+    }
+  }
+
+  previous_DC[0] = 0;
+  previous_DC[1] = 0;
+  previous_DC[2] = 0;
 
   IBitstream bitstream(input);
 
   for (size_t img = 0; img < imgs_cnt; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
-      YCbCrDataBlock<D> block_Y  = deshiftBlock<D>(detransformBlock<D>(dequantizeBlock<D>(detraverseBlock<D>(runLenghtDecodeBlock<D>(diffDecodeBlock(decodeOneBlock(hufftable_luma_DC,   hufftable_luma_AC,   bitstream), prev_Y)),  traversal_table_luma),   quant_table_luma)));
-      YCbCrDataBlock<D> block_Cb = deshiftBlock<D>(detransformBlock<D>(dequantizeBlock<D>(detraverseBlock<D>(runLenghtDecodeBlock<D>(diffDecodeBlock(decodeOneBlock(hufftable_chroma_DC, hufftable_chroma_AC, bitstream), prev_Cb)), traversal_table_chroma), quant_table_chroma)));
-      YCbCrDataBlock<D> block_Cr = deshiftBlock<D>(detransformBlock<D>(dequantizeBlock<D>(detraverseBlock<D>(runLenghtDecodeBlock<D>(diffDecodeBlock(decodeOneBlock(hufftable_chroma_DC, hufftable_chroma_AC, bitstream), prev_Cr)), traversal_table_chroma), quant_table_chroma)));
+      for (size_t channel = 0; channel < 3; channel++) {
+        block_decompress_chain
+        . decodeFromStream(huffman_tables[channel], bitstream);
+        . runLengthDecde()
+        . detraverse(*traversal_tables[channel])
+        . diffDecodeDC(previous_DC[channel])
+        . dequantize(*quant_tables[channel])
+        . inverseDiscreteCosineTransform()
+        . decenterValues()
+        . colorConvert(color_convertors[channel]);
+      }
 
-      blockTo(YCbCrDataBlockToRGBDataBlock<D>(block_Y, block_Cb, block_Cr), img, block);
+      block_decompress_chain
+      . putRGBBlock(&rgb_data[img * pixels_cnt * 3], img_dims, block);
     }
   }
 

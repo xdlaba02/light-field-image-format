@@ -30,10 +30,10 @@ struct getBlock {
       }
 
       auto inputF = [&](size_t image_index){
-        return input(image_y * size_x * 3 + image_index);
+        return input(image_y * size_x + image_index);
       };
 
-      auto outputF = [&](size_t pixel_index) -> RGBDataPixel &{
+      auto outputF = [&](size_t pixel_index) -> RGBDataUnit & {
         return output(pixel * constpow(8, D-1) + pixel_index);
       };
 
@@ -53,9 +53,7 @@ struct getBlock<1> {
         image = dims[0] - 1;
       }
 
-      output(pixel).r = input(image * 3 + 0);
-      output(pixel).g = input(image * 3 + 1);
-      output(pixel).b = input(image * 3 + 2);
+      output(pixel) = input(image);
     }
   }
 };
@@ -84,7 +82,7 @@ struct putBlock {
       };
 
       auto outputF = [&](size_t image_index)-> RGBDataUnit &{
-        return output(image * size_x * 3 + image_index);
+        return output(image * size_x + image_index);
       };
 
       putBlock<D-1>(inputF, block % blocks_x, dims, outputF);
@@ -103,9 +101,7 @@ struct putBlock<1> {
         break;
       }
 
-      output(image * 3 + 0) = input(pixel).r;
-      output(image * 3 + 1) = input(pixel).g;
-      output(image * 3 + 2) = input(pixel).b;
+      output(image) = input(pixel);
     }
   }
 };
