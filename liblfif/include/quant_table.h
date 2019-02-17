@@ -9,13 +9,15 @@
 #include <algorithm>
 #include <fstream>
 
+using QuantTableUnit = uint8_t;
+
 template <size_t D>
 class QuantTable {
 public:
   QuantTable<D> &scaleByQuality(uint8_t quality) {
     double scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
     for (size_t i = 0; i < constpow(8, D); i++) {
-      m_block[i] = clamp<double>(m_block[i] * scale_coef, 1, 255);
+      m_block[i] = std::clamp<double>(m_block[i] * scale_coef, 1, 255);
     }
 
     return *this;
@@ -59,13 +61,13 @@ public:
     return *this;
   }
 
-  QuantTable<D> &writeToStream(ofstream &stream) {
+  QuantTable<D> &writeToStream(std::ofstream &stream) {
     stream.write(reinterpret_cast<const char *>(m_block.data()), m_block.size());
 
     return *this;
   }
 
-  QuantTable<D> &readFromStream(ifstream &stream) {
+  QuantTable<D> &readFromStream(std::ifstream &stream) {
     stream.read(reinterpret_cast<char *>(m_block.data()), m_block.size());
 
     return *this;

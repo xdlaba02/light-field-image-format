@@ -8,9 +8,7 @@
 
 #include "lfiftypes.h"
 
-#include <cmath>
-
-template<size_t D>
+template<size_t D, typename T>
 struct getBlock {
   template <typename IF, typename OF>
   getBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
@@ -33,17 +31,17 @@ struct getBlock {
         return input(image_y * size_x + image_index);
       };
 
-      auto outputF = [&](size_t pixel_index) -> RGBDataUnit & {
+      auto outputF = [&](size_t pixel_index) -> T & {
         return output(pixel * constpow(8, D-1) + pixel_index);
       };
 
-      getBlock<D-1>(inputF, block % blocks_x, dims, outputF);
+      getBlock<D-1, T>(inputF, block % blocks_x, dims, outputF);
     }
   }
 };
 
-template<>
-struct getBlock<1> {
+template<typename T>
+struct getBlock<1, T> {
   template <typename IF, typename OF>
   getBlock(IF &&input, const size_t block, const size_t dims[1], OF &&output) {
     for (size_t pixel = 0; pixel < 8; pixel++) {
@@ -58,7 +56,7 @@ struct getBlock<1> {
   }
 };
 
-template<size_t D>
+template<size_t D, typename T>
 struct putBlock {
   template <typename IF, typename OF>
   putBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
@@ -81,17 +79,17 @@ struct putBlock {
         return input(pixel * constpow(8, D-1) + pixel_index);
       };
 
-      auto outputF = [&](size_t image_index)-> RGBDataUnit &{
+      auto outputF = [&](size_t image_index)-> T & {
         return output(image * size_x + image_index);
       };
 
-      putBlock<D-1>(inputF, block % blocks_x, dims, outputF);
+      putBlock<D-1, T>(inputF, block % blocks_x, dims, outputF);
     }
   }
 };
 
-template<>
-struct putBlock<1> {
+template<typename T>
+struct putBlock<1, T> {
   template <typename IF, typename OF>
   putBlock(IF &&input, size_t block, const size_t dims[1], OF &&output) {
     for (size_t pixel = 0; pixel < 8; pixel++) {

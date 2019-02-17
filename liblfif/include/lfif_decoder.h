@@ -7,40 +7,55 @@
 #define LFIF_DECODER_H
 
 #include "block_decompress_chain.h"
-#include "traversal_table.h"
+
+#include <fstream>
+#include <vector>
 
 template<size_t D>
-int LFIFDecompress(const char *input_file_name, RGBDataUnit *rgb_data, uint64_t img_dims[D+1]) {
+int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data, uint64_t img_dims[D+1]) {
   BlockDecompressChain<D> block_decompress_chain {};
-  QuantTable<D>           quant_table[2]         {};
-  TraversalTable<D>       traversal_table[2]     {};
-  HuffmanTable            huffman_table[2][2]    {};
-  QuantizedDataUnit       previous_DC[3]         {};
+  QuantTable<D>           quant_table     [2]    {};
+  TraversalTable<D>       traversal_table [2]    {};
+  HuffmanDecoder          huffman_decoder [2][2] {};
 
-  size_t blocks_cnt {};
-  size_t pixels_cnt {};
+  QuantizedDataUnit8       previous_DC     [3]    {};
 
-  blocks_cnt = 1;
-  pixels_cnt = 1;
+  HuffmanDecoder         *huffman_decoders[3]    {};
+  TraversalTable<D>      *traversal_tables[3]    {};
+  QuantTable<D>          *quant_tables    [3]    {};
+  void                  (*color_convertors[3])
+                         (RGBPixel &, YCbCrUnit8) {};
 
-  for (size_t i = 0; i < D; i++) {
-    blocks_cnt *= ceil(img_dims[i]/8.);
-    pixels_cnt *= img_dims[i];
-  }
+  size_t                  blocks_cnt             {};
+  size_t                  pixels_cnt             {};
 
-  ifstream input.open(input_file_name);
+  std::ifstream           input                  {};
+
+  huffman_decoders[0] =  huffman_decoder[0];
+  huffman_decoders[1] =  huffman_decoder[1];
+  huffman_decoders[2] =  huffman_decoder[1];
+
+  traversal_tables[0] = &traversal_table[0];
+  traversal_tables[1] = &traversal_table[1];
+  traversal_tables[2] = &traversal_table[1];
+
+  quant_tables[0]     = &quant_table[0];
+  quant_tables[1]     = &quant_table[1];
+  quant_tables[2]     = &quant_table[1];
+
+  input.open(input_file_name);
   if (input.fail()) {
     return -1;
   }
 
-  char cmp_number[9] {"LFIF-#D\n"};
+  char cmp_number[9] = "LFIF-#D\n";
   cmp_number[5] = D + '0';
 
   char magic_number[9] {};
   input.read(magic_number, 8);
 
-  if (string(magic_number) != cmp) {
-    return -2
+  if (std::string(magic_number) != std::string(cmp_number)) {
+    return -2;
   }
 
   for (size_t i = 0; i < D+1; i++) {
@@ -51,19 +66,30 @@ int LFIFDecompress(const char *input_file_name, RGBDataUnit *rgb_data, uint64_t 
 
   for (size_t i = 0; i < 2; i++) {
     quant_table[i]
-    . readFromStream(output);
+    . readFromStream(input);
   }
 
   for (size_t i = 0; i < 2; i++) {
     traversal_table[i]
-    . readFromStream(output);
+    . readFromStream(input);
   }
 
   for (size_t y = 0; y < 2; y++) {
     for (size_t x = 0; x < 2; x++) {
-      huffman_table[y][x] = readHuffmanTable(input);
+      huffman_decoder[y][x]
+      . readFromStream(input);
     }
   }
+
+  blocks_cnt = 1;
+  pixels_cnt = 1;
+
+  for (size_t i = 0; i < D; i++) {
+    blocks_cnt *= ceil(img_dims[i]/8.);
+    pixels_cnt *= img_dims[i];
+  }
+
+  rgb_data.resize(pixels_cnt);
 
   previous_DC[0] = 0;
   previous_DC[1] = 0;
@@ -71,12 +97,12 @@ int LFIFDecompress(const char *input_file_name, RGBDataUnit *rgb_data, uint64_t 
 
   IBitstream bitstream(input);
 
-  for (size_t img = 0; img < imgs_cnt; img++) {
+  for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
       for (size_t channel = 0; channel < 3; channel++) {
         block_decompress_chain
-        . decodeFromStream(huffman_tables[channel], bitstream);
-        . runLengthDecde()
+        . decodeFromStream(huffman_decoders[channel], bitstream)
+        . runLengthDecode()
         . detraverse(*traversal_tables[channel])
         . diffDecodeDC(previous_DC[channel])
         . dequantize(*quant_tables[channel])

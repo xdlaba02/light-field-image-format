@@ -7,93 +7,27 @@
 #define LFIFTYPES_H
 
 #include "constpow.h"
-#include "huffman.h"
-#include "bitstream.h"
 
 #include <cstdint>
 
-#include <vector>
+#include <array>
 
+using RGBUnit8           = uint8_t;
+using RGBUnit16          = uint16_t;
 
-using namespace std;
+using YCbCrUnit8          = double;
+using YCbCrUnit16         = double;
 
-using RGBDataUnit = uint8_t;
-using YCbCrUnit = double;
-
-using RunLengthZeroesCountUnit = uint8_t;
-
-using HuffmanClass = uint8_t;
-
-using QuantizedDataUnit = int16_t;
-using ReferenceBlockUnit = double;
-using QuantTableUnit = uint8_t;
-using TraversalTableUnit = uint16_t;
+using QuantizedDataUnit8  = int16_t;
+using QuantizedDataUnit16 = int32_t;
 
 struct RGBPixel {
-  RGBDataUnit r;
-  RGBDataUnit g;
-  RGBDataUnit b;
-};
-
-struct RunLengthAmplitudeUnit {
-  QuantizedDataUnit value;
-
-  HuffmanClass huffmanClass() const {
-    QuantizedDataUnit ampval = value;
-    if (ampval < 0) {
-      ampval = -ampval;
-    }
-
-    HuffmanClass huff_class = 0;
-    while (ampval > 0) {
-      ampval >>= 1;
-      huff_class++;
-    }
-
-    return huff_class;
-  }
-};
-
-struct RunLengthPair {
-  uint8_t zeroes;
-  RunLengthAmplitudeUnit amplitude;
-
-  HuffmanSymbol huffmanSymbol() const {
-    return zeroes << 4 | amplitude.huffmanClass();
-  }
-
-  RunLengthPair &huffmanEncodeToStream(const HuffmanMap &map, OBitstream &stream) {
-    HuffmanSymbol symbol = huffmanSymbol();
-    stream.write(map.at(symbol));
-
-    QuantizedDataUnit ampval = amplitude.value;
-    if (ampval < 0) {
-      ampval = -ampval;
-      ampval = ~ampval;
-    }
-
-    for (int8_t i = amplitude.huffmanClass() - 1; i >= 0; i--) {
-      stream.writeBit((ampval & (1 << i)) >> i);
-    }
-
-    return *this;
-  }
-
-  //TODO Encoding / decoding huffman tables
-
-  RunLengthPair &huffmanDecodeFromStream(const HuffmanTable &table, IBitstream &stream) {
-    size_t symbol_index = decodeOneHuffmanSymbolIndex(table.counts, stream);
-    QuantizedDataUnit amplitude = decodeOneAmplitude(table.symbols[symbol_index] & 0x0f, stream);
-    return {static_cast<RunLengthZeroesCountUnit>(table.symbols[symbol_index] >> 4), amplitude};
-
-    return *this
-  }
+  RGBUnit8 r;
+  RGBUnit8 g;
+  RGBUnit8 b;
 };
 
 template<typename T, size_t D>
-using Block = array<T, static_cast<size_t>(constpow(8, D))>;
-
-template<size_t D>
-using ReferenceBlock = Block<ReferenceBlockUnit, D>;
+using Block = std::array<T, static_cast<size_t>(constpow(8, D))>;
 
 #endif

@@ -6,36 +6,42 @@
 #ifndef HUFFMAN_H
 #define HUFFMAN_H
 
+class IBitstream;
+class OBitstream;
+
+#include <iosfwd>
+
 #include <vector>
 #include <map>
 
-using namespace std;
+using HuffmanSymbol   = uint8_t;
+using HuffmanCodeword = std::vector<bool>;
+using HuffmanWeights  = std::map<HuffmanSymbol, uint64_t>;
 
-using HuffmanSymbol = uint8_t;
+class HuffmanEncoder {
+public:
+  HuffmanEncoder &generateFromWeights(const HuffmanWeights &huffman_weights);
+  HuffmanEncoder &writeToStream(std::ofstream &stream);
+  HuffmanEncoder &encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream);
 
-using HuffmanCodeword = vector<bool>;
-using HuffmanWeights = map<HuffmanSymbol, uint64_t>;
-using HuffmanCodelengths = vector<pair<uint64_t, uint8_t>>;
-using HuffmanMap = map<uint8_t, HuffmanCodeword>;
+private:
+  HuffmanEncoder &generateHuffmanCodelengths(const HuffmanWeights &huffman_weights);
+  HuffmanEncoder &generateHuffmanMap();
 
-struct HuffmanTable {
-  vector<uint8_t> counts;
-  vector<uint8_t> symbols;
+  std::vector<std::pair<uint64_t, HuffmanSymbol>> m_huffman_codelengths;
+  std::map<HuffmanSymbol, HuffmanCodeword>        m_huffman_map;
 };
 
-HuffmanCodelengths generateHuffmanCodelengths(const HuffmanWeights &weights);
-HuffmanMap generateHuffmanMap(const HuffmanCodelengths &codelengths);
+class HuffmanDecoder {
+public:
+  HuffmanDecoder &readFromStream(std::ifstream &stream);
+  HuffmanSymbol decodeSymbolFromStream(IBitstream &stream);
 
-HuffmanTable readHuffmanTable(ifstream &stream);
-void writeHuffmanTable(const HuffmanCodelengths &codelengths, ofstream &stream);
+private:
+  size_t decodeOneHuffmanSymbolIndex(IBitstream &stream);
 
-/*
-HuffmanClass huffmanClass(QuantizedDataUnit amplitude);
-void encodeOnePair(const RunLengthPair &pair, const HuffmanMap &map, OBitstream &stream);
-RunLengthEncodedBlock decodeOneBlock(const HuffmanTable &hufftable_DC, const HuffmanTable &hufftable_AC, IBitstream &bitstream);
-RunLengthPair decodeOnePair(const HuffmanTable &table, IBitstream &stream);
-size_t decodeOneHuffmanSymbolIndex(const vector<uint8_t> &counts, IBitstream &stream);
-QuantizedDataUnit decodeOneAmplitude(HuffmanSymbol length, IBitstream &stream);
+  std::vector<uint8_t>       m_huffman_counts;
+  std::vector<HuffmanSymbol> m_huffman_symbols;
+};
 
-*/
 #endif

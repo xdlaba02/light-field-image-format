@@ -34,7 +34,7 @@ typedef struct {
   };
 
 } LFIFCompressStruct;
-/*
-int LFIFCompress(const LFIFCompressStruct *lfif, char *output_file_name);
-*/
+
+//int LFIFCompress(const LFIFCompressStruct *lfif_compress_struct, char *output_file_name);
+
 #endif

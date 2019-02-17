@@ -8,10 +8,8 @@
 
 #include <cstdint>
 
-#include <fstream>
+#include <iosfwd>
 #include <vector>
-
-using namespace std;
 
 /******************************************************************************\
 * TODO komentar
@@ -31,15 +29,15 @@ protected:
 \******************************************************************************/
 class IBitstream: public Bitstream {
 public:
-  IBitstream(ifstream &stream);
+  IBitstream(std::ifstream &stream);
   ~IBitstream();
 
-  vector<bool> read(const size_t size);
+  std::vector<bool> read(const size_t size);
   bool readBit();
   bool eof();
 
 private:
-  ifstream &m_stream;
+  std::ifstream &m_stream;
 };
 
 /******************************************************************************\
@@ -47,15 +45,15 @@ private:
 \******************************************************************************/
 class OBitstream: public Bitstream {
 public:
-  OBitstream(ofstream &stream);
+  OBitstream(std::ofstream &stream);
   ~OBitstream();
 
-  void write(const vector<bool> &data);
+  void write(const std::vector<bool> &data);
   void writeBit(const bool bit);
   void flush();
 
 private:
-  ofstream &m_stream;
+  std::ofstream &m_stream;
 };
 
 #endif

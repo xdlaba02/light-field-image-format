@@ -5,6 +5,10 @@
 
 #include "bitstream.h"
 
+#include <fstream>
+
+using namespace std;
+
 Bitstream::Bitstream(): m_index{}, m_accumulator{} {}
 Bitstream::~Bitstream() {}
 

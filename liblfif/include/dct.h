@@ -7,14 +7,13 @@
 #define DCT_H
 
 #include "constpow.h"
-#include "lfiftypes.h"
 
 #include <cmath>
 
 using DCTDataUnit = double;
 
-constexpr array<DCTDataUnit, 64> init_coefs() {
-  array<DCTDataUnit, 64> c {};
+constexpr std::array<DCTDataUnit, 64> init_coefs() {
+  std::array<DCTDataUnit, 64> c {};
   for(size_t u = 0; u < 8; ++u) {
     for(size_t x = 0; x < 8; ++x) {
       c[u*8+x] = cos(((2 * x + 1) * u * M_PI ) / 16) * sqrt(0.25) * (u == 0 ? (1 / sqrt(2)) : 1);
@@ -23,7 +22,7 @@ constexpr array<DCTDataUnit, 64> init_coefs() {
   return c;
 }
 
-constexpr array<DCTDataUnit, 64> coefs = init_coefs();
+constexpr std::array<DCTDataUnit, 64> coefs = init_coefs();
 
 template <size_t D>
 struct fdct {

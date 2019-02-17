@@ -6,13 +6,17 @@
 #ifndef TRAVERSAL_TABLE_H
 #define TRAVERSAL_TABLE_H
 
-#include "lfiftypes.h"
+using TraversalTableUnit = uint16_t;
+using ReferenceBlockUnit = double;
+
+template<size_t D>
+using ReferenceBlock = Block<ReferenceBlockUnit, D>;
 
 template <size_t D>
 class TraversalTable {
 public:
   TraversalTable<D> &constructByReference(const ReferenceBlock<D> &reference_block) {
-    Block<pair<double, size_t>, D> srt {};
+    Block<std::pair<double, size_t>, D> srt {};
 
     for (size_t i = 0; i < constpow(8, D); i++) {
       srt[i].first += abs(reference_block[i]);
@@ -29,7 +33,7 @@ public:
   }
 
   TraversalTable<D> &constructByRadius() {
-    Block<pair<double, size_t>, D> srt {};
+    Block<std::pair<double, size_t>, D> srt {};
 
     for (size_t i = 0; i < constpow(8, D); i++) {
       for (size_t j = 1; j <= D; j++) {
@@ -49,7 +53,7 @@ public:
   }
 
   TraversalTable<D> &constructByDiagonals() {
-    Block<pair<double, size_t>, D> srt {};
+    Block<std::pair<double, size_t>, D> srt {};
 
     for (size_t i = 0; i < constpow(8, D); i++) {
       for (size_t j = 1; j <= D; j++) {
@@ -67,7 +71,7 @@ public:
     return *this;
   }
 
-  TraversalTable<D> &writeToStream(ofstream &stream) {
+  TraversalTable<D> &writeToStream(std::ofstream &stream) {
     for (size_t i = 0; i < m_block.size(); i++) {
       TraversalTableUnit val = htobe16(m_block[i]);
       stream.write(reinterpret_cast<const char *>(&val), sizeof(val));
@@ -76,7 +80,7 @@ public:
     return *this;
   }
 
-  TraversalTable<D> &readFromStream(ifstream &stream) {
+  TraversalTable<D> &readFromStream(std::ifstream &stream) {
     stream.read(reinterpret_cast<char *>(m_block.data()), m_block.size() * sizeof(TraversalTableUnit));
 
     for (size_t i = 0; i < m_block.size(); i++) {
@@ -91,7 +95,7 @@ public:
   }
 
 private:
-  Block<uint16_t, D> m_block;
+  Block<TraversalTableUnit, D> m_block;
 };
 
 #endif

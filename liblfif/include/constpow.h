@@ -3,8 +3,8 @@
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#ifndef CONSTMATH_H
-#define CONSTMATH_H
+#ifndef CONSTPOW_H
+#define CONSTPOW_H
 
 template<class T>
 inline constexpr T constpow(const T base, const unsigned exponent) {
