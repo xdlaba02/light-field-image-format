@@ -7,6 +7,8 @@
 #define LFIF_DECODER_H
 
 #include "block_decompress_chain.h"
+#include "bitstream.h"
+#include "colorspace.h"
 
 #include <fstream>
 #include <vector>
@@ -18,18 +20,19 @@ int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data,
   TraversalTable<D>       traversal_table [2]    {};
   HuffmanDecoder          huffman_decoder [2][2] {};
 
-  QuantizedDataUnit8       previous_DC     [3]    {};
+  QuantizedDataUnit8       previous_DC     [3]   {};
 
   HuffmanDecoder         *huffman_decoders[3]    {};
   TraversalTable<D>      *traversal_tables[3]    {};
   QuantTable<D>          *quant_tables    [3]    {};
   void                  (*color_convertors[3])
-                         (RGBPixel &, YCbCrUnit8) {};
+                (RGBPixel<double> &, YCbCrUnit8) {};
 
   size_t                  blocks_cnt             {};
   size_t                  pixels_cnt             {};
 
   std::ifstream           input                  {};
+
 
   huffman_decoders[0] =  huffman_decoder[0];
   huffman_decoders[1] =  huffman_decoder[1];
@@ -42,6 +45,10 @@ int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data,
   quant_tables[0]     = &quant_table[0];
   quant_tables[1]     = &quant_table[1];
   quant_tables[2]     = &quant_table[1];
+
+  color_convertors[0] = YtoRGB;
+  color_convertors[1] = CbtoRGB;
+  color_convertors[2] = CrtoRGB;
 
   input.open(input_file_name);
   if (input.fail()) {
@@ -89,7 +96,7 @@ int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data,
     pixels_cnt *= img_dims[i];
   }
 
-  rgb_data.resize(pixels_cnt);
+  rgb_data.resize(pixels_cnt * img_dims[D] * 3);
 
   previous_DC[0] = 0;
   previous_DC[1] = 0;

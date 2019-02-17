@@ -6,20 +6,26 @@
 #include "compress.h"
 #include "plenoppm.h"
 
-#include <lfif_encoder.h>
+#include <lfiflib.h>
 
 #include <iostream>
+#include <vector>
+
+using namespace std;
 
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
-  uint8_t quality         {};
+  uint8_t quality              {};
 
   vector<uint8_t> rgb_data     {};
+
   uint64_t width               {};
   uint64_t height              {};
   uint32_t color_depth         {};
   uint64_t image_count         {};
+
+  LFIFCompressStruct lfif_compress_struct {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return 1;
@@ -35,8 +41,15 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  uint64_t img_dims[] {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
-  int errcode = LFIFCompress<4>(rgb_data, img_dims, 1, quality, output_file_name);
+  lfif_compress_struct.image_width  = width;
+  lfif_compress_struct.image_height = height;
+  lfif_compress_struct.image_count  = image_count;
+  lfif_compress_struct.quality      = quality;
+  lfif_compress_struct.method       = LFIF_4D;
+  lfif_compress_struct.color_space  = RGB24;
+  lfif_compress_struct.rgb_data_24  = rgb_data.data();
+
+  int errcode = LFIFCompress(&lfif_compress_struct, output_file_name);
 
   switch (errcode) {
     case -1:

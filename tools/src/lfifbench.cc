@@ -12,12 +12,14 @@
 
 #include <thread>
 
+using namespace std;
+
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
   cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-s <quality-step>]" << endl;
 }
 
-double PSNR(const RGBData &original, const RGBData &compared) {
+double PSNR(const vector<uint8_t> &original, const vector<uint8_t> &compared) {
   double mse  {};
 
   if (original.size() != compared.size()) {
@@ -37,7 +39,28 @@ double PSNR(const RGBData &original, const RGBData &compared) {
   return 10 * log10((255.0 * 255.0) / mse);
 }
 
-int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+size_t encode(LFIFCompressStruct &lfif_compress_struct, const char *filename) {
+  int errcode = LFIFCompress(&lfif_compress_struct, filename);
+
+  if (errcode) {
+    std::cerr << "ERROR: UNABLE TO OPEN FILE \"" << filename << "\" FOR WRITITNG" << endl;
+    return 0;
+  }
+
+  ifstream encoded_file(filename, ifstream::ate | ifstream::binary);
+  return encoded_file.tellg();
+}
+
+int method2D(vector<uint8_t> &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+  LFIFCompressStruct lfif_compress_struct {};
+
+  lfif_compress_struct.image_width  = width;
+  lfif_compress_struct.image_height = height;
+  lfif_compress_struct.image_count  = image_count;
+  lfif_compress_struct.method       = LFIF_2D;
+  lfif_compress_struct.color_space  = RGB24;
+  lfif_compress_struct.rgb_data_24  = original.data();
+
   ofstream output(output_filename);
   if (output.fail()) {
     return 1;
@@ -50,16 +73,17 @@ int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
   for (size_t quality = q_step; quality <= 100; quality += q_step) {
     cerr << "LFIF2D: Q" << quality << " STARTED" << endl;
     size_t   compressed_image_size    {};
-    RGBData  decompressed_rgb_data    {};
-    uint64_t decompressed_image_count {};
-    uint64_t img_dims[2]              {width, height};
+    vector<uint8_t>  decompressed_rgb_data    {};
 
-    compressed_image_size = encode<2>(original, img_dims, image_count, quality, "/tmp/lfifbench.lfi2d");
+    lfif_compress_struct.quality = quality;
+
+    compressed_image_size = encode(lfif_compress_struct, "/tmp/lfifbench.lfi2d");
     if (!compressed_image_size) {
       return 3;
     }
 
-    if (decode<2>("/tmp/lfifbench.lfi2d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+    uint64_t img_dims[3];
+    if (decode<2>("/tmp/lfifbench.lfi2d", decompressed_rgb_data, img_dims)) {
       return 3;
     }
 
@@ -70,7 +94,16 @@ int method2D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
   return 0;
 }
 
-int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+int method3D(vector<uint8_t> &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+  LFIFCompressStruct lfif_compress_struct {};
+
+  lfif_compress_struct.image_width  = width;
+  lfif_compress_struct.image_height = height;
+  lfif_compress_struct.image_count  = image_count;
+  lfif_compress_struct.method       = LFIF_3D;
+  lfif_compress_struct.color_space  = RGB24;
+  lfif_compress_struct.rgb_data_24  = original.data();
+
   ofstream output(output_filename);
   if (output.fail()) {
     return 1;
@@ -83,16 +116,17 @@ int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
   for (size_t quality = q_step; quality <= 100; quality += q_step) {
     cerr << "LFIF3D: Q" << quality << " STARTED" << endl;
     size_t   compressed_image_size    {};
-    RGBData  decompressed_rgb_data    {};
-    uint64_t decompressed_image_count {};
-    uint64_t img_dims[3]              {width, height, image_count};
+    vector<uint8_t>  decompressed_rgb_data    {};
 
-    compressed_image_size = encode<3>(original, img_dims, 1, quality, "/tmp/lfifbench.lfi3d");
+    lfif_compress_struct.quality = quality;
+
+    compressed_image_size = encode(lfif_compress_struct, "/tmp/lfifbench.lfi3d");
     if (!compressed_image_size) {
       return 3;
     }
 
-    if (decode<3>("/tmp/lfifbench.lfi3d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+    uint64_t img_dims[4];
+    if (decode<3>("/tmp/lfifbench.lfi3d", decompressed_rgb_data, img_dims)) {
       return 3;
     }
 
@@ -103,7 +137,16 @@ int method3D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
   return 0;
 }
 
-int method4D(const RGBData &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+int method4D(vector<uint8_t> &original, uint64_t width, uint64_t height, uint64_t image_count, uint8_t q_step, const char *output_filename) {
+  LFIFCompressStruct lfif_compress_struct {};
+
+  lfif_compress_struct.image_width  = width;
+  lfif_compress_struct.image_height = height;
+  lfif_compress_struct.image_count  = image_count;
+  lfif_compress_struct.method       = LFIF_4D;
+  lfif_compress_struct.color_space  = RGB24;
+  lfif_compress_struct.rgb_data_24  = original.data();
+
   ofstream output(output_filename);
   if (output.fail()) {
     return 1;
@@ -116,16 +159,17 @@ int method4D(const RGBData &original, uint64_t width, uint64_t height, uint64_t 
   for (size_t quality = q_step; quality <= 100; quality += q_step) {
     cerr << "LFIF4D: Q" << quality << " STARTED" << endl;
     size_t   compressed_image_size    {};
-    RGBData  decompressed_rgb_data    {};
-    uint64_t decompressed_image_count {};
-    uint64_t img_dims[4]              {width, height, static_cast<uint64_t>(sqrt(image_count)), static_cast<uint64_t>(sqrt(image_count))};
+    vector<uint8_t> decompressed_rgb_data    {};
 
-    compressed_image_size = encode<4>(original, img_dims, 1, quality, "/tmp/lfifbench.lfi4d");
+    lfif_compress_struct.quality = quality;
+
+    compressed_image_size = encode(lfif_compress_struct, "/tmp/lfifbench.lfi4d");
     if (!compressed_image_size) {
       return 3;
     }
 
-    if (decode<4>("/tmp/lfifbench.lfi4d", decompressed_rgb_data, img_dims, decompressed_image_count)) {
+    uint64_t img_dims[5];
+    if (decode<4>("/tmp/lfifbench.lfi4d", decompressed_rgb_data, img_dims)) {
       return 3;
     }
 
@@ -255,15 +299,15 @@ int main(int argc, char *argv[]) {
     vector<thread> threads {};
 
     if (output_file_2D) {
-      threads.push_back(thread(method2D, rgb_data, width, height, image_count, q_step, output_file_2D));
+      threads.push_back(thread(method2D, ref(rgb_data), width, height, image_count, q_step, output_file_2D));
     }
 
     if (output_file_3D) {
-      threads.push_back(thread(method3D, rgb_data, width, height, image_count, q_step, output_file_3D));
+      threads.push_back(thread(method3D, ref(rgb_data), width, height, image_count, q_step, output_file_3D));
     }
 
     if (output_file_4D) {
-      threads.push_back(thread(method4D, rgb_data, width, height, image_count, q_step, output_file_4D));
+      threads.push_back(thread(method4D, ref(rgb_data), width, height, image_count, q_step, output_file_4D));
     }
 
     for (auto &thread: threads) {

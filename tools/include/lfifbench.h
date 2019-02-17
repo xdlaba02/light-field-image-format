@@ -6,40 +6,25 @@
 #ifndef LFIFBENCH_H
 #define LFIFBENCH_H
 
-#include <lfif_encoder.h>
+#include <lfiflib.h>
 #include <lfif_decoder.h>
 
 #include <cstdlib>
 
 #include <iostream>
 
-using namespace std;
-
 template<size_t D>
-size_t encode(const RGBData &rgb_data, const uint64_t img_dims[D], uint32_t image_count, uint8_t quality, const char *filename) {
-  int errcode = LFIFCompress<D>(rgb_data, img_dims, image_count, quality, filename);
-
-  if (errcode) {
-    cerr << "ERROR: UNABLE TO OPEN FILE \"" << filename << "\" FOR WRITITNG" << endl;
-    return 0;
-  }
-
-  ifstream encoded_file(filename, ifstream::ate | ifstream::binary);
-  return encoded_file.tellg();
-}
-
-template<size_t D>
-int decode(const char *filename, RGBData &rgb_data, uint64_t img_dims[D], uint64_t &image_count) {
-  int errcode = LFIFDecompress<D>(filename, rgb_data, img_dims, image_count);
+int decode(const char *filename, std::vector<uint8_t> &rgb_data, uint64_t img_dims[D+1]) {
+  int errcode = LFIFDecompress<D>(filename, rgb_data, img_dims);
 
   switch (errcode) {
     case -1:
-      cerr << "ERROR: UNABLE TO OPEN FILE \"" << filename << "\" FOR READING" << endl;
+      std::cerr << "ERROR: UNABLE TO OPEN FILE \"" << filename << "\" FOR READING" << std::endl;
       return 3;
     break;
 
     case -2:
-      cerr << "ERROR: MAGIC NUMBER MISMATCH" << endl;
+      std::cerr << "ERROR: MAGIC NUMBER MISMATCH" << std::endl;
       return 3;
     break;
 

@@ -21,10 +21,11 @@ using YCbCrUnit16         = double;
 using QuantizedDataUnit8  = int16_t;
 using QuantizedDataUnit16 = int32_t;
 
+template<typename T>
 struct RGBPixel {
-  RGBUnit8 r;
-  RGBUnit8 g;
-  RGBUnit8 b;
+  T r;
+  T g;
+  T b;
 };
 
 template<typename T, size_t D>

@@ -74,6 +74,8 @@ public:
   }
 
   BlockCompressChain<D> &forwardDiscreteCosineTransform() {
+    m_transformed_block.fill(0);
+
     fdct<D>([&](size_t index) -> DCTDataUnit { return m_ycbcr_block[index];}, [&](size_t index) -> DCTDataUnit & { return m_transformed_block[index]; });
 
     return *this;
@@ -146,7 +148,6 @@ public:
 
     return *this;
   }
-
   BlockCompressChain<D> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream) {
     m_runlength[0].huffmanEncodeToStream(encoder[0], stream);
     for (size_t i = 1; i < m_runlength.size(); i++) {
@@ -157,12 +158,12 @@ public:
   }
 
 private:
-  Block<RGBPixel, D>          m_rgb_block;
+  Block<RGBPixel<RGBUnit8>, D> m_rgb_block;
   Block<YCbCrUnit8, D>         m_ycbcr_block;
-  Block<DCTDataUnit, D>       m_transformed_block;
+  Block<DCTDataUnit, D>        m_transformed_block;
   Block<QuantizedDataUnit8, D> m_quantized_block;
   Block<QuantizedDataUnit8, D> m_traversed_block;
-  std::vector<RunLengthPair>  m_runlength;
+  std::vector<RunLengthPair>   m_runlength;
 };
 
 #endif

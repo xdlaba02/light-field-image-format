@@ -6,10 +6,16 @@
 #ifndef BLOCK_DECOMPRESS_CHAIN
 #define BLOCK_DECOMPRESS_CHAIN
 
+#include "lfiftypes.h"
 #include "huffman.h"
 #include "runlength.h"
+#include "traversal_table.h"
+#include "quant_table.h"
+#include "dct.h"
+#include "block.h"
 
 #include <vector>
+#include <algorithm>
 
 template <size_t D>
 class BlockDecompressChain {
@@ -32,12 +38,11 @@ public:
   }
 
   BlockDecompressChain<D> &runLengthDecode() {
+    m_traversed_block.fill(0);
+
     size_t pixel_index = 0;
     for (auto &pair: m_runlength) {
-      for (size_t i = 0; i < pair.zeroes; i++) {
-        m_traversed_block[pixel_index] = 0;
-        pixel_index++;
-      }
+      pixel_index += pair.zeroes;
       m_traversed_block[pixel_index] = pair.amplitude;
       pixel_index++;
     }
@@ -69,6 +74,8 @@ public:
   }
 
   BlockDecompressChain<D> &inverseDiscreteCosineTransform() {
+    m_ycbcr_block.fill(0);
+
     idct<D>([&](size_t index) -> DCTDataUnit { return m_transformed_block[index];}, [&](size_t index) -> DCTDataUnit & { return m_ycbcr_block[index]; });
 
     return *this;
@@ -82,7 +89,7 @@ public:
     return *this;
   }
 
-  BlockDecompressChain<D> &colorConvert(void (*f)(RGBPixel &, YCbCrUnit8)) {
+  BlockDecompressChain<D> &colorConvert(void (*f)(RGBPixel<double> &, YCbCrUnit8)) {
     for (size_t i = 0; i < constpow(8, D); i++) {
       f(m_rgb_block[i], m_ycbcr_block[i]);
     }
@@ -92,15 +99,15 @@ public:
 
   BlockDecompressChain<D> &putRGBBlock(RGBUnit8 *rgb_data, uint64_t img_dims[D], size_t block) {
     auto inputR = [&](size_t index) {
-      return m_rgb_block[index].r;
+      return std::clamp<double>(m_rgb_block[index].r, 0, 255);
     };
 
     auto inputG = [&](size_t index) {
-      return m_rgb_block[index].g;
+      return std::clamp<double>(m_rgb_block[index].g, 0, 255);
     };
 
     auto inputB = [&](size_t index) {
-      return m_rgb_block[index].b;
+      return std::clamp<double>(m_rgb_block[index].b, 0, 255);
     };
 
 
@@ -125,12 +132,12 @@ public:
 
 
 private:
-  std::vector<RunLengthPair>  m_runlength;
+  std::vector<RunLengthPair>   m_runlength;
   Block<QuantizedDataUnit8, D> m_traversed_block;
   Block<QuantizedDataUnit8, D> m_quantized_block;
-  Block<DCTDataUnit, D>       m_transformed_block;
+  Block<DCTDataUnit, D>        m_transformed_block;
   Block<YCbCrUnit8, D>         m_ycbcr_block;
-  Block<RGBPixel, D>          m_rgb_block;
+  Block<RGBPixel<double>, D>   m_rgb_block;
 };
 
 #endif

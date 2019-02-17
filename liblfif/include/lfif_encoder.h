@@ -21,10 +21,10 @@ int LFIFCompress(const RGBUnit8 *rgb_data, const uint64_t img_dims[D+1], uint8_t
   HuffmanWeights        huffman_weight  [2][2] {};
   HuffmanEncoder        huffman_encoder [2][2] {};
 
-  QuantizedDataUnit8     previous_DC     [3]    {};
+  QuantizedDataUnit8    previous_DC     [3]    {};
 
-  YCbCrUnit8           (*color_convertors[3])
-       (RGBUnit8, RGBUnit8, RGBUnit8) {};
+  YCbCrUnit8          (*color_convertors[3])
+                (RGBUnit8, RGBUnit8, RGBUnit8) {};
   QuantTable<D>        *quant_tables    [3]    {};
   ReferenceBlock<D>    *reference_blocks[3]    {};
   TraversalTable<D>    *traversal_tables[3]    {};
@@ -37,13 +37,13 @@ int LFIFCompress(const RGBUnit8 *rgb_data, const uint64_t img_dims[D+1], uint8_t
   std::ofstream         output                 {};
   size_t                last_slash_pos         {};
 
-  color_convertors[0] = RGBToY;
-  color_convertors[1] = RGBToCb;
-  color_convertors[2] = RGBToCr;
+  color_convertors[0] =  RGBToY;
+  color_convertors[1] =  RGBToCb;
+  color_convertors[2] =  RGBToCr;
 
-  quant_tables[0] = &quant_table[0];
-  quant_tables[1] = &quant_table[1];
-  quant_tables[2] = &quant_table[1];
+  quant_tables[0]     = &quant_table[0];
+  quant_tables[1]     = &quant_table[1];
+  quant_tables[2]     = &quant_table[1];
 
   reference_blocks[0] = &reference_block[0];
   reference_blocks[1] = &reference_block[1];
@@ -53,13 +53,13 @@ int LFIFCompress(const RGBUnit8 *rgb_data, const uint64_t img_dims[D+1], uint8_t
   traversal_tables[1] = &traversal_table[1];
   traversal_tables[2] = &traversal_table[1];
 
-  huffman_weights[0] = huffman_weight[0];
-  huffman_weights[1] = huffman_weight[1];
-  huffman_weights[2] = huffman_weight[1];
+  huffman_weights[0]  =  huffman_weight[0];
+  huffman_weights[1]  =  huffman_weight[1];
+  huffman_weights[2]  =  huffman_weight[1];
 
-  huffman_encoders[0] = huffman_encoder[0];
-  huffman_encoders[1] = huffman_encoder[1];
-  huffman_encoders[2] = huffman_encoder[1];
+  huffman_encoders[0] =  huffman_encoder[0];
+  huffman_encoders[1] =  huffman_encoder[1];
+  huffman_encoders[2] =  huffman_encoder[1];
 
   blocks_cnt = 1;
   pixels_cnt = 1;

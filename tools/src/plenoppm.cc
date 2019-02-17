@@ -10,6 +10,8 @@
 
 #include <iostream>
 
+using namespace std;
+
 bool isSquare(uint64_t num) {
   for (size_t i = 0; i * i <= num; i++) {
     if (i * i == num) {

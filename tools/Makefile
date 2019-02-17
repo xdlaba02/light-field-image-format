@@ -57,7 +57,7 @@ $(OBJDIR)/lfif4d_compress.o: $(SRCDIR)/lfif4d_compress.cc $(INCDIR)/compress.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
-$(OBJDIR)/lfif2d_decompress.o: $(SRCDIR)/lfif2d_decompress.cc $(INCDIR)/decompress.h
+$(OBJDIR)/lfif2d_decompress.o: $(SRCDIR)/lfif2d_decompress.cc $(INCDIR)/decompress.h ../liblfif/include/block_decompress_chain.h ../liblfif/include/lfif_decoder.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/lfif3d_decompress.o: $(SRCDIR)/lfif3d_decompress.cc $(INCDIR)/decompress.h

@@ -1,9 +1,11 @@
 #include "lfiflib.h"
 #include "lfif_encoder.h"
 
+#include <cmath>
+
 using namespace std;
 
-int LFIFCompress(const LFIFCompressStruct *lfif, char *output_file_name) {
+int LFIFCompress(const LFIFCompressStruct *lfif, const char *output_file_name) {
   uint64_t img_dims[5] {};
 
   switch (lfif->method) {

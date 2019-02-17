@@ -9,8 +9,6 @@
 #include <cstdint>
 #include <vector>
 
-using namespace std;
-
-vector<size_t> generateZigzagTable(uint64_t size);
+std::vector<size_t> generateZigzagTable(uint64_t size);
 
 #endif

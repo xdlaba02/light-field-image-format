@@ -42,6 +42,8 @@ HuffmanEncoder &HuffmanEncoder::writeToStream(ofstream &stream) {
   return *this;
 }
 
+#include <bitset>
+#include <iostream>
 HuffmanEncoder &HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) {
   stream.write(m_huffman_map.at(symbol));
 

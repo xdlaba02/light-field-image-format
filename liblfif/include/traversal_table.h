@@ -6,6 +6,8 @@
 #ifndef TRAVERSAL_TABLE_H
 #define TRAVERSAL_TABLE_H
 
+#include <fstream>
+
 using TraversalTableUnit = uint16_t;
 using ReferenceBlockUnit = double;
 
