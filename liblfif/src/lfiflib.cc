@@ -1,13 +1,37 @@
 #include "lfiflib.h"
 #include "lfif_encoder.h"
-#include "lfif_decoder.h"
 
 using namespace std;
 
-template int LFIFCompress<2>(const uint8_t *, const uint64_t *, uint8_t, const char *);
-template int LFIFCompress<3>(const uint8_t *, const uint64_t *, uint8_t, const char *);
-template int LFIFCompress<4>(const uint8_t *, const uint64_t *, uint8_t, const char *);
+int LFIFCompress(const LFIFCompressStruct *lfif, char *output_file_name) {
+  uint64_t img_dims[5] {};
 
-template int LFIFDecompress<2>(const char *, vector<uint8_t> &, uint64_t *);
-template int LFIFDecompress<3>(const char *, vector<uint8_t> &, uint64_t *);
-template int LFIFDecompress<4>(const char *, vector<uint8_t> &, uint64_t *);
+  switch (lfif->method) {
+    case LFIF_2D:
+      img_dims[0] = lfif->image_width;
+      img_dims[1] = lfif->image_height;
+      img_dims[2] = lfif->image_count;
+      return LFIFCompress<2>(lfif->rgb_data_24, img_dims, lfif->quality, output_file_name);
+    break;
+
+    case LFIF_3D:
+      img_dims[0] = lfif->image_width;
+      img_dims[1] = lfif->image_height;
+      img_dims[2] = lfif->image_count;
+      img_dims[3] = 1;
+      return LFIFCompress<3>(lfif->rgb_data_24, img_dims, lfif->quality, output_file_name);
+    break;
+
+    case LFIF_4D:
+      img_dims[0] = lfif->image_width;
+      img_dims[1] = lfif->image_height;
+      img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
+      img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
+      img_dims[4] = 1;
+      return LFIFCompress<4>(lfif->rgb_data_24, img_dims, lfif->quality, output_file_name);
+    break;
+
+  }
+
+  return -1;
+}
