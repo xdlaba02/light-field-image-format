@@ -3,78 +3,53 @@
 # AUTOR: Drahomir Dlabaja (xdlaba02)
 ################################################################################
 
+DEPDIR = .dep
 SRCDIR = src
 INCDIR = include
 OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -I../liblfif/include -I../libppm/include -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+INC = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg
+CFLAGS = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
-all: $(BINDIR) $(OBJDIR) lfiftools benchtools
+SRCS = $(wildcard $(SRCDIR)/*.cc)
 
-lfiftools: $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif16_compress $(BINDIR)/lfif16_decompress
+LFIFTOOLS = $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif16_compress $(BINDIR)/lfif16_decompress
+BENCHTOOLS = $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
 
-LFIFTOOLSLDFLAGS = -lm
+all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(LFIFTOOLS) $(BENCHTOOLS)
 
 COMPRESS = $(OBJDIR)/compress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
 DECOMPRESS = $(OBJDIR)/decompress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(COMPRESS)
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress.o $(COMPRESS)
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(COMPRESS)
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 
 $(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress.o $(DECOMPRESS)
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress.o $(DECOMPRESS)
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(DECOMPRESS)
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 
 $(BINDIR)/lfif16_compress: $(OBJDIR)/lfif16_compress.o ../liblfif/bin/liblfif16.a ../libppm/bin/libppm.a
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif16_decompress: $(OBJDIR)/lfif16_decompress.o ../liblfif/bin/liblfif16.a ../libppm/bin/libppm.a
-	$(CC) $(LFIFTOOLSLDFLAGS) $^ -o $@
+	$(CC) -lm $^ -o $@
 
-
-$(OBJDIR)/lfif2d_compress.o: $(SRCDIR)/lfif2d_compress.cc $(INCDIR)/compress.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/lfif3d_compress.o: $(SRCDIR)/lfif3d_compress.cc $(INCDIR)/compress.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/lfif4d_compress.o: $(SRCDIR)/lfif4d_compress.cc $(INCDIR)/compress.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-
-$(OBJDIR)/lfif2d_decompress.o: $(SRCDIR)/lfif2d_decompress.cc $(INCDIR)/decompress.h ../liblfif/include/block_decompress_chain.h ../liblfif/include/lfif_decoder.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/lfif3d_decompress.o: $(SRCDIR)/lfif3d_decompress.cc $(INCDIR)/decompress.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/lfif4d_decompress.o: $(SRCDIR)/lfif4d_decompress.cc $(INCDIR)/decompress.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-
-$(OBJDIR)/lfif16_compress.o: $(SRCDIR)/lfif16_compress.cc
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/lfif16_decompress.o: $(SRCDIR)/lfif16_decompress.cc
-	$(CC) $(CFLAGS) -c $< -o $@
-
-
-benchtools: $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
 
 $(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a
 	$(CC) -lm -pthread $^ -o $@
@@ -83,36 +58,18 @@ $(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenopp
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
-	$(CC) -lm  -lavutil -lavformat -lavcodec -lswscale $^ -o $@
+	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 
-$(OBJDIR)/lfifbench.o: $(SRCDIR)/lfifbench.cc $(INCDIR)/lfifbench.h
-	$(CC) $(CFLAGS) -c $< -o $@
+$(OBJDIR)/%.o: $(SRCDIR)/%.cc
+	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
+	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-$(OBJDIR)/mozbench.o: $(SRCDIR)/mozbench.cc
-	$(CC) $(CFLAGS) -I/opt/mozjpeg/include -c $< -o $@
-
-$(OBJDIR)/x265bench.o: $(SRCDIR)/x265bench.cc
-	$(CC) $(CFLAGS) -I/usr/include/ffmpeg -c $< -o $@
+-include $(patsubst %,$(DEPDIR)/%.d,$(basename $(notdir $(SRCS))))
 
 
-
-$(OBJDIR)/compress.o: $(SRCDIR)/compress.cc $(INCDIR)/compress.h $(INCDIR)/file_mask.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/decompress.o: $(SRCDIR)/decompress.cc $(INCDIR)/decompress.h $(INCDIR)/file_mask.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/file_mask.o: $(SRCDIR)/file_mask.cc $(INCDIR)/file_mask.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/zigzag.o: $(SRCDIR)/zigzag.cc $(INCDIR)/zigzag.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/plenoppm.o: $(SRCDIR)/plenoppm.cc $(INCDIR)/plenoppm.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-
+$(DEPDIR):
+	mkdir -p $(DEPDIR)
 $(BINDIR):
 	mkdir -p $(BINDIR)
 $(OBJDIR):
@@ -121,4 +78,4 @@ $(OBJDIR):
 .PHONY: clean
 
 clean:
-	rm -rf $(OBJDIR) $(BINDIR) vgcore* *.data callgrind*
+	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)

@@ -6,3 +6,4 @@ callgrind*
 *.old
 *.so
 *.a
+.dep

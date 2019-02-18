@@ -3,30 +3,38 @@
 # AUTOR: Drahomir Dlabaja (xdlaba02)
 ################################################################################
 
+DEPDIR = .dep
 SRCDIR = src
 INCDIR = include
 OBJDIR = build
 BINDIR = bin
 
 CC = g++
-CFLAGS = -Iinclude -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -fPIC
+INC = -Iinclude
+CFLAGS = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -fPIC
 LDFLAGS = -shared
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
+
+SRCS = $(wildcard $(SRCDIR)/*.cc)
 
 TARGET = $(BINDIR)/libppm.so $(BINDIR)/libppm.a
 
-OBJS = $(OBJDIR)/ppm.o
+all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(TARGET)
 
-all: $(BINDIR) $(OBJDIR) $(TARGET)
-
-$(BINDIR)/libppm.so: $(OBJS)
+$(BINDIR)/libppm.so: $(OBJDIR)/ppm.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINDIR)/libppm.a: $(OBJS)
+$(BINDIR)/libppm.a: $(OBJDIR)/ppm.o
 	ar rcs $@ $^
 
-$(OBJDIR)/ppm.o: $(SRCDIR)/ppm.cc $(INCDIR)/ppm.h
-	$(CC) $(CFLAGS) -c $< -o $@
+$(OBJDIR)/%.o: $(SRCDIR)/%.cc
+	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
+	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
+-include $(patsubst %,$(DEPDIR)/%.d,$(basename $(notdir $(SRCS))))
+
+$(DEPDIR):
+	mkdir -p $(DEPDIR)
 $(BINDIR):
 	mkdir -p $(BINDIR)
 $(OBJDIR):
@@ -35,4 +43,4 @@ $(OBJDIR):
 .PHONY: clean
 
 clean:
-	rm -rf $(OBJDIR) $(BINDIR)
+	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)
