@@ -1,26 +1,26 @@
 #include "runlength.h"
 #include "bitstream.h"
 
-RunLengthPair &RunLengthPair::addToWeights(HuffmanWeights &weights) {
-  HuffmanClass  amp_class {};
-  HuffmanSymbol symbol    {};
+#include <cmath>
 
-  amp_class = huffmanClass() & 0x0f;
-  symbol    = zeroes << 4 | amp_class;
+template class RunLengthPair<int16_t>;
+template class RunLengthPair<int32_t>;
 
-  weights[symbol]++;
+template <typename T>
+RunLengthPair<T> &
+RunLengthPair<T>::addToWeights(HuffmanWeights &weights) {
+  weights[HuffmanSymbol()]++;
 
   return *this;
 }
 
-RunLengthPair &RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream) {
-  HuffmanSymbol          symbol    {};
-  HuffmanClass           amp_class {};
-  RunLengthAmplitudeUnit amp       {};
+template <typename T>
+RunLengthPair<T> &
+RunLengthPair<T>::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream) {
+  HuffmanClass amp_class {};
+  T            amp       {};
 
-  amp_class = huffmanClass() & 0x0f;
-  symbol    = zeroes << 4 | amp_class;
-  encoder.encodeSymbolToStream(symbol, stream);
+  encoder.encodeSymbolToStream(huffmanSymbol(), stream);
 
   amp = amplitude;
   if (amp < 0) {
@@ -28,6 +28,7 @@ RunLengthPair &RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBi
     amp = ~amp;
   }
 
+  amp_class = huffmanClass();
   for (int16_t i = amp_class - 1; i >= 0; i--) {
     stream.writeBit((amp & (1 << i)) >> i);
   }
@@ -35,13 +36,15 @@ RunLengthPair &RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBi
   return *this;
 }
 
-RunLengthPair &RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stream) {
+template <typename T>
+RunLengthPair<T> &
+RunLengthPair<T>::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stream) {
   HuffmanSymbol huffman_symbol {};
   HuffmanClass  amp_class      {};
 
   huffman_symbol  = decoder.decodeSymbolFromStream(stream);
-  amp_class       = huffman_symbol & 0x0f;
-  zeroes          = huffman_symbol >> 4;
+  amp_class       = huffman_symbol & (~(static_cast<HuffmanSymbol>(-1) << classBits()));
+  zeroes          = huffman_symbol >> classBits();
   amplitude       = 0;
 
   if (amp_class != 0) {
@@ -60,12 +63,24 @@ RunLengthPair &RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, I
   return *this;
 }
 
-bool RunLengthPair::endOfBlock() const {
+template <typename T>
+bool RunLengthPair<T>::endOfBlock() const {
   return (!zeroes) && (!amplitude);
 }
 
-HuffmanClass RunLengthPair::huffmanClass() const {
-  RunLengthAmplitudeUnit amp = amplitude;
+template <typename T>
+size_t RunLengthPair<T>::zeroesBits() {
+  return 8 - classBits();
+}
+
+template <typename T>
+size_t RunLengthPair<T>::classBits() {
+  return log2(sizeof(T)*8);
+}
+
+template <typename T>
+HuffmanClass RunLengthPair<T>::huffmanClass() const {
+  T amp = amplitude;
   if (amp < 0) {
     amp = -amp;
   }
@@ -77,4 +92,9 @@ HuffmanClass RunLengthPair::huffmanClass() const {
   }
 
   return huff_class;
+}
+
+template <typename T>
+HuffmanSymbol RunLengthPair<T>::huffmanSymbol() const {
+  return zeroes << classBits() | huffmanClass();
 }

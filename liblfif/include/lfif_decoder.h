@@ -13,26 +13,23 @@
 #include <fstream>
 #include <vector>
 
-template<size_t D>
-int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data, uint64_t img_dims[D+1]) {
-  BlockDecompressChain<D> block_decompress_chain {};
-  QuantTable<D>           quant_table     [2]    {};
-  TraversalTable<D>       traversal_table [2]    {};
-  HuffmanDecoder          huffman_decoder [2][2] {};
+template<size_t D, typename RGBUNIT, typename QDATAUNIT>
+int LFIFDecompress(std::ifstream &input, const uint64_t img_dims[D+1], RGBUNIT *rgb_data) {
+  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> block_decompress_chain {};
+  QuantTable<D, RGBUNIT>                      quant_table     [2]    {};
+  TraversalTable<D>                           traversal_table [2]    {};
+  HuffmanDecoder                              huffman_decoder [2][2] {};
 
-  QuantizedDataUnit8       previous_DC     [3]   {};
+  QDATAUNIT                                   previous_DC     [3]    {};
 
-  HuffmanDecoder         *huffman_decoders[3]    {};
-  TraversalTable<D>      *traversal_tables[3]    {};
-  QuantTable<D>          *quant_tables    [3]    {};
-  void                  (*color_convertors[3])
-                (RGBPixel<double> &, YCbCrUnit8) {};
+  HuffmanDecoder                             *huffman_decoders[3]    {};
+  TraversalTable<D>                          *traversal_tables[3]    {};
+  QuantTable<D, RGBUNIT>                     *quant_tables    [3]    {};
+  void                                      (*color_convertors[3])
+                                     (RGBPixel<double> &, YCbCrUnit) {};
 
-  size_t                  blocks_cnt             {};
-  size_t                  pixels_cnt             {};
-
-  std::ifstream           input                  {};
-
+  size_t blocks_cnt {};
+  size_t pixels_cnt {};
 
   huffman_decoders[0] =  huffman_decoder[0];
   huffman_decoders[1] =  huffman_decoder[1];
@@ -49,27 +46,6 @@ int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data,
   color_convertors[0] = YtoRGB;
   color_convertors[1] = CbtoRGB;
   color_convertors[2] = CrtoRGB;
-
-  input.open(input_file_name);
-  if (input.fail()) {
-    return -1;
-  }
-
-  char cmp_number[9] = "LFIF-#D\n";
-  cmp_number[5] = D + '0';
-
-  char magic_number[9] {};
-  input.read(magic_number, 8);
-
-  if (std::string(magic_number) != std::string(cmp_number)) {
-    return -2;
-  }
-
-  for (size_t i = 0; i < D+1; i++) {
-    uint64_t tmp {};
-    input.read(reinterpret_cast<char *>(&tmp), sizeof(tmp));
-    img_dims[i] = be64toh(tmp);
-  }
 
   for (size_t i = 0; i < 2; i++) {
     quant_table[i]
@@ -95,8 +71,6 @@ int LFIFDecompress(const char *input_file_name, std::vector<RGBUnit8> &rgb_data,
     blocks_cnt *= ceil(img_dims[i]/8.);
     pixels_cnt *= img_dims[i];
   }
-
-  rgb_data.resize(pixels_cnt * img_dims[D] * 3);
 
   previous_DC[0] = 0;
   previous_DC[1] = 0;

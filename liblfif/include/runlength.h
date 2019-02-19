@@ -10,13 +10,13 @@
 
 #include "huffman.h"
 
-using RunLengthZeroesCountUnit = uint8_t;
-using RunLengthAmplitudeUnit   = int16_t;
-using HuffmanClass             = uint8_t;
+using HuffmanClass = uint8_t;
 
-struct RunLengthPair {
-  RunLengthZeroesCountUnit zeroes;
-  RunLengthAmplitudeUnit   amplitude;
+template <typename T>
+class RunLengthPair {
+public:
+  size_t zeroes;
+  T      amplitude;
 
   RunLengthPair &addToWeights(HuffmanWeights &weights);
 
@@ -25,8 +25,12 @@ struct RunLengthPair {
 
   bool endOfBlock() const;
 
+  static size_t zeroesBits();
+  static size_t classBits();
+
 private:
-  HuffmanClass huffmanClass() const;
+  HuffmanClass  huffmanClass() const;
+  HuffmanSymbol huffmanSymbol() const;
 };
 
 #endif

@@ -12,30 +12,26 @@
 
 #include <fstream>
 
-template<size_t D>
-int LFIFCompress(const RGBUnit8 *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, const char *output_file_name) {
-  BlockCompressChain<D> block_compress_chain   {};
-  QuantTable<D>         quant_table     [2]    {};
-  ReferenceBlock<D>     reference_block [2]    {};
-  TraversalTable<D>     traversal_table [2]    {};
-  HuffmanWeights        huffman_weight  [2][2] {};
-  HuffmanEncoder        huffman_encoder [2][2] {};
+template<size_t D, typename RGBUNIT, typename QDATAUNIT>
+int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, std::ofstream &output) {
+  BlockCompressChain<D, RGBUNIT, QDATAUNIT> block_compress_chain    {};
+  QuantTable<D, RGBUNIT>                    quant_table      [2]    {};
+  ReferenceBlock<D>                         reference_block  [2]    {};
+  TraversalTable<D>                         traversal_table  [2]    {};
+  HuffmanWeights                            huffman_weight   [2][2] {};
+  HuffmanEncoder                            huffman_encoder  [2][2] {};
 
-  QuantizedDataUnit8    previous_DC     [3]    {};
+  QDATAUNIT               previous_DC     [3]    {};
+  YCbCrUnit             (*color_convertors[3])
+                        (double, double, double) {};
+  QuantTable<D, RGBUNIT> *quant_tables    [3]    {};
+  ReferenceBlock<D>      *reference_blocks[3]    {};
+  TraversalTable<D>      *traversal_tables[3]    {};
+  HuffmanWeights         *huffman_weights [3]    {};
+  HuffmanEncoder         *huffman_encoders[3]    {};
 
-  YCbCrUnit8          (*color_convertors[3])
-                (RGBUnit8, RGBUnit8, RGBUnit8) {};
-  QuantTable<D>        *quant_tables    [3]    {};
-  ReferenceBlock<D>    *reference_blocks[3]    {};
-  TraversalTable<D>    *traversal_tables[3]    {};
-  HuffmanWeights       *huffman_weights [3]    {};
-  HuffmanEncoder       *huffman_encoders[3]    {};
-
-  size_t                blocks_cnt             {};
-  size_t                pixels_cnt             {};
-
-  std::ofstream         output                 {};
-  size_t                last_slash_pos         {};
+  size_t blocks_cnt {};
+  size_t pixels_cnt {};
 
   color_convertors[0] =  RGBToY;
   color_convertors[1] =  RGBToCb;
@@ -125,27 +121,6 @@ int LFIFCompress(const RGBUnit8 *rgb_data, const uint64_t img_dims[D+1], uint8_t
     for (size_t x = 0; x < 2; x++) {
       huffman_encoder[y][x].generateFromWeights(huffman_weights[y][x]);
     }
-  }
-
-  last_slash_pos = std::string(output_file_name).find_last_of('/');
-  if (last_slash_pos != std::string::npos) {
-    std::string command("mkdir -p " + std::string(output_file_name).substr(0, last_slash_pos));
-    system(command.c_str());
-  }
-
-  output.open(output_file_name);
-  if (output.fail()) {
-    return -1;
-  }
-
-  char magic_number[9] = "LFIF-#D\n";
-  magic_number[5] = D + '0';
-
-  output.write(magic_number, 8);
-
-  for (size_t i = 0; i < D+1; i++) {
-    uint64_t tmp = htobe64(img_dims[i]);
-    output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
   }
 
   for (size_t i = 0; i < 2; i++) {

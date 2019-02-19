@@ -16,12 +16,13 @@ LDFLAGS = -shared
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
+OBJS := $(patsubst $(SRCDIR)/%.cc, $(OBJDIR)/%.o, $(SRCS))
 
 TARGET = $(BINDIR)/liblfif.a $(BINDIR)/liblfif16.a
 
 all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(TARGET)
 
-$(BINDIR)/liblfif.a: $(OBJDIR)/bitstream.o $(OBJDIR)/huffman.o $(OBJDIR)/lfiflib.o $(OBJDIR)/runlength.o
+$(BINDIR)/liblfif.a: $(OBJS)
 	ar rcs $@ $^
 
 $(BINDIR)/liblfif16.a: $(OBJDIR)/bitstream.o $(OBJDIR)/lfif16_compress.o $(OBJDIR)/lfif16_decompress.o
