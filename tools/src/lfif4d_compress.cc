@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
   uint32_t color_depth         {};
   uint64_t image_count         {};
 
-  LFIFCompressStruct lfif_compress_struct {};
+  LFIFCompressStruct cinfo {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
     return 1;
@@ -41,15 +41,15 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  lfif_compress_struct.image_width  = width;
-  lfif_compress_struct.image_height = height;
-  lfif_compress_struct.image_count  = image_count;
-  lfif_compress_struct.quality      = quality;
-  lfif_compress_struct.method       = LFIF_4D;
-  lfif_compress_struct.color_space  = RGB24;
-  lfif_compress_struct.rgb_data_24  = rgb_data.data();
+  cinfo.image_width      = width;
+  cinfo.image_height     = height;
+  cinfo.image_count      = image_count;
+  cinfo.quality          = quality;
+  cinfo.method           = LFIF_4D;
+  cinfo.color_space      = RGB24;
+  cinfo.output_file_name = output_file_name;
 
-  int errcode = LFIFCompress(&lfif_compress_struct, output_file_name);
+  int errcode = LFIFCompress(&cinfo, rgb_data.data());
 
   switch (errcode) {
     case -1:

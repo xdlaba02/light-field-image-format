@@ -12,6 +12,8 @@
 
 #include <fstream>
 
+#include <iostream>
+
 template<size_t D, typename RGBUNIT, typename QDATAUNIT>
 int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, std::ofstream &output) {
   BlockCompressChain<D, RGBUNIT, QDATAUNIT> block_compress_chain    {};
@@ -117,12 +119,6 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
     }
   }
 
-  for (size_t y = 0; y < 2; y++) {
-    for (size_t x = 0; x < 2; x++) {
-      huffman_encoder[y][x].generateFromWeights(huffman_weights[y][x]);
-    }
-  }
-
   for (size_t i = 0; i < 2; i++) {
     quant_table[i]
     . writeToStream(output);
@@ -136,6 +132,7 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
   for (size_t y = 0; y < 2; y++) {
     for (size_t x = 0; x < 2; x++) {
       huffman_encoder[y][x]
+      . generateFromWeights(huffman_weights[y][x])
       . writeToStream(output);
     }
   }

@@ -26,12 +26,12 @@ template<typename T, size_t D>
 using Block = std::array<T, static_cast<size_t>(constpow(8, D))>;
 
 template<typename T>
-void writeToStreamHelper(std::ofstream &stream, const T *data, size_t size) {
+inline void writeToStreamHelper(std::ofstream &stream, const T *data, size_t size) {
   stream.write(reinterpret_cast<const char *>(&data), size);
 }
 
 template<>
-void writeToStreamHelper<uint16_t>(std::ofstream &stream, const uint16_t *data, size_t size) {
+inline void writeToStreamHelper<uint16_t>(std::ofstream &stream, const uint16_t *data, size_t size) {
   for (size_t i = 0; i < size; i++) {
     uint16_t tmp = htobe16(data[i]);
     stream.write(reinterpret_cast<const char *>(&tmp), sizeof(uint16_t));
@@ -39,12 +39,12 @@ void writeToStreamHelper<uint16_t>(std::ofstream &stream, const uint16_t *data, 
 }
 
 template<typename T>
-void readFromStreamHelper(std::ifstream &stream, T *data, size_t size) {
+inline void readFromStreamHelper(std::ifstream &stream, T *data, size_t size) {
   stream.read(reinterpret_cast<char *>(data), size);
 }
 
 template<>
-void readFromStreamHelper<uint16_t>(std::ifstream &stream, uint16_t *data, size_t size) {
+inline void readFromStreamHelper<uint16_t>(std::ifstream &stream, uint16_t *data, size_t size) {
   stream.read(reinterpret_cast<char *>(data), size * sizeof(uint16_t));
 
   for (size_t i  = 0; i < size; i++) {

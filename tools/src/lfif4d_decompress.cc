@@ -6,24 +6,31 @@
 #include "decompress.h"
 #include "plenoppm.h"
 
-#include <lfif_decoder.h>
+#include <lfiflib.h>
 
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
+        int   errcode          {};
   const char *input_file_name  {};
   const char *output_file_mask {};
 
   vector<uint8_t> rgb_data     {};
-  uint64_t img_dims[5]         {};
+
+  LFIFDecompressStruct dinfo   {};
 
   if (!parse_args(argc, argv, input_file_name, output_file_mask)) {
     return 1;
   }
 
-  int errcode = LFIFDecompress<4>(input_file_name, rgb_data, img_dims);
+  errcode = LFIFReadHeader(&dinfo);
+
+  rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3);
+
+  errcode = LFIFDecompress(&dinfo, rgb_data.data());
 
   switch (errcode) {
     case -1:
@@ -40,7 +47,7 @@ int main(int argc, char *argv[]) {
     break;
   }
 
-  if (!savePPMs(output_file_mask, rgb_data.data(), img_dims[0], img_dims[1], 255, img_dims[2] * img_dims[3] * img_dims[4])) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), dinfo.image_width, dinfo.image_height, 255, dinfo.image_count)) {
     return 3;
   }
 
