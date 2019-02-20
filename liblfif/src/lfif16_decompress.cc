@@ -16,8 +16,6 @@
 #include <fstream>
 #include <numeric>
 
-#include <iostream>
-
 using namespace std;
 
 inline void putBlock(uint16_t *rgb_data, const uint64_t img_dims[2], size_t block, const uint16_t in_block[64*3]) {

@@ -68,7 +68,7 @@ int doTest(LFIFCompressStruct cinfo, LFIFDecompressStruct dinfo, const vector<ui
   double bpp                   {};
   vector<uint8_t> decompressed {};
 
-  image_pixels = cinfo.image_width * cinfo.image_width * cinfo.image_count;
+  image_pixels = cinfo.image_width * cinfo.image_height* cinfo.image_count;
 
   decompressed.resize(image_pixels * 3);
 
@@ -104,7 +104,9 @@ int main(int argc, char *argv[]) {
   LFIFCompressStruct   cinfo {};
   LFIFDecompressStruct dinfo {};
 
-  vector<thread>       threads   {};
+  ofstream outputs[3] {};
+
+  vector<thread> threads {};
 
   char opt {};
   while ((opt = getopt(argc, argv, "i:s:2:3:4:n")) >= 0) {
@@ -194,56 +196,68 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  cinfo.image_width      = width;
-  cinfo.image_height     = height;
-  cinfo.image_count      = image_count;
-  cinfo.color_space      = RGB24;
+  cinfo.image_width  = width;
+  cinfo.image_height = height;
+  cinfo.image_count  = image_count;
+  cinfo.color_space  = RGB24;
+
+  dinfo.image_width  = width;
+  dinfo.image_height = height;
+  dinfo.image_count  = image_count;
+  dinfo.color_space  = RGB24;
 
   if (output_file_2D) {
     cinfo.method = LFIF_2D;
     cinfo.output_file_name = "/tmp/lfifbench.lfi2d";
+
+    dinfo.method = LFIF_2D;
     dinfo.input_file_name = "/tmp/lfifbench.lfi2d";
 
-    ofstream output(output_file_2D);
-    output << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+    outputs[0].open(output_file_2D);
+    outputs[0] << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
     if (nothreads) {
-      doTest(cinfo, dinfo, rgb_data, output, q_step);
+      doTest(cinfo, dinfo, rgb_data, outputs[0], q_step);
     }
     else {
-      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(output), q_step));
+      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(outputs[0]), q_step));
     }
   }
 
   if (output_file_3D) {
     cinfo.method = LFIF_3D;
     cinfo.output_file_name = "/tmp/lfifbench.lfi3d";
+
+    dinfo.method = LFIF_3D;
     dinfo.input_file_name = "/tmp/lfifbench.lfi3d";
 
-    ofstream output(output_file_3D);
-    output << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+    outputs[1].open(output_file_3D);
+    outputs[1] << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
     if (nothreads) {
-      doTest(cinfo, dinfo, rgb_data, output, q_step);
+      doTest(cinfo, dinfo, rgb_data, outputs[1], q_step);
     }
     else {
-      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(output), q_step));
+      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(outputs[1]), q_step));
     }
   }
 
   if (output_file_4D) {
     cinfo.method = LFIF_4D;
     cinfo.output_file_name = "/tmp/lfifbench.lfi4d";
+
+    dinfo.method = LFIF_4D;
     dinfo.input_file_name = "/tmp/lfifbench.lfi4d";
 
-    ofstream output(output_file_4D);
-    output << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+    outputs[2].open(output_file_4D);
+
+    outputs[2] << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
     if (nothreads) {
-      doTest(cinfo, dinfo, rgb_data, output, q_step);
+      doTest(cinfo, dinfo, rgb_data, outputs[1], q_step);
     }
     else {
-      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(output), q_step));
+      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(outputs[2]), q_step));
     }
   }
 

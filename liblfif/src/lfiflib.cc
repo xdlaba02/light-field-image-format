@@ -4,8 +4,6 @@
 
 #include <cmath>
 
-#include <iostream> //FIXME
-
 using namespace std;
 
 int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
@@ -151,9 +149,6 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
     if (color_space == "RGB48  \n") return RGB48;
     return COLORSPACES_CNT;
   };
-
-  cerr << "HELP\n";
-  cerr << lfif->input_file_name << endl;
 
   input.open(lfif->input_file_name);
   if (input.fail()) {

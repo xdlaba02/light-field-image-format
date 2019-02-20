@@ -13,8 +13,6 @@
 #include <fstream>
 #include <vector>
 
-#include <iostream> //FIXME
-
 template<size_t D, typename RGBUNIT, typename QDATAUNIT>
 int LFIFDecompress(std::ifstream &input, const uint64_t img_dims[D+1], RGBUNIT *rgb_data) {
   BlockDecompressChain<D, RGBUNIT, QDATAUNIT> block_decompress_chain {};
@@ -57,32 +55,14 @@ int LFIFDecompress(std::ifstream &input, const uint64_t img_dims[D+1], RGBUNIT *
   for (size_t i = 0; i < 2; i++) {
     traversal_table[i]
     . readFromStream(input);
-    for (size_t y = 0; y < 8; y++) {
-      for (size_t x = 0; x < 8; x++) {
-        std::cerr << (unsigned long)traversal_table[i][y * 8 + x] << ", ";
-      }
-      std::cerr << "\n";
-    }
-    std::cerr << "\n";
   }
 
   for (size_t y = 0; y < 2; y++) {
     for (size_t x = 0; x < 2; x++) {
       huffman_decoder[y][x]
       . readFromStream(input);
-
-      for (auto &val: huffman_decoder[y][x].m_huffman_counts) {
-        std::cerr << unsigned(val) << ", ";
-      }
-      std::cerr << "\n";
-      for (auto &val: huffman_decoder[y][x].m_huffman_symbols) {
-        std::cerr << std::bitset<8>(val) << ", ";
-      }
-      std::cerr << "\n";
     }
   }
-
-  std::cerr << "HELLPP\n";
 
   blocks_cnt = 1;
   pixels_cnt = 1;
@@ -99,11 +79,8 @@ int LFIFDecompress(std::ifstream &input, const uint64_t img_dims[D+1], RGBUNIT *
   IBitstream bitstream(input);
 
   for (size_t img = 0; img < img_dims[D]; img++) {
-    std::cerr << "IMG " << img << std::endl;
     for (size_t block = 0; block < blocks_cnt; block++) {
-      std::cerr << "BLOCK " << block << std::endl;
       for (size_t channel = 0; channel < 3; channel++) {
-        std::cerr << "CHANNEL " << channel << std::endl;
         block_decompress_chain
         . decodeFromStream(huffman_decoders[channel], bitstream)
         . runLengthDecode()

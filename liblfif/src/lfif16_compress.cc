@@ -15,8 +15,6 @@
 #include <algorithm>
 #include <fstream>
 
-#include <iostream>
-
 using namespace std;
 
 inline void getBlock(const uint16_t *rgb_data, const uint64_t img_dims[2], size_t block, uint16_t out_block[64*3]) {

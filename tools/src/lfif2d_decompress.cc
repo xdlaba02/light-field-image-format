@@ -30,11 +30,6 @@ int main(int argc, char *argv[]) {
 
   errcode = LFIFReadHeader(&dinfo);
 
-  cerr << dinfo.image_width << endl;
-  cerr << dinfo.image_height << endl;
-  cerr << dinfo.image_count << endl;
-  cerr << "POTATO";
-
   rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3);
 
   errcode = LFIFDecompress(&dinfo, rgb_data.data());

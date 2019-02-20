@@ -24,7 +24,7 @@ public:
   HuffmanEncoder &writeToStream(std::ofstream &stream);
   HuffmanEncoder &encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream);
 
-public: //FIXME
+private:
   HuffmanEncoder &generateHuffmanCodelengths(const HuffmanWeights &huffman_weights);
   HuffmanEncoder &generateHuffmanMap();
 
@@ -37,7 +37,7 @@ public:
   HuffmanDecoder &readFromStream(std::ifstream &stream);
   HuffmanSymbol decodeSymbolFromStream(IBitstream &stream);
 
-public: // FIXME
+private:
   size_t decodeOneHuffmanSymbolIndex(IBitstream &stream);
 
   std::vector<uint8_t>       m_huffman_counts;
