@@ -26,30 +26,55 @@ template<typename T, size_t D>
 using Block = std::array<T, static_cast<size_t>(constpow(8, D))>;
 
 template<typename T>
-inline void writeToStreamHelper(std::ofstream &stream, const T *data, size_t size) {
-  stream.write(reinterpret_cast<const char *>(&data), size);
+inline void writeValueToStream(std::ofstream &stream, T data) {
+  stream.write(reinterpret_cast<const char *>(&data), sizeof(data));
 }
 
 template<>
-inline void writeToStreamHelper<uint16_t>(std::ofstream &stream, const uint16_t *data, size_t size) {
-  for (size_t i = 0; i < size; i++) {
-    uint16_t tmp = htobe16(data[i]);
-    stream.write(reinterpret_cast<const char *>(&tmp), sizeof(uint16_t));
-  }
+inline void writeValueToStream<uint16_t>(std::ofstream &stream, uint16_t data) {
+  data = htobe16(data);
+  stream.write(reinterpret_cast<const char *>(&data), sizeof(data));
 }
+
+template<>
+inline void writeValueToStream<uint32_t>(std::ofstream &stream, uint32_t data) {
+  data = htobe32(data);
+  stream.write(reinterpret_cast<const char *>(&data), sizeof(data));
+}
+
+template<>
+inline void writeValueToStream<uint64_t>(std::ofstream &stream, uint64_t data) {
+  data = htobe64(data);
+  stream.write(reinterpret_cast<const char *>(&data), sizeof(data));
+}
+
 
 template<typename T>
-inline void readFromStreamHelper(std::ifstream &stream, T *data, size_t size) {
-  stream.read(reinterpret_cast<char *>(data), size);
+inline T readValueFromStream(std::ifstream &stream) {
+  T data {};
+  stream.read(reinterpret_cast<char *>(&data), sizeof(data));
+  return data;
 }
 
 template<>
-inline void readFromStreamHelper<uint16_t>(std::ifstream &stream, uint16_t *data, size_t size) {
-  stream.read(reinterpret_cast<char *>(data), size * sizeof(uint16_t));
+inline uint16_t readValueFromStream<uint16_t>(std::ifstream &stream) {
+  uint16_t data {};
+  stream.read(reinterpret_cast<char *>(&data), sizeof(data));
+  return be16toh(data);
+}
 
-  for (size_t i  = 0; i < size; i++) {
-    data[i] = be16toh(data[i]);
-  }
+template<>
+inline uint32_t readValueFromStream<uint32_t>(std::ifstream &stream) {
+  uint32_t data {};
+  stream.read(reinterpret_cast<char *>(&data), sizeof(data));
+  return be32toh(data);
+}
+
+template<>
+inline uint64_t readValueFromStream<uint64_t>(std::ifstream &stream) {
+  uint64_t data {};
+  stream.read(reinterpret_cast<char *>(&data), sizeof(data));
+  return be64toh(data);
 }
 
 #endif

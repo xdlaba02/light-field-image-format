@@ -4,6 +4,8 @@
 
 #include <cmath>
 
+#include <iostream> //FIXME
+
 using namespace std;
 
 int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
@@ -54,7 +56,8 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
-  uint16_t tmp {};
+  uint64_t tmp {};
+
   tmp = htobe64(lfif->image_width);
   output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
 
@@ -149,6 +152,9 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
     return COLORSPACES_CNT;
   };
 
+  cerr << "HELP\n";
+  cerr << lfif->input_file_name << endl;
+
   input.open(lfif->input_file_name);
   if (input.fail()) {
     return -1;
@@ -205,7 +211,7 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
 
     case LFIF_3D:
       img_dims[2] = lfif->image_count;
-      img_dims[3] = lfif->image_count;
+      img_dims[3] = 1;
       switch (lfif->color_space) {
         case RGB24:
           return LFIFDecompress<3, uint8_t, int16_t>(input, img_dims, static_cast<uint8_t *>(rgb_buffer));

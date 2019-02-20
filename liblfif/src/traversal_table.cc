@@ -67,13 +67,33 @@ TraversalTable<D> &TraversalTable<D>::constructByDiagonals() {
 
 template <size_t D>
 TraversalTable<D> &TraversalTable<D>::writeToStream(std::ofstream &stream) {
-  writeToStreamHelper<TraversalTableUnit>(stream, m_block.data(), constpow(8, D));
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    writeValueToStream<uint16_t>(stream, m_block[i]);
+  }
+  return *this;
+}
+
+template <>
+TraversalTable<2> &TraversalTable<2>::writeToStream(std::ofstream &stream) {
+  for (size_t i = 0; i < constpow(8, 2); i++) {
+    writeValueToStream<uint8_t>(stream, static_cast<uint8_t>(m_block[i]));
+  }
   return *this;
 }
 
 template <size_t D>
 TraversalTable<D> &TraversalTable<D>::readFromStream(std::ifstream &stream) {
-  readFromStreamHelper<TraversalTableUnit>(stream, m_block.data(), constpow(8, D));
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    m_block[i] = readValueFromStream<uint16_t>(stream);
+  }
+  return *this;
+}
+
+template <>
+TraversalTable<2> &TraversalTable<2>::readFromStream(std::ifstream &stream) {
+  for (size_t i = 0; i < constpow(8, 2); i++) {
+    m_block[i] = readValueFromStream<uint8_t>(stream);
+  }
   return *this;
 }
 

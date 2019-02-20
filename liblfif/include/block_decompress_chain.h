@@ -132,12 +132,12 @@ public:
 
 
 private:
-  std::vector<RunLengthPair<QDATAUNIT>>   m_runlength;
-  Block<QDATAUNIT, D> m_traversed_block;
-  Block<QDATAUNIT, D> m_quantized_block;
-  Block<DCTDataUnit, D>        m_transformed_block;
-  Block<YCbCrUnit, D>         m_ycbcr_block;
-  Block<RGBPixel<double>, D>   m_rgb_block;
+  std::vector<RunLengthPair<QDATAUNIT>> m_runlength;
+  Block<QDATAUNIT, D>                   m_traversed_block;
+  Block<QDATAUNIT, D>                   m_quantized_block;
+  Block<DCTDataUnit, D>                 m_transformed_block;
+  Block<YCbCrUnit, D>                   m_ycbcr_block;
+  Block<RGBPixel<double>, D>            m_rgb_block;
 };
 
 #endif

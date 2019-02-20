@@ -13,6 +13,7 @@
 #include <fstream>
 
 #include <iostream>
+#include <bitset>
 
 template<size_t D, typename RGBUNIT, typename QDATAUNIT>
 int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, std::ofstream &output) {
@@ -94,6 +95,14 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
   for (size_t i = 0; i < 2; i++) {
     traversal_table[i]
     . constructByReference(reference_block[i]);
+
+    for (size_t y = 0; y < 8; y++) {
+      for (size_t x = 0; x < 8; x++) {
+        std::cerr << traversal_table[i][y * 8 + x] << ", ";
+      }
+      std::cerr << std::endl;
+    }
+    std::cerr << std::endl;
   }
 
   previous_DC[0] = 0;
@@ -112,9 +121,41 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
         . forwardDiscreteCosineTransform()
         . quantize(*quant_tables[channel])
         . diffEncodeDC(previous_DC[channel])
-        . traverse(*traversal_tables[channel])
-        . runLengthEncode()
+        . traverse(*traversal_tables[channel]);
+
+        if (block == 0) {
+          for (size_t y = 0; y < 8; y++) {
+            for (size_t x = 0; x < 8; x++) {
+              std::cerr << block_compress_chain.m_traversed_block[y * 8 + x] << ", ";
+            }
+            std::cerr << std::endl;
+          }
+          std::cerr << std::endl;
+        }
+
+        block_compress_chain
+        . runLengthEncode();
+
+        if (block == 0) {
+          for (auto &val: block_compress_chain.m_runlength) {
+            std::cerr << "(" << (unsigned)val.zeroes << ", " << (long)val.amplitude << "), ";
+          }
+          std::cerr << std::endl;
+        }
+
+        block_compress_chain
         . huffmanAddWeights(huffman_weights[channel]);
+
+        if (block == 0) {
+          for (auto &val: huffman_weights[channel][0]) {
+            std::cerr << std::bitset<8>(val.first) << std::endl;
+          }
+          std::cerr << std::endl;
+          for (auto &val: huffman_weights[channel][1]) {
+            std::cerr << std::bitset<8>(val.first) << std::endl;
+          }
+          std::cerr << std::endl;
+        }
       }
     }
   }
@@ -132,8 +173,13 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
   for (size_t y = 0; y < 2; y++) {
     for (size_t x = 0; x < 2; x++) {
       huffman_encoder[y][x]
-      . generateFromWeights(huffman_weights[y][x])
+      . generateFromWeights(huffman_weight[y][x])
       . writeToStream(output);
+
+      for (auto &val: huffman_weight[y][x]) {
+        std::cerr << std::bitset<8>(val.first) << std::endl;
+      }
+      std::cerr << std::endl;
     }
   }
 

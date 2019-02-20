@@ -63,13 +63,17 @@ QuantTable<D, T> &QuantTable<D, T>::baseChroma() {
 
 template <size_t D, typename T>
 QuantTable<D, T> &QuantTable<D, T>::writeToStream(std::ofstream &stream) {
-  writeToStreamHelper<T>(stream, m_block.data(), constpow(8, D));
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    writeValueToStream<T>(stream, m_block[i]);
+  }
   return *this;
 }
 
 template <size_t D, typename T>
 QuantTable<D, T> &QuantTable<D, T>::readFromStream(std::ifstream &stream) {
-  readFromStreamHelper<T>(stream, m_block.data(), constpow(8, D));
+  for (size_t i = 0; i < constpow(8, D); i++) {
+    m_block[i] = readValueFromStream<T>(stream);
+  }
   return *this;
 }
 

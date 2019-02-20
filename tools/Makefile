@@ -11,7 +11,7 @@ BINDIR = bin
 
 CC = g++
 INC = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg
-CFLAGS = $(INC) -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)

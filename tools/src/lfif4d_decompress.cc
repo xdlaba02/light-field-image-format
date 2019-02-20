@@ -26,6 +26,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  dinfo.input_file_name = input_file_name;
+
   errcode = LFIFReadHeader(&dinfo);
 
   rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3);

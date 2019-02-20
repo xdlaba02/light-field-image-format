@@ -9,7 +9,7 @@ template class RunLengthPair<int32_t>;
 template <typename T>
 RunLengthPair<T> &
 RunLengthPair<T>::addToWeights(HuffmanWeights &weights) {
-  weights[HuffmanSymbol()]++;
+  weights[huffmanSymbol()]++;
 
   return *this;
 }
