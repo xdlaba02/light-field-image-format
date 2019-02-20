@@ -35,7 +35,7 @@ QuantTable<D, T> &QuantTable<D, T>::baseLuma() {
   };
 
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_block[i] = (base_luma[i%64] / 255.) * constpow(8, (sizeof(T) * 8) - 1);
+    m_block[i] = (base_luma[i%64] / 255.) * (constpow(8, (sizeof(T) * 8)) - 1);
   }
 
   return *this;
@@ -55,7 +55,7 @@ QuantTable<D, T> &QuantTable<D, T>::baseChroma() {
   };
 
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_block[i] = (base_chroma[i%64] / 255.) * constpow(8, (sizeof(T) * 8) - 1);
+    m_block[i] = (base_chroma[i%64] / 255.) * (constpow(8, (sizeof(T) * 8)) - 1);
   }
 
   return *this;
