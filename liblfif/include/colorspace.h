@@ -20,7 +20,6 @@ inline YCbCrUnit RGBToCr(double R, double G, double B) {
   return 128 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
-//FIXME Tady nekde nejspis ztracim psnr
 inline void YtoRGB(RGBPixel<double> &rgb, YCbCrUnit Y) {
   rgb.r = Y;
   rgb.g = Y;
