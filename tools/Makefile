@@ -23,35 +23,22 @@ all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(LFIFTOOLS) $(BENCHTOOLS)
 
 COMPRESS = $(OBJDIR)/compress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
 DECOMPRESS = $(OBJDIR)/decompress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
+BENCH = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
 
-$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(COMPRESS)
+$(BINDIR)/%_compress: $(OBJDIR)/%_compress.o $(COMPRESS)
 	$(CC) -lm $^ -o $@
-
-$(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress.o $(COMPRESS)
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(COMPRESS)
-	$(CC) -lm $^ -o $@
-
 
 $(BINDIR)/%_decompress: $(OBJDIR)/lfif_decompress.o $(DECOMPRESS)
 	$(CC) -lm $^ -o $@
 
 
-$(BINDIR)/lfif16_compress: $(OBJDIR)/lfif16_compress.o ../liblfif/bin/liblfif16.a ../libppm/bin/libppm.a
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/lfif16_decompress: $(OBJDIR)/lfif16_decompress.o ../liblfif/bin/liblfif16.a ../libppm/bin/libppm.a
-	$(CC) -lm $^ -o $@
-
-
-$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a
+$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(BENCH) ../liblfif/bin/liblfif.a
 	$(CC) -lm -pthread $^ -o $@
 
-$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a /opt/mozjpeg/lib64/libjpeg.a
+$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(BENCH) /opt/mozjpeg/lib64/libjpeg.a
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
+$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(BENCH)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 
