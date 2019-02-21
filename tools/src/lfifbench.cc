@@ -66,9 +66,30 @@ int doTest(LFIFCompressStruct cinfo, const vector<uint8_t> &original, ofstream &
 
   for (size_t quality = q_step; quality <= 100; quality += q_step) {
     cinfo.quality = quality;
+
     errcode = LFIFCompress(&cinfo, original.data());
+
+    if (errcode) {
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << cinfo.output_file_name << "\" FOR WRITITNG" << endl;
+      return -1;
+    }
+
     compressed_image_size = fileSize(cinfo.output_file_name);
     errcode = LFIFDecompress(&dinfo, decompressed.data());
+
+    if (errcode) {
+      switch (errcode) {
+        case -1:
+          cerr << "ERROR: UNABLE TO OPEN FILE \"" << dinfo.input_file_name << "\" FOR READING" << endl;
+        break;
+
+        case -2:
+          cerr << "ERROR: MAGIC NUMBER MISMATCH" << endl;
+        break;
+      }
+
+      return -1;
+    }
 
     if (dinfo.color_space == RGB24) {
       psnr = PSNR(MSE<uint8_t>(original.data(), decompressed.data(), image_pixels * 3), 255);

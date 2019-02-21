@@ -9,36 +9,35 @@ INCDIR = include
 OBJDIR = build
 BINDIR = bin
 
-CC = g++
-INC = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg
-CFLAGS = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CC 			 = g++
+INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg
+CFLAGS   = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
 
-LFIFTOOLS = $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif16_compress $(BINDIR)/lfif16_decompress
+LFIFTOOLS  = $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
 BENCHTOOLS = $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
 
 all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(LFIFTOOLS) $(BENCHTOOLS)
 
-COMPRESS = $(OBJDIR)/compress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
-DECOMPRESS = $(OBJDIR)/decompress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../liblfif/bin/liblfif.a ../libppm/bin/libppm.a
-BENCH = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
+MULTIPPM = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
+LFIF 		 = $(MULTIPPM) ../liblfif/bin/liblfif.a
 
-$(BINDIR)/%_compress: $(OBJDIR)/%_compress.o $(COMPRESS)
+$(BINDIR)/%_compress: $(OBJDIR)/%_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/%_decompress: $(OBJDIR)/lfif_decompress.o $(DECOMPRESS)
+$(BINDIR)/%_decompress: $(OBJDIR)/lfif_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
 
-$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(BENCH) ../liblfif/bin/liblfif.a
+$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(LFIF)
 	$(CC) -lm -pthread $^ -o $@
 
-$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(BENCH) /opt/mozjpeg/lib64/libjpeg.a
+$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(MULTIPPM) /opt/mozjpeg/lib64/libjpeg.a
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(BENCH)
+$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(MULTIPPM)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 
