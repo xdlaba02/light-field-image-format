@@ -1,5 +1,5 @@
 /******************************************************************************\
-* SOUBOR: lfif3d_decompress.cc
+* SOUBOR: lfif_decompress.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
@@ -19,6 +19,7 @@ int main(int argc, char *argv[]) {
   const char *output_file_mask {};
 
   vector<uint8_t> rgb_data     {};
+  uint16_t color_depth         {};
 
   LFIFDecompressStruct dinfo   {};
 
@@ -30,7 +31,14 @@ int main(int argc, char *argv[]) {
 
   errcode = LFIFReadHeader(&dinfo);
 
-  rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3);
+  if (dinfo.color_space == RGB24) {
+    rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3);
+    color_depth = 255;
+  }
+  else {
+    rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3 * 2);
+    color_depth = 65535;
+  }
 
   errcode = LFIFDecompress(&dinfo, rgb_data.data());
 
@@ -49,7 +57,7 @@ int main(int argc, char *argv[]) {
     break;
   }
 
-  if (!savePPMs(output_file_mask, rgb_data.data(), dinfo.image_width, dinfo.image_height, 255, dinfo.image_count)) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), dinfo.image_width, dinfo.image_height, color_depth, dinfo.image_count)) {
     return 3;
   }
 

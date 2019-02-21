@@ -34,13 +34,7 @@ $(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(COMPRESS)
 	$(CC) -lm $^ -o $@
 
 
-$(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress.o $(DECOMPRESS)
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress.o $(DECOMPRESS)
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(DECOMPRESS)
+$(BINDIR)/%_decompress: $(OBJDIR)/lfif_decompress.o $(DECOMPRESS)
 	$(CC) -lm $^ -o $@
 
 

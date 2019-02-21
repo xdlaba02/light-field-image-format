@@ -63,15 +63,10 @@ bool checkPPMheaders(const char *input_file_mask, uint64_t &width, uint64_t &hei
     return false;
   }
 
-  if (color_depth != 255) {
-    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
-    return false;
-  }
-
   return true;
 }
 
-bool loadPPMs(const char *input_file_mask, uint8_t *rgb_data) {
+bool loadPPMs(const char *input_file_mask, void *rgb_data) {
   PPMFileStruct ppm {};
   Pixel *ppm_row    {};
   FileMask file_name(input_file_mask);
@@ -97,11 +92,21 @@ bool loadPPMs(const char *input_file_mask, uint8_t *rgb_data) {
         return false;
       }
 
-      for (size_t col = 0; col < ppm.width; col++) {
-        rgb_data[((real_image * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
-        rgb_data[((real_image * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
-        rgb_data[((real_image * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+      if (ppm.color_depth < 256) {
+        for (size_t col = 0; col < ppm.width; col++) {
+          static_cast<uint8_t *>(rgb_data)[((real_image * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
+          static_cast<uint8_t *>(rgb_data)[((real_image * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
+          static_cast<uint8_t *>(rgb_data)[((real_image * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+        }
       }
+      else {
+        for (size_t col = 0; col < ppm.width; col++) {
+          static_cast<uint16_t *>(rgb_data)[((real_image * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
+          static_cast<uint16_t *>(rgb_data)[((real_image * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
+          static_cast<uint16_t *>(rgb_data)[((real_image * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+        }
+      }
+
     }
 
     fclose(ppm.file);
@@ -114,7 +119,7 @@ bool loadPPMs(const char *input_file_mask, uint8_t *rgb_data) {
   return true;
 }
 
-bool savePPMs(const char *output_file_mask, const uint8_t *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count) {
+bool savePPMs(const char *output_file_mask, const void *rgb_data, uint64_t width, uint64_t height, uint32_t color_depth, uint64_t image_count) {
   PPMFileStruct ppm {};
   Pixel *ppm_row    {};
 
@@ -146,11 +151,21 @@ bool savePPMs(const char *output_file_mask, const uint8_t *rgb_data, uint64_t wi
     }
 
     for (size_t row = 0; row < height; row++) {
-      for (size_t col = 0; col < ppm.width; col++) {
-        ppm_row[col].r = rgb_data[((image * ppm.height + row) * ppm.width + col) * 3 + 0];
-        ppm_row[col].g = rgb_data[((image * ppm.height + row) * ppm.width + col) * 3 + 1];
-        ppm_row[col].b = rgb_data[((image * ppm.height + row) * ppm.width + col) * 3 + 2];
+      if (color_depth < 256) {
+        for (size_t col = 0; col < ppm.width; col++) {
+          ppm_row[col].r = static_cast<const uint8_t *>(rgb_data)[((image * ppm.height + row) * ppm.width + col) * 3 + 0];
+          ppm_row[col].g = static_cast<const uint8_t *>(rgb_data)[((image * ppm.height + row) * ppm.width + col) * 3 + 1];
+          ppm_row[col].b = static_cast<const uint8_t *>(rgb_data)[((image * ppm.height + row) * ppm.width + col) * 3 + 2];
+        }
       }
+      else {
+        for (size_t col = 0; col < ppm.width; col++) {
+          ppm_row[col].r = static_cast<const uint16_t *>(rgb_data)[((image * ppm.height + row) * ppm.width + col) * 3 + 0];
+          ppm_row[col].g = static_cast<const uint16_t *>(rgb_data)[((image * ppm.height + row) * ppm.width + col) * 3 + 1];
+          ppm_row[col].b = static_cast<const uint16_t *>(rgb_data)[((image * ppm.height + row) * ppm.width + col) * 3 + 2];
+        }
+      }
+
 
       if (writePPMRow(&ppm, ppm_row)) {
         cerr << "ERROR: CANNOT WRITE TO " << file_name[image] << endl;

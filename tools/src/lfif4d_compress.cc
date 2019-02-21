@@ -35,10 +35,15 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  rgb_data.resize(width * height * image_count * 3);
+  if (color_depth < 256) {
+    rgb_data.resize(width * height * image_count * 3);
+  }
+  else {
+    rgb_data.resize(width * height * image_count * 3 * 2);
+  }
 
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
-    return 3;
+    return 2;
   }
 
   cinfo.image_width      = width;
@@ -46,15 +51,29 @@ int main(int argc, char *argv[]) {
   cinfo.image_count      = image_count;
   cinfo.quality          = quality;
   cinfo.method           = LFIF_4D;
-  cinfo.color_space      = RGB24;
   cinfo.output_file_name = output_file_name;
+
+  switch (color_depth) {
+    case 255:
+      cinfo.color_space = RGB24;
+    break;
+
+    case 65535:
+      cinfo.color_space = RGB48;
+    break;
+
+    default:
+      cerr << "ERROR: UNSUPPORTED COLOR DEPTH" << endl;
+      return 3;
+    break;
+  }
 
   int errcode = LFIFCompress(&cinfo, rgb_data.data());
 
   switch (errcode) {
     case -1:
       cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_name << "\" FOR WRITITNG" << endl;
-      return 3;
+      return 4;
     break;
 
     default:

@@ -23,36 +23,20 @@ void print_usage(char *argv0) {
   cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-s <quality-step>]" << endl;
 }
 
-double PSNR(const vector<uint8_t> &original, const vector<uint8_t> &compared) {
-  double mse  {};
-
-  if (original.size() != compared.size()) {
-    return 0.0;
+template<typename T>
+double MSE(const T *cmp1, const T *cmp2, size_t size) {
+  double mse = 0;
+  for (size_t i = 0; i < size; i++) {
+    mse += (cmp1[i] - cmp2[i]) * (cmp1[i] - cmp2[i]);
   }
-
-  for (size_t i = 0; i < original.size(); i++) {
-    mse += (original[i] - compared[i]) * (original[i] - compared[i]);
-  }
-
-  mse /= original.size();
-
-  if (!mse) {
-    return 0;
-  }
-
-  return 10 * log10((255.0 * 255.0) / mse);
+  return mse / size;
 }
 
-size_t encode(LFIFCompressStruct &cinfo, const char *filename) {
-  int errcode = LFIFCompress(&cinfo, filename);
-
-  if (errcode) {
-    std::cerr << "ERROR: UNABLE TO OPEN FILE \"" << filename << "\" FOR WRITITNG" << endl;
+double PSNR(double mse, size_t max) {
+  if (mse == .0) {
     return 0;
   }
-
-  ifstream encoded_file(filename, ifstream::ate | ifstream::binary);
-  return encoded_file.tellg();
+  return 10 * log10((max * max) / mse);
 }
 
 size_t fileSize(const char *filename) {
@@ -60,7 +44,8 @@ size_t fileSize(const char *filename) {
   return encoded_file.tellg();
 }
 
-int doTest(LFIFCompressStruct cinfo, LFIFDecompressStruct dinfo, const vector<uint8_t> &original, ofstream &output, size_t q_step) {
+int doTest(LFIFCompressStruct cinfo, const vector<uint8_t> &original, ofstream &output, size_t q_step) {
+  LFIFDecompressStruct dinfo   {};
   size_t image_pixels          {};
   size_t compressed_image_size {};
   int    errcode               {};
@@ -68,17 +53,32 @@ int doTest(LFIFCompressStruct cinfo, LFIFDecompressStruct dinfo, const vector<ui
   double bpp                   {};
   vector<uint8_t> decompressed {};
 
-  image_pixels = cinfo.image_width * cinfo.image_height* cinfo.image_count;
+  dinfo.image_width     = cinfo.image_width;
+  dinfo.image_height    = cinfo.image_height;
+  dinfo.image_count     = cinfo.image_count;
+  dinfo.color_space     = cinfo.color_space;
+  dinfo.method          = cinfo.method;
+  dinfo.input_file_name = cinfo.output_file_name;
 
-  decompressed.resize(image_pixels * 3);
+  image_pixels = cinfo.image_width * cinfo.image_height * cinfo.image_count;
+
+  decompressed.resize(original.size());
 
   for (size_t quality = q_step; quality <= 100; quality += q_step) {
     cinfo.quality = quality;
     errcode = LFIFCompress(&cinfo, original.data());
     compressed_image_size = fileSize(cinfo.output_file_name);
     errcode = LFIFDecompress(&dinfo, decompressed.data());
-    psnr = PSNR(original, decompressed);
+
+    if (dinfo.color_space == RGB24) {
+      psnr = PSNR(MSE<uint8_t>(original.data(), decompressed.data(), image_pixels * 3), 255);
+    }
+    else {
+      psnr = PSNR(MSE<uint16_t>(reinterpret_cast<const uint16_t *>(original.data()), reinterpret_cast<const uint16_t *>(decompressed.data()), image_pixels * 3), 65535);
+    }
+
     bpp = compressed_image_size * 8.0 / image_pixels;
+
     output << quality  << " " << psnr << " " << bpp << endl;
   }
 
@@ -91,6 +91,7 @@ int main(int argc, char *argv[]) {
   const char *output_file_3D  {};
   const char *output_file_4D  {};
   const char *quality_step    {};
+
   bool nothreads              {};
   uint8_t q_step              {};
 
@@ -102,7 +103,6 @@ int main(int argc, char *argv[]) {
   uint64_t image_count {};
 
   LFIFCompressStruct   cinfo {};
-  LFIFDecompressStruct dinfo {};
 
   ofstream outputs[3] {};
 
@@ -185,79 +185,79 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  rgb_data.resize(width * height * image_count * 3);
+  if (color_depth < 256) {
+    rgb_data.resize(width * height * image_count * 3);
+  }
+  else {
+    rgb_data.resize(width * height * image_count * 3 * 2);
+  }
 
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
     return 3;
   }
 
-  if (color_depth != 255) {
-    cerr << "ERROR: UNSUPPORTED COLOR DEPTH. YET." << endl;
-    return 2;
-  }
-
   cinfo.image_width  = width;
   cinfo.image_height = height;
   cinfo.image_count  = image_count;
-  cinfo.color_space  = RGB24;
 
-  dinfo.image_width  = width;
-  dinfo.image_height = height;
-  dinfo.image_count  = image_count;
-  dinfo.color_space  = RGB24;
+  switch (color_depth) {
+    case 255:
+      cinfo.color_space = RGB24;
+    break;
+
+    case 65535:
+      cinfo.color_space = RGB48;
+    break;
+
+    default:
+      cerr << "ERROR: UNSUPPORTED COLOR DEPTH" << endl;
+      return 3;
+    break;
+  }
 
   if (output_file_2D) {
     cinfo.method = LFIF_2D;
-    cinfo.output_file_name = "/tmp/lfifbench.lfi2d";
-
-    dinfo.method = LFIF_2D;
-    dinfo.input_file_name = "/tmp/lfifbench.lfi2d";
+    cinfo.output_file_name = "/tmp/lfifbench.lfif2d";
 
     outputs[0].open(output_file_2D);
     outputs[0] << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
     if (nothreads) {
-      doTest(cinfo, dinfo, rgb_data, outputs[0], q_step);
+      doTest(cinfo, rgb_data, outputs[0], q_step);
     }
     else {
-      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(outputs[0]), q_step));
+      threads.push_back(thread(doTest, cinfo, ref(rgb_data), ref(outputs[0]), q_step));
     }
   }
 
   if (output_file_3D) {
     cinfo.method = LFIF_3D;
-    cinfo.output_file_name = "/tmp/lfifbench.lfi3d";
-
-    dinfo.method = LFIF_3D;
-    dinfo.input_file_name = "/tmp/lfifbench.lfi3d";
+    cinfo.output_file_name = "/tmp/lfifbench.lfif3d";
 
     outputs[1].open(output_file_3D);
     outputs[1] << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
     if (nothreads) {
-      doTest(cinfo, dinfo, rgb_data, outputs[1], q_step);
+      doTest(cinfo, rgb_data, outputs[1], q_step);
     }
     else {
-      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(outputs[1]), q_step));
+      threads.push_back(thread(doTest, cinfo, ref(rgb_data), ref(outputs[1]), q_step));
     }
   }
 
   if (output_file_4D) {
     cinfo.method = LFIF_4D;
-    cinfo.output_file_name = "/tmp/lfifbench.lfi4d";
-
-    dinfo.method = LFIF_4D;
-    dinfo.input_file_name = "/tmp/lfifbench.lfi4d";
+    cinfo.output_file_name = "/tmp/lfifbench.lfif4d";
 
     outputs[2].open(output_file_4D);
 
     outputs[2] << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
 
     if (nothreads) {
-      doTest(cinfo, dinfo, rgb_data, outputs[1], q_step);
+      doTest(cinfo, rgb_data, outputs[2], q_step);
     }
     else {
-      threads.push_back(thread(doTest, cinfo, dinfo, ref(rgb_data), ref(outputs[2]), q_step));
+      threads.push_back(thread(doTest, cinfo, ref(rgb_data), ref(outputs[2]), q_step));
     }
   }
 

@@ -33,9 +33,9 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
   size_t blocks_cnt {};
   size_t pixels_cnt {};
 
-  color_convertors[0] =  RGBToY;
-  color_convertors[1] =  RGBToCb;
-  color_convertors[2] =  RGBToCr;
+  color_convertors[0] =  RGBToY<RGBUNIT>;
+  color_convertors[1] =  RGBToCb<RGBUNIT>;
+  color_convertors[2] =  RGBToCr<RGBUNIT>;
 
   quant_tables[0]     = &quant_table[0];
   quant_tables[1]     = &quant_table[1];

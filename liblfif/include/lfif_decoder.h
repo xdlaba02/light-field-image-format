@@ -43,9 +43,9 @@ int LFIFDecompress(std::ifstream &input, const uint64_t img_dims[D+1], RGBUNIT *
   quant_tables[1]     = &quant_table[1];
   quant_tables[2]     = &quant_table[1];
 
-  color_convertors[0] = YtoRGB;
-  color_convertors[1] = CbtoRGB;
-  color_convertors[2] = CrtoRGB;
+  color_convertors[0] = YtoRGB<RGBUNIT>;
+  color_convertors[1] = CbtoRGB<RGBUNIT>;
+  color_convertors[2] = CrtoRGB<RGBUNIT>;
 
   for (size_t i = 0; i < 2; i++) {
     quant_table[i]

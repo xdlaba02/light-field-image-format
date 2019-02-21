@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+using namespace std;
+
 template class QuantTable<2, uint8_t>;
 template class QuantTable<3, uint8_t>;
 template class QuantTable<4, uint8_t>;
@@ -15,7 +17,7 @@ QuantTable<D, T> &QuantTable<D, T>::scaleByQuality(uint8_t quality) {
   double scale_coef = quality < 50 ? (5000.0 / quality) / 100 : (200.0 - 2 * quality) / 100;
 
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_block[i] = std::clamp<double>(m_block[i] * scale_coef, 1, 255);
+    m_block[i] = clamp<double>(m_block[i] * scale_coef, 1, static_cast<T>(-1));
   }
 
   return *this;
@@ -35,7 +37,7 @@ QuantTable<D, T> &QuantTable<D, T>::baseLuma() {
   };
 
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_block[i] = (base_luma[i%64]) * (static_cast<T>(-1) / 255.);
+    m_block[i] = (base_luma[i%64])/* * (static_cast<T>(-1) / 255.)*/;
   }
 
   return *this;
@@ -55,7 +57,7 @@ QuantTable<D, T> &QuantTable<D, T>::baseChroma() {
   };
 
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_block[i] = (base_chroma[i%64]) * (static_cast<T>(-1) / 255.);
+    m_block[i] = (base_chroma[i%64])/* * (static_cast<T>(-1) / 255.)*/;
   }
 
   return *this;
