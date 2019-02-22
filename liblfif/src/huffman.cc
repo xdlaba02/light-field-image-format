@@ -13,7 +13,6 @@
 
 using namespace std;
 
-
 HuffmanEncoder &HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffman_weights) {
   generateHuffmanCodelengths(huffman_weights);
   generateHuffmanMap();
@@ -42,11 +41,8 @@ HuffmanEncoder &HuffmanEncoder::writeToStream(ofstream &stream) {
   return *this;
 }
 
-#include <bitset>
-#include <iostream>
 HuffmanEncoder &HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) {
   stream.write(m_huffman_map.at(symbol));
-
   return *this;
 }
 

@@ -15,19 +15,13 @@ typedef enum {
   LFIF_METHODS_CNT
 } CompressMethod;
 
-typedef enum {
-  RGB24,
-  RGB48,
-  COLORSPACES_CNT
-} ColorSpace;
-
 typedef struct {
   CompressMethod method;
-  ColorSpace     color_space;
   uint64_t       image_width;
   uint64_t       image_height;
   uint64_t       image_count;
   uint8_t        quality;
+  uint8_t        bits_per_channel;
   const char    *output_file_name;
 } LFIFCompressStruct;
 
@@ -35,10 +29,10 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data);
 
 typedef struct {
   CompressMethod method;
-  ColorSpace     color_space;
   uint64_t       image_width;
   uint64_t       image_height;
   uint64_t       image_count;
+  uint8_t        bits_per_channel;
   const char    *input_file_name;
 } LFIFDecompressStruct;
 

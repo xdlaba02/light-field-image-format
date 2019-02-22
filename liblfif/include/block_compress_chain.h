@@ -17,29 +17,28 @@
 #include <cstdlib>
 #include <cstdint>
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
+template <size_t D, typename T>
 class BlockCompressChain {
 public:
-
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &newRGBBlock(const RGBUNIT *rgb_data, const uint64_t img_dims[D], size_t block);
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &colorConvert(YCbCrUnit (*f)(double, double, double));
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &centerValues();
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &forwardDiscreteCosineTransform();
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &quantize(const QuantTable<D, RGBUNIT> &quant_table);
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &addToReferenceBlock(ReferenceBlock<D> &reference);
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &diffEncodeDC(QDATAUNIT &previous_DC);
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &traverse(const TraversalTable<D> &traversal_table);
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &runLengthEncode();
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &huffmanAddWeights(HuffmanWeights weights[2]);
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream);
+  BlockCompressChain<D, T> &newRGBBlock(const T *rgb_data, const uint64_t img_dims[D], size_t block);
+  BlockCompressChain<D, T> &colorConvert(YCBCRUNIT (*f)(double, double, double, size_t), size_t rgb_bits);
+  BlockCompressChain<D, T> &centerValues(size_t rgb_bits);
+  BlockCompressChain<D, T> &forwardDiscreteCosineTransform();
+  BlockCompressChain<D, T> &quantize(const QuantTable<D> &quant_table);
+  BlockCompressChain<D, T> &addToReferenceBlock(ReferenceBlock<D> &reference);
+  BlockCompressChain<D, T> &diffEncodeDC(QDATAUNIT &previous_DC);
+  BlockCompressChain<D, T> &traverse(const TraversalTable<D> &traversal_table);
+  BlockCompressChain<D, T> &runLengthEncode(size_t rgb_bits);
+  BlockCompressChain<D, T> &huffmanAddWeights(HuffmanWeights weights[2], size_t rgb_bits);
+  BlockCompressChain<D, T> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t rgb_bits);
 
 private:
-  Block<RGBPixel<RGBUNIT>, D>           m_rgb_block;
-  Block<YCbCrUnit, D>                   m_ycbcr_block;
-  Block<DCTDataUnit, D>                 m_transformed_block;
-  Block<QDATAUNIT, D>                   m_quantized_block;
-  Block<QDATAUNIT, D>                   m_traversed_block;
-  std::vector<RunLengthPair<QDATAUNIT>> m_runlength;
+  Block<RGBPixel<T>, D>      m_rgb_block;
+  Block<YCBCRUNIT,   D>      m_ycbcr_block;
+  Block<DCTDATAUNIT, D>      m_transformed_block;
+  Block<QDATAUNIT,   D>      m_quantized_block;
+  Block<QDATAUNIT,   D>      m_traversed_block;
+  std::vector<RunLengthPair> m_runlength;
 };
 
 #endif

@@ -10,10 +10,10 @@
 
 #include <cmath>
 
-using DCTDataUnit = double;
+using DCTDATAUNIT = double;
 
-constexpr std::array<DCTDataUnit, 64> init_coefs() {
-  std::array<DCTDataUnit, 64> c {};
+constexpr std::array<DCTDATAUNIT, 64> init_coefs() {
+  std::array<DCTDATAUNIT, 64> c {};
   for(size_t u = 0; u < 8; ++u) {
     for(size_t x = 0; x < 8; ++x) {
       c[u*8+x] = cos(((2 * x + 1) * u * M_PI ) / 16) * sqrt(0.25) * (u == 0 ? (1 / sqrt(2)) : 1);
@@ -22,18 +22,18 @@ constexpr std::array<DCTDataUnit, 64> init_coefs() {
   return c;
 }
 
-constexpr std::array<DCTDataUnit, 64> coefs = init_coefs();
+constexpr std::array<DCTDATAUNIT, 64> coefs = init_coefs();
 
 template <size_t D>
 struct fdct {
   template <typename IF, typename OF>
   fdct(IF &&input, OF &&output) {
-    DCTDataUnit tmp[constpow(8, D)] {};
+    DCTDATAUNIT tmp[constpow(8, D)] {};
     for (size_t slice = 0; slice < 8; slice++) {
-      fdct<D-1>([&](size_t index) -> DCTDataUnit { return input(slice*constpow(8, D-1) + index); }, [&](size_t index) -> DCTDataUnit & { return tmp[slice*constpow(8, D-1) + index]; });
+      fdct<D-1>([&](size_t index) -> DCTDATAUNIT { return input(slice*constpow(8, D-1) + index); }, [&](size_t index) -> DCTDATAUNIT & { return tmp[slice*constpow(8, D-1) + index]; });
     }
     for (size_t noodle = 0; noodle < constpow(8, D-1); noodle++) {
-      fdct<1>([&](size_t index) -> DCTDataUnit { return tmp[index*constpow(8, D-1) + noodle]; }, [&](size_t index) -> DCTDataUnit & { return output(index*constpow(8, D-1) + noodle); });
+      fdct<1>([&](size_t index) -> DCTDATAUNIT { return tmp[index*constpow(8, D-1) + noodle]; }, [&](size_t index) -> DCTDATAUNIT & { return output(index*constpow(8, D-1) + noodle); });
     }
   }
 };
@@ -55,12 +55,12 @@ template <size_t D>
 struct idct {
   template <typename IF, typename OF>
   idct(IF &&input, OF &&output) {
-    DCTDataUnit tmp[constpow(8, D)] {};
+    DCTDATAUNIT tmp[constpow(8, D)] {};
     for (size_t slice = 0; slice < 8; slice++) {
-      idct<D-1>([&](size_t index) -> DCTDataUnit { return input(slice*constpow(8, D-1) + index); }, [&](size_t index) -> DCTDataUnit & { return tmp[slice*constpow(8, D-1) + index]; });
+      idct<D-1>([&](size_t index) -> DCTDATAUNIT { return input(slice*constpow(8, D-1) + index); }, [&](size_t index) -> DCTDATAUNIT & { return tmp[slice*constpow(8, D-1) + index]; });
     }
     for (size_t noodle = 0; noodle < constpow(8, D-1); noodle++) {
-      idct<1>([&](size_t index) -> DCTDataUnit { return tmp[index*constpow(8, D-1) + noodle]; }, [&](size_t index) -> DCTDataUnit & { return output(index*constpow(8, D-1) + noodle); });
+      idct<1>([&](size_t index) -> DCTDATAUNIT { return tmp[index*constpow(8, D-1) + noodle]; }, [&](size_t index) -> DCTDATAUNIT & { return output(index*constpow(8, D-1) + noodle); });
     }
   }
 };
@@ -76,5 +76,10 @@ struct idct<1> {
     }
   }
 };
+
+template <size_t D>
+size_t DCTOutputBits(size_t input_bits) {
+  return log2(constpow(8, D)) + input_bits - D - (D/2);
+}
 
 #endif

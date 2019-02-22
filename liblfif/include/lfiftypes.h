@@ -13,7 +13,9 @@
 #include <array>
 #include <fstream>
 
-using YCbCrUnit = double;
+using RGBUNIT   = uint16_t;
+using QDATAUNIT = int64_t;
+using YCBCRUNIT = double;
 
 template<typename T>
 struct RGBPixel {

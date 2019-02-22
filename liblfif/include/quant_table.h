@@ -10,20 +10,22 @@
 
 #include <iosfwd>
 
-template <size_t D, typename T>
+using QTABLEUNIT = uint64_t;
+
+template <size_t D>
 class QuantTable {
 public:
-  QuantTable<D, T> &scaleByQuality(uint8_t quality);
-  QuantTable<D, T> &baseLuma();
-  QuantTable<D, T> &baseChroma();
+  QuantTable<D> &scaleByQuality(uint8_t quality);
+  QuantTable<D> &baseLuma();
+  QuantTable<D> &baseChroma();
 
-  QuantTable<D, T> &writeToStream(std::ofstream &stream);
-  QuantTable<D, T> &readFromStream(std::ifstream &stream);
+  QuantTable<D> &writeToStream(std::ofstream &stream);
+  QuantTable<D> &readFromStream(std::ifstream &stream);
 
-  T operator [](size_t index) const;
+  QTABLEUNIT operator [](size_t index) const;
 
 private:
-  Block<T, D> m_block;
+  Block<QTABLEUNIT, D> m_block;
 };
 
 #endif

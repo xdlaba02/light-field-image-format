@@ -4,25 +4,27 @@
 
 #include <algorithm>
 
-template class BlockDecompressChain<2, uint8_t, int16_t>;
-template class BlockDecompressChain<3, uint8_t, int16_t>;
-template class BlockDecompressChain<4, uint8_t, int16_t>;
+template class BlockDecompressChain<2, uint8_t>;
+template class BlockDecompressChain<3, uint8_t>;
+template class BlockDecompressChain<4, uint8_t>;
 
-template class BlockDecompressChain<2, uint16_t, int32_t>;
-template class BlockDecompressChain<3, uint16_t, int32_t>;
-template class BlockDecompressChain<4, uint16_t, int32_t>;
+template class BlockDecompressChain<2, uint16_t>;
+template class BlockDecompressChain<3, uint16_t>;
+template class BlockDecompressChain<4, uint16_t>;
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream) {
-  RunLengthPair<QDATAUNIT>              pair      {};
-  std::vector<RunLengthPair<QDATAUNIT>> runlength {};
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t rgb_bits) {
+  RunLengthPair              pair      {};
+  std::vector<RunLengthPair> runlength {};
 
-  pair.huffmanDecodeFromStream(huffman_decoders[0], bitstream);
+  size_t amp_bits = DCTOutputBits<D>(rgb_bits);
+
+  pair.huffmanDecodeFromStream(huffman_decoders[0], bitstream, amp_bits);
   runlength.push_back(pair);
 
   do {
-    pair.huffmanDecodeFromStream(huffman_decoders[1], bitstream);
+    pair.huffmanDecodeFromStream(huffman_decoders[1], bitstream, amp_bits);
     runlength.push_back(pair);
   } while(!pair.endOfBlock());
 
@@ -31,9 +33,9 @@ BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::decodeFromStream(HuffmanDecoder huf
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::runLengthDecode() {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::runLengthDecode() {
   m_traversed_block.fill(0);
 
   size_t pixel_index = 0;
@@ -46,9 +48,9 @@ BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::runLengthDecode() {
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::detraverse(TraversalTable<D> &traversal_table) {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::detraverse(TraversalTable<D> &traversal_table) {
   for (size_t i = 0; i < constpow(8, D); i++) {
     m_quantized_block[i] = m_traversed_block[traversal_table[i]];
   }
@@ -56,18 +58,18 @@ BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::detraverse(TraversalTable<D> &trave
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::diffDecodeDC(QDATAUNIT &previous_DC) {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::diffDecodeDC(QDATAUNIT &previous_DC) {
   m_quantized_block[0] += previous_DC;
   previous_DC = m_quantized_block[0];
 
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::dequantize(QuantTable<D, RGBUNIT> &quant_table) {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::dequantize(QuantTable<D> &quant_table) {
   for (size_t i = 0; i < constpow(8, D); i++) {
     m_transformed_block[i] = m_quantized_block[i] * quant_table[i];
   }
@@ -75,39 +77,39 @@ BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::dequantize(QuantTable<D, RGBUNIT> &
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::inverseDiscreteCosineTransform() {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::inverseDiscreteCosineTransform() {
   m_ycbcr_block.fill(0);
 
-  idct<D>([&](size_t index) -> DCTDataUnit { return m_transformed_block[index];}, [&](size_t index) -> DCTDataUnit & { return m_ycbcr_block[index]; });
+  idct<D>([&](size_t index) -> DCTDATAUNIT { return m_transformed_block[index];}, [&](size_t index) -> DCTDATAUNIT & { return m_ycbcr_block[index]; });
 
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::decenterValues() {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::decenterValues(size_t rgb_bits) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_ycbcr_block[i] += (static_cast<RGBUNIT>(-1)/2)+1;
+    m_ycbcr_block[i] += pow(2, rgb_bits)/2;
   }
 
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::colorConvert(void (*f)(RGBPixel<double> &, YCbCrUnit)) {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, size_t), size_t rgb_bits) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    f(m_rgb_block[i], m_ycbcr_block[i]);
+    f(m_rgb_block[i], m_ycbcr_block[i], rgb_bits);
   }
 
   return *this;
 }
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &
-BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::putRGBBlock(RGBUNIT *rgb_data, const uint64_t img_dims[D], size_t block) {
+template <size_t D, typename T>
+BlockDecompressChain<D, T> &
+BlockDecompressChain<D, T>::putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block) {
   auto inputR = [&](size_t index) {
     return std::clamp<double>(m_rgb_block[index].r, 0, static_cast<RGBUNIT>(-1));
   };
@@ -121,21 +123,21 @@ BlockDecompressChain<D, RGBUNIT, QDATAUNIT>::putRGBBlock(RGBUNIT *rgb_data, cons
   };
 
 
-  auto outputR = [&](size_t index) -> RGBUNIT & {
+  auto outputR = [&](size_t index) -> T & {
     return rgb_data[index * 3 + 0];
   };
 
-  auto outputG = [&](size_t index) -> RGBUNIT & {
+  auto outputG = [&](size_t index) -> T & {
     return rgb_data[index * 3 + 1];
   };
 
-  auto outputB = [&](size_t index) -> RGBUNIT & {
+  auto outputB = [&](size_t index) -> T & {
     return rgb_data[index * 3 + 2];
   };
 
-  putBlock<D, RGBUNIT>(inputR, block, img_dims, outputR);
-  putBlock<D, RGBUNIT>(inputG, block, img_dims, outputG);
-  putBlock<D, RGBUNIT>(inputB, block, img_dims, outputB);
+  putBlock<D, T>(inputR, block, img_dims, outputR);
+  putBlock<D, T>(inputG, block, img_dims, outputG);
+  putBlock<D, T>(inputB, block, img_dims, outputB);
 
   return *this;
 }

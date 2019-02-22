@@ -40,22 +40,9 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
-  switch (lfif->color_space) {
-    case RGB24:
-      output.write("RGB24  \n", 8);
-    break;
-
-    case RGB48:
-      output.write("RGB48  \n", 8);
-    break;
-
-    default:
-      return -1;
-    break;
-  }
+  output.write(reinterpret_cast<const char *>(&lfif->bits_per_channel), sizeof(lfif->bits_per_channel));
 
   uint64_t tmp {};
-
   tmp = htobe64(lfif->image_width);
   output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
 
@@ -71,36 +58,24 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
   switch (lfif->method) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
-      switch (lfif->color_space) {
-        case RGB24:
-          return LFIFCompress<2, uint8_t, int16_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, output);
-        break;
 
-        case RGB48:
-          return LFIFCompress<2, uint16_t, int32_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, output);
-        break;
-
-        default:
-          return -1;
-        break;
+      if (lfif->bits_per_channel <= 8) {
+        return LFIFCompress<2, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      }
+      else if (lfif->bits_per_channel <= 16) {
+        return LFIFCompress<2, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
       }
     break;
 
     case LFIF_3D:
       img_dims[2] = lfif->image_count;
       img_dims[3] = 1;
-      switch (lfif->color_space) {
-        case RGB24:
-          return LFIFCompress<3, uint8_t, int16_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, output);
-        break;
 
-        case RGB48:
-          return LFIFCompress<3, uint16_t, int32_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, output);
-        break;
-
-        default:
-          return -1;
-        break;
+      if (lfif->bits_per_channel <= 8) {
+        return LFIFCompress<3, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      }
+      else if (lfif->bits_per_channel <= 16) {
+        return LFIFCompress<3, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
       }
     break;
 
@@ -108,18 +83,12 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
-      switch (lfif->color_space) {
-        case RGB24:
-          return LFIFCompress<4, uint8_t, int16_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, output);
-        break;
 
-        case RGB48:
-          return LFIFCompress<4, uint16_t, int32_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, output);
-        break;
-
-        default:
-          return -1;
-        break;
+      if (lfif->bits_per_channel <= 8) {
+        return LFIFCompress<4, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      }
+      else if (lfif->bits_per_channel <= 16) {
+        return LFIFCompress<4, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
       }
     break;
 
@@ -135,19 +104,12 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
 int LFIFReadHeader(LFIFDecompressStruct *lfif) {
   ifstream input           {};
   char     magic_number[9] {};
-  char     color_space [9] {};
 
   auto getCompressMethod = [](const string &magic_number) {
     if (magic_number == "LFIF-2D\n") return LFIF_2D;
     if (magic_number == "LFIF-3D\n") return LFIF_3D;
     if (magic_number == "LFIF-4D\n") return LFIF_4D;
     return LFIF_METHODS_CNT;
-  };
-
-  auto getColorSpace = [](const string &color_space) {
-    if (color_space == "RGB24  \n") return RGB24;
-    if (color_space == "RGB48  \n") return RGB48;
-    return COLORSPACES_CNT;
   };
 
   input.open(lfif->input_file_name);
@@ -158,8 +120,7 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
   input.read(magic_number, 8);
   lfif->method = getCompressMethod(string(magic_number));
 
-  input.read(color_space, 8);
-  lfif->color_space = getColorSpace(string(color_space));
+  input.read(reinterpret_cast<char *>(&lfif->bits_per_channel), sizeof(lfif->bits_per_channel));
 
   input.read(reinterpret_cast<char *>(&lfif->image_width), sizeof(lfif->image_width));
   lfif->image_width = be64toh(lfif->image_width);
@@ -182,43 +143,31 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
     return -1;
   }
 
-  input.ignore(2 * 8 + 3 * 8);
+  input.ignore(8 + 2 + 3 * 8);
 
   img_dims[0] = lfif->image_width;
   img_dims[1] = lfif->image_height;
   switch (lfif->method) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
-      switch (lfif->color_space) {
-        case RGB24:
-          return LFIFDecompress<2, uint8_t, int16_t>(input, img_dims, static_cast<uint8_t *>(rgb_buffer));
-        break;
 
-        case RGB48:
-          return LFIFDecompress<2, uint16_t, int32_t>(input, img_dims, static_cast<uint16_t *>(rgb_buffer));
-        break;
-
-        default:
-          return -1;
-        break;
+      if (lfif->bits_per_channel <= 8) {
+        return LFIFDecompress<2, uint8_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint8_t *>(rgb_buffer));
+      }
+      else if (lfif->bits_per_channel <= 16) {
+        return LFIFDecompress<2, uint16_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint16_t *>(rgb_buffer));
       }
     break;
 
     case LFIF_3D:
       img_dims[2] = lfif->image_count;
       img_dims[3] = 1;
-      switch (lfif->color_space) {
-        case RGB24:
-          return LFIFDecompress<3, uint8_t, int16_t>(input, img_dims, static_cast<uint8_t *>(rgb_buffer));
-        break;
 
-        case RGB48:
-          return LFIFDecompress<3, uint16_t, int32_t>(input, img_dims, static_cast<uint16_t *>(rgb_buffer));
-        break;
-
-        default:
-          return -1;
-        break;
+      if (lfif->bits_per_channel <= 8) {
+        return LFIFDecompress<3, uint8_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint8_t *>(rgb_buffer));
+      }
+      else if (lfif->bits_per_channel <= 16) {
+        return LFIFDecompress<3, uint16_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint16_t *>(rgb_buffer));
       }
     break;
 
@@ -226,18 +175,12 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
-      switch (lfif->color_space) {
-        case RGB24:
-          return LFIFDecompress<4, uint8_t, int16_t>(input, img_dims, static_cast<uint8_t *>(rgb_buffer));
-        break;
 
-        case RGB48:
-          return LFIFDecompress<4, uint16_t, int32_t>(input, img_dims, static_cast<uint16_t *>(rgb_buffer));
-        break;
-
-        default:
-          return -1;
-        break;
+      if (lfif->bits_per_channel <= 8) {
+        return LFIFDecompress<4, uint8_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint8_t *>(rgb_buffer));
+      }
+      else if (lfif->bits_per_channel <= 16) {
+        return LFIFDecompress<4, uint16_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint16_t *>(rgb_buffer));
       }
     break;
 

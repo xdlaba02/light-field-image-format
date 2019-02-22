@@ -10,11 +10,11 @@
 
 #include <iosfwd>
 
-using ReferenceBlockUnit = double;
-using TraversalTableUnit = int16_t;
+using REFBLOCKUNIT = double;
+using TTABLEUNIT = int64_t;
 
 template<size_t D>
-using ReferenceBlock = Block<ReferenceBlockUnit, D>;
+using ReferenceBlock = Block<REFBLOCKUNIT, D>;
 
 template <size_t D>
 class TraversalTable {
@@ -26,10 +26,10 @@ public:
   TraversalTable<D> &writeToStream(std::ofstream &stream);
   TraversalTable<D> &readFromStream(std::ifstream &stream);
 
-  TraversalTableUnit operator [](size_t index) const;
+  TTABLEUNIT operator [](size_t index) const;
 
 private:
-  Block<TraversalTableUnit, D> m_block;
+  Block<TTABLEUNIT, D> m_block;
 };
 
 #endif

@@ -15,26 +15,26 @@
 
 #include <vector>
 
-template <size_t D, typename RGBUNIT, typename QDATAUNIT>
+template <size_t D, typename T>
 class BlockDecompressChain {
 public:
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream);
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &runLengthDecode();
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &detraverse(TraversalTable<D> &traversal_table);
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &diffDecodeDC(QDATAUNIT &previous_DC);
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &dequantize(QuantTable<D, RGBUNIT> &quant_table);
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &inverseDiscreteCosineTransform();
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &decenterValues();
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &colorConvert(void (*f)(RGBPixel<double> &, YCbCrUnit));
-  BlockDecompressChain<D, RGBUNIT, QDATAUNIT> &putRGBBlock(RGBUNIT *rgb_data, const uint64_t img_dims[D], size_t block);
+  BlockDecompressChain<D, T> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t rgb_bits);
+  BlockDecompressChain<D, T> &runLengthDecode();
+  BlockDecompressChain<D, T> &detraverse(TraversalTable<D> &traversal_table);
+  BlockDecompressChain<D, T> &diffDecodeDC(QDATAUNIT &previous_DC);
+  BlockDecompressChain<D, T> &dequantize(QuantTable<D> &quant_table);
+  BlockDecompressChain<D, T> &inverseDiscreteCosineTransform();
+  BlockDecompressChain<D, T> &decenterValues(size_t rgb_bits);
+  BlockDecompressChain<D, T> &colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, size_t), size_t rgb_bits);
+  BlockDecompressChain<D, T> &putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block);
 
 private:
-  std::vector<RunLengthPair<QDATAUNIT>> m_runlength;
-  Block<QDATAUNIT, D>                   m_traversed_block;
-  Block<QDATAUNIT, D>                   m_quantized_block;
-  Block<DCTDataUnit, D>                 m_transformed_block;
-  Block<YCbCrUnit, D>                   m_ycbcr_block;
-  Block<RGBPixel<double>, D>            m_rgb_block;
+  std::vector<RunLengthPair> m_runlength;
+  Block<QDATAUNIT,        D> m_traversed_block;
+  Block<QDATAUNIT,        D> m_quantized_block;
+  Block<DCTDATAUNIT,      D> m_transformed_block;
+  Block<YCBCRUNIT,        D> m_ycbcr_block;
+  Block<RGBPixel<double>, D> m_rgb_block;
 };
 
 #endif

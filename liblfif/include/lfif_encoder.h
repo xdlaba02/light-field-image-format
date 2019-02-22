@@ -12,30 +12,34 @@
 
 #include <fstream>
 
-template<size_t D, typename RGBUNIT, typename QDATAUNIT>
-int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, std::ofstream &output) {
-  BlockCompressChain<D, RGBUNIT, QDATAUNIT> block_compress_chain    {};
-  QuantTable<D, RGBUNIT>                    quant_table      [2]    {};
-  ReferenceBlock<D>                         reference_block  [2]    {};
-  TraversalTable<D>                         traversal_table  [2]    {};
-  HuffmanWeights                            huffman_weight   [2][2] {};
-  HuffmanEncoder                            huffman_encoder  [2][2] {};
+using RGBUNIT   = uint16_t;
+using QDATAUNIT = int64_t;
+using YCBCRUNIT = double;
 
-  QDATAUNIT               previous_DC     [3]    {};
-  YCbCrUnit             (*color_convertors[3])
-                        (double, double, double) {};
-  QuantTable<D, RGBUNIT> *quant_tables    [3]    {};
-  ReferenceBlock<D>      *reference_blocks[3]    {};
-  TraversalTable<D>      *traversal_tables[3]    {};
-  HuffmanWeights         *huffman_weights [3]    {};
-  HuffmanEncoder         *huffman_encoders[3]    {};
+template<size_t D, typename T>
+int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, uint8_t bits_per_channel, std::ofstream &output) {
+  BlockCompressChain<D, T> block_compress_chain    {};
+  QuantTable<D>            quant_table      [2]    {};
+  ReferenceBlock<D>        reference_block  [2]    {};
+  TraversalTable<D>        traversal_table  [2]    {};
+  HuffmanWeights           huffman_weight   [2][2] {};
+  HuffmanEncoder           huffman_encoder  [2][2] {};
+
+  QDATAUNIT                previous_DC      [3]    {};
+  YCBCRUNIT              (*color_convertors [3])
+                  (double, double, double, size_t) {};
+  QuantTable<D>           *quant_tables    [3]     {};
+  ReferenceBlock<D>       *reference_blocks[3]     {};
+  TraversalTable<D>       *traversal_tables[3]     {};
+  HuffmanWeights          *huffman_weights [3]     {};
+  HuffmanEncoder          *huffman_encoders[3]     {};
 
   size_t blocks_cnt {};
   size_t pixels_cnt {};
 
-  color_convertors[0] =  RGBToY<RGBUNIT>;
-  color_convertors[1] =  RGBToCb<RGBUNIT>;
-  color_convertors[2] =  RGBToCr<RGBUNIT>;
+  color_convertors[0] =  RGBToY;
+  color_convertors[1] =  RGBToCb;
+  color_convertors[2] =  RGBToCr;
 
   quant_tables[0]     = &quant_table[0];
   quant_tables[1]     = &quant_table[1];
@@ -80,8 +84,8 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
 
       for (size_t channel = 0; channel < 3; channel++) {
         block_compress_chain
-        . colorConvert(color_convertors[channel])
-        . centerValues()
+        . colorConvert(color_convertors[channel], bits_per_channel)
+        . centerValues(bits_per_channel)
         . forwardDiscreteCosineTransform()
         . quantize(*quant_tables[channel])
         . addToReferenceBlock(*reference_blocks[channel]);
@@ -105,14 +109,14 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
 
       for (size_t channel = 0; channel < 3; channel++) {
         block_compress_chain
-        . colorConvert(color_convertors[channel])
-        . centerValues()
+        . colorConvert(color_convertors[channel], bits_per_channel)
+        . centerValues(bits_per_channel)
         . forwardDiscreteCosineTransform()
         . quantize(*quant_tables[channel])
         . diffEncodeDC(previous_DC[channel])
         . traverse(*traversal_tables[channel])
-        . runLengthEncode()
-        . huffmanAddWeights(huffman_weights[channel]);
+        . runLengthEncode(bits_per_channel)
+        . huffmanAddWeights(huffman_weights[channel], bits_per_channel);
       }
     }
   }
@@ -148,14 +152,14 @@ int LFIFCompress(const RGBUNIT *rgb_data, const uint64_t img_dims[D+1], uint8_t 
 
       for (size_t channel = 0; channel < 3; channel++) {
         block_compress_chain
-        . colorConvert(color_convertors[channel])
-        . centerValues()
+        . colorConvert(color_convertors[channel], bits_per_channel)
+        . centerValues(bits_per_channel)
         . forwardDiscreteCosineTransform()
         . quantize(*quant_tables[channel])
         . diffEncodeDC(previous_DC[channel])
         . traverse(*traversal_tables[channel])
-        . runLengthEncode()
-        . encodeToStream(huffman_encoders[channel], bitstream);
+        . runLengthEncode(bits_per_channel)
+        . encodeToStream(huffman_encoders[channel], bitstream, bits_per_channel);
       }
     }
   }
