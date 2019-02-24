@@ -8,6 +8,8 @@
 
 #include <lfiflib.h>
 
+#include <cmath>
+
 #include <iostream>
 #include <vector>
 
@@ -52,21 +54,7 @@ int main(int argc, char *argv[]) {
   cinfo.quality          = quality;
   cinfo.method           = LFIF_3D;
   cinfo.output_file_name = output_file_name;
-
-  switch (color_depth) {
-    case 255:
-      cinfo.color_space = RGB24;
-    break;
-
-    case 65535:
-      cinfo.color_space = RGB48;
-    break;
-
-    default:
-      cerr << "ERROR: UNSUPPORTED COLOR DEPTH" << endl;
-      return 3;
-    break;
-  }
+  cinfo.max_rgb_value    = color_depth;
 
   int errcode = LFIFCompress(&cinfo, rgb_data.data());
 

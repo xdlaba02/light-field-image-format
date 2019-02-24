@@ -21,18 +21,18 @@ template <size_t D, typename T>
 class BlockCompressChain {
 public:
   BlockCompressChain<D, T> &newRGBBlock(const T *rgb_data, const uint64_t img_dims[D], size_t block);
-  BlockCompressChain<D, T> &colorConvert(YCBCRUNIT (*f)(double, double, double, size_t), size_t rgb_bits);
-  BlockCompressChain<D, T> &centerValues(size_t rgb_bits);
+  BlockCompressChain<D, T> &colorConvert(YCBCRUNIT (*f)(double, double, double, uint16_t), T max_rgb_value);
+  BlockCompressChain<D, T> &centerValues(T max_rgb_value);
   BlockCompressChain<D, T> &forwardDiscreteCosineTransform();
   BlockCompressChain<D, T> &quantize(const QuantTable<D> &quant_table);
   BlockCompressChain<D, T> &addToReferenceBlock(ReferenceBlock<D> &reference);
   BlockCompressChain<D, T> &diffEncodeDC(QDATAUNIT &previous_DC);
   BlockCompressChain<D, T> &traverse(const TraversalTable<D> &traversal_table);
-  BlockCompressChain<D, T> &runLengthEncode(size_t rgb_bits);
-  BlockCompressChain<D, T> &huffmanAddWeights(HuffmanWeights weights[2], size_t rgb_bits);
-  BlockCompressChain<D, T> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t rgb_bits);
+  BlockCompressChain<D, T> &runLengthEncode(T max_rgb_value);
+  BlockCompressChain<D, T> &huffmanAddWeights(HuffmanWeights weights[2], T max_rgb_value);
+  BlockCompressChain<D, T> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, T max_rgb_value);
 
-private:
+public: //FIXME
   Block<RGBPixel<T>, D>      m_rgb_block;
   Block<YCBCRUNIT,   D>      m_ycbcr_block;
   Block<DCTDATAUNIT, D>      m_transformed_block;

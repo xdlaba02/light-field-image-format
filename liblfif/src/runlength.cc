@@ -49,7 +49,7 @@ RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stre
     }
 
     if (amplitude < (1 << (amp_class - 1))) {
-      amplitude |= static_cast<unsigned>(-1) << amp_class;
+      amplitude |= static_cast<uint64_t>(-1) << amp_class;
       amplitude = ~amplitude;
       amplitude = -amplitude;
     }

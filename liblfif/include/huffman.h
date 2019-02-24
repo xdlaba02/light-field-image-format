@@ -10,7 +10,6 @@ class IBitstream;
 class OBitstream;
 
 #include <iosfwd>
-
 #include <vector>
 #include <map>
 

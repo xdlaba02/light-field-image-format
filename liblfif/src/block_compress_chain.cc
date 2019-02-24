@@ -47,13 +47,13 @@ BlockCompressChain<D, T>::newRGBBlock(const T *rgb_data, const uint64_t img_dims
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::colorConvert(YCBCRUNIT (*f)(double, double, double, size_t), size_t rgb_bits) {
+BlockCompressChain<D, T>::colorConvert(YCBCRUNIT (*f)(double, double, double, uint16_t), T max_rgb_value) {
   for (size_t i = 0; i < constpow(8, D); i++) {
     double R = m_rgb_block[i].r;
     double G = m_rgb_block[i].g;
     double B = m_rgb_block[i].b;
 
-    m_ycbcr_block[i] = f(R, G, B, rgb_bits);
+    m_ycbcr_block[i] = f(R, G, B, max_rgb_value);
   }
 
   return *this;
@@ -61,9 +61,9 @@ BlockCompressChain<D, T>::colorConvert(YCBCRUNIT (*f)(double, double, double, si
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::centerValues(size_t rgb_bits) {
+BlockCompressChain<D, T>::centerValues(T max_rgb_value) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_ycbcr_block[i] -= (pow(2, rgb_bits)/2);
+    m_ycbcr_block[i] -= (max_rgb_value + 1) / 2;
   }
 
   return *this;
@@ -121,14 +121,12 @@ BlockCompressChain<D, T>::traverse(const TraversalTable<D> &traversal_table) {
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::runLengthEncode(size_t rgb_bits) {
+BlockCompressChain<D, T>::runLengthEncode(T max_rgb_value) {
   std::vector<RunLengthPair> runlength {};
 
   runlength.push_back({0, m_traversed_block[0]});
 
-  size_t amplitude_bits = DCTOutputBits<D>(rgb_bits);
-
-  size_t max_zeroes = constpow(2, RunLengthPair::zeroesBits(amplitude_bits));
+  size_t max_zeroes = constpow(2, RunLengthPair::zeroesBits(DCTOutputBits<D>(ceil(log2(max_rgb_value)))));
 
   size_t zeroes = 0;
   for (size_t i = 1; i < constpow(8, D); i++) {
@@ -154,8 +152,8 @@ BlockCompressChain<D, T>::runLengthEncode(size_t rgb_bits) {
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], size_t rgb_bits) {
-  size_t amp_bits = DCTOutputBits<D>(rgb_bits);
+BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], T max_rgb_value) {
+  size_t amp_bits = DCTOutputBits<D>(ceil(log2(max_rgb_value)));
 
   m_runlength[0].addToWeights(weights[0], amp_bits);
   for (size_t i = 1; i < m_runlength.size(); i++) {
@@ -167,8 +165,8 @@ BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], size_t rg
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t rgb_bits) {
-  size_t amp_bits = DCTOutputBits<D>(rgb_bits);
+BlockCompressChain<D, T>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, T max_rgb_value) {
+  size_t amp_bits = DCTOutputBits<D>(ceil(log2(max_rgb_value)));
 
   m_runlength[0].huffmanEncodeToStream(encoder[0], stream, amp_bits);
   for (size_t i = 1; i < m_runlength.size(); i++) {

@@ -14,11 +14,11 @@ template class BlockDecompressChain<4, uint16_t>;
 
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t rgb_bits) {
+BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, T max_rgb_value) {
   RunLengthPair              pair      {};
   std::vector<RunLengthPair> runlength {};
 
-  size_t amp_bits = DCTOutputBits<D>(rgb_bits);
+  size_t amp_bits = DCTOutputBits<D>(ceil(log2(max_rgb_value)));
 
   pair.huffmanDecodeFromStream(huffman_decoders[0], bitstream, amp_bits);
   runlength.push_back(pair);
@@ -71,7 +71,7 @@ template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::dequantize(QuantTable<D> &quant_table) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_transformed_block[i] = m_quantized_block[i] * quant_table[i];
+    m_transformed_block[i] = static_cast<double>(m_quantized_block[i]) * quant_table[i];
   }
 
   return *this;
@@ -89,9 +89,9 @@ BlockDecompressChain<D, T>::inverseDiscreteCosineTransform() {
 
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::decenterValues(size_t rgb_bits) {
+BlockDecompressChain<D, T>::decenterValues(T max_rgb_value) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    m_ycbcr_block[i] += pow(2, rgb_bits)/2;
+    m_ycbcr_block[i] += (max_rgb_value + 1) / 2;
   }
 
   return *this;
@@ -99,9 +99,9 @@ BlockDecompressChain<D, T>::decenterValues(size_t rgb_bits) {
 
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, size_t), size_t rgb_bits) {
+BlockDecompressChain<D, T>::colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, uint16_t), T max_rgb_value) {
   for (size_t i = 0; i < constpow(8, D); i++) {
-    f(m_rgb_block[i], m_ycbcr_block[i], rgb_bits);
+    f(m_rgb_block[i], m_ycbcr_block[i], max_rgb_value);
   }
 
   return *this;
@@ -109,17 +109,17 @@ BlockDecompressChain<D, T>::colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT
 
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block) {
+BlockDecompressChain<D, T>::putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block, T max_rgb_value) {
   auto inputR = [&](size_t index) {
-    return std::clamp<double>(m_rgb_block[index].r, 0, static_cast<RGBUNIT>(-1));
+    return std::clamp<double>(m_rgb_block[index].r, 0, max_rgb_value);
   };
 
   auto inputG = [&](size_t index) {
-    return std::clamp<double>(m_rgb_block[index].g, 0, static_cast<RGBUNIT>(-1));
+    return std::clamp<double>(m_rgb_block[index].g, 0, max_rgb_value);
   };
 
   auto inputB = [&](size_t index) {
-    return std::clamp<double>(m_rgb_block[index].b, 0, static_cast<RGBUNIT>(-1));
+    return std::clamp<double>(m_rgb_block[index].b, 0, max_rgb_value);
   };
 
 

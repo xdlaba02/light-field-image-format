@@ -56,7 +56,7 @@ int doTest(LFIFCompressStruct cinfo, const vector<uint8_t> &original, ofstream &
   dinfo.image_width     = cinfo.image_width;
   dinfo.image_height    = cinfo.image_height;
   dinfo.image_count     = cinfo.image_count;
-  dinfo.color_space     = cinfo.color_space;
+  dinfo.max_rgb_value   = cinfo.max_rgb_value;
   dinfo.method          = cinfo.method;
   dinfo.input_file_name = cinfo.output_file_name;
 
@@ -91,11 +91,11 @@ int doTest(LFIFCompressStruct cinfo, const vector<uint8_t> &original, ofstream &
       return -1;
     }
 
-    if (dinfo.color_space == RGB24) {
-      psnr = PSNR(MSE<uint8_t>(original.data(), decompressed.data(), image_pixels * 3), 255);
+    if (dinfo.max_rgb_value < 256) {
+      psnr = PSNR(MSE<uint8_t>(original.data(), decompressed.data(), image_pixels * 3), dinfo.max_rgb_value);
     }
     else {
-      psnr = PSNR(MSE<uint16_t>(reinterpret_cast<const uint16_t *>(original.data()), reinterpret_cast<const uint16_t *>(decompressed.data()), image_pixels * 3), 65535);
+      psnr = PSNR(MSE<uint16_t>(reinterpret_cast<const uint16_t *>(original.data()), reinterpret_cast<const uint16_t *>(decompressed.data()), image_pixels * 3), dinfo.max_rgb_value);
     }
 
     bpp = compressed_image_size * 8.0 / image_pixels;
@@ -217,24 +217,10 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  cinfo.image_width  = width;
-  cinfo.image_height = height;
-  cinfo.image_count  = image_count;
-
-  switch (color_depth) {
-    case 255:
-      cinfo.color_space = RGB24;
-    break;
-
-    case 65535:
-      cinfo.color_space = RGB48;
-    break;
-
-    default:
-      cerr << "ERROR: UNSUPPORTED COLOR DEPTH" << endl;
-      return 3;
-    break;
-  }
+  cinfo.image_width      = width;
+  cinfo.image_height     = height;
+  cinfo.image_count      = image_count;
+  cinfo.max_rgb_value    = color_depth;
 
   if (output_file_2D) {
     cinfo.method = LFIF_2D;

@@ -8,6 +8,8 @@
 
 #include <lfiflib.h>
 
+#include <cmath>
+
 #include <iostream>
 #include <vector>
 
@@ -19,7 +21,6 @@ int main(int argc, char *argv[]) {
   const char *output_file_mask {};
 
   vector<uint8_t> rgb_data     {};
-  uint16_t color_depth         {};
 
   LFIFDecompressStruct dinfo   {};
 
@@ -31,13 +32,12 @@ int main(int argc, char *argv[]) {
 
   errcode = LFIFReadHeader(&dinfo);
 
-  if (dinfo.color_space == RGB24) {
+  if (dinfo.max_rgb_value < 256) {
     rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3);
-    color_depth = 255;
+
   }
   else {
     rgb_data.resize(dinfo.image_width * dinfo.image_height * dinfo.image_count * 3 * 2);
-    color_depth = 65535;
   }
 
   errcode = LFIFDecompress(&dinfo, rgb_data.data());
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     break;
   }
 
-  if (!savePPMs(output_file_mask, rgb_data.data(), dinfo.image_width, dinfo.image_height, color_depth, dinfo.image_count)) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), dinfo.image_width, dinfo.image_height, dinfo.max_rgb_value, dinfo.image_count)) {
     return 3;
   }
 

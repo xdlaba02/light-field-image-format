@@ -2,11 +2,11 @@
 
 #include <algorithm>
 
-using namespace std;
-
 template class QuantTable<2>;
 template class QuantTable<3>;
 template class QuantTable<4>;
+
+using namespace std;
 
 template <size_t D>
 QuantTable<D> &

@@ -18,17 +18,17 @@
 template <size_t D, typename T>
 class BlockDecompressChain {
 public:
-  BlockDecompressChain<D, T> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t rgb_bits);
+  BlockDecompressChain<D, T> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, T max_rgb_value);
   BlockDecompressChain<D, T> &runLengthDecode();
   BlockDecompressChain<D, T> &detraverse(TraversalTable<D> &traversal_table);
   BlockDecompressChain<D, T> &diffDecodeDC(QDATAUNIT &previous_DC);
   BlockDecompressChain<D, T> &dequantize(QuantTable<D> &quant_table);
   BlockDecompressChain<D, T> &inverseDiscreteCosineTransform();
-  BlockDecompressChain<D, T> &decenterValues(size_t rgb_bits);
-  BlockDecompressChain<D, T> &colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, size_t), size_t rgb_bits);
-  BlockDecompressChain<D, T> &putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block);
+  BlockDecompressChain<D, T> &decenterValues(T max_rgb_value);
+  BlockDecompressChain<D, T> &colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, uint16_t), T max_rgb_value);
+  BlockDecompressChain<D, T> &putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block, T max_rgb_value);
 
-private:
+public: //FIXME
   std::vector<RunLengthPair> m_runlength;
   Block<QDATAUNIT,        D> m_traversed_block;
   Block<QDATAUNIT,        D> m_quantized_block;

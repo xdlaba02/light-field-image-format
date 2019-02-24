@@ -21,7 +21,7 @@ typedef struct {
   uint64_t       image_height;
   uint64_t       image_count;
   uint8_t        quality;
-  uint8_t        bits_per_channel;
+  uint16_t       max_rgb_value;
   const char    *output_file_name;
 } LFIFCompressStruct;
 
@@ -32,7 +32,7 @@ typedef struct {
   uint64_t       image_width;
   uint64_t       image_height;
   uint64_t       image_count;
-  uint8_t        bits_per_channel;
+  uint16_t       max_rgb_value;
   const char    *input_file_name;
 } LFIFDecompressStruct;
 

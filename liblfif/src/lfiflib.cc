@@ -4,6 +4,8 @@
 
 #include <cmath>
 
+#include <fstream>
+
 using namespace std;
 
 int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
@@ -40,18 +42,19 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
-  output.write(reinterpret_cast<const char *>(&lfif->bits_per_channel), sizeof(lfif->bits_per_channel));
+  uint16_t tmp16 {};
+  tmp16 = htobe16(lfif->max_rgb_value);
+  output.write(reinterpret_cast<const char *>(&tmp16), sizeof(tmp16));
 
-  uint64_t tmp {};
-  tmp = htobe64(lfif->image_width);
-  output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
+  uint64_t tmp64 {};
+  tmp64 = htobe64(lfif->image_width);
+  output.write(reinterpret_cast<const char *>(&tmp64), sizeof(tmp64));
 
-  tmp = htobe64(lfif->image_height);
-  output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
+  tmp64 = htobe64(lfif->image_height);
+  output.write(reinterpret_cast<const char *>(&tmp64), sizeof(tmp64));
 
-  tmp = htobe64(lfif->image_count);
-  output.write(reinterpret_cast<const char *>(&tmp), sizeof(tmp));
-
+  tmp64 = htobe64(lfif->image_count);
+  output.write(reinterpret_cast<const char *>(&tmp64), sizeof(tmp64));
 
   img_dims[0] = lfif->image_width;
   img_dims[1] = lfif->image_height;
@@ -59,11 +62,11 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
 
-      if (lfif->bits_per_channel <= 8) {
-        return LFIFCompress<2, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      if (lfif->max_rgb_value < 256) {
+        return LFIFCompress<2, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
       }
-      else if (lfif->bits_per_channel <= 16) {
-        return LFIFCompress<2, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      else {
+        return LFIFCompress<2, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
       }
     break;
 
@@ -71,11 +74,11 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
       img_dims[2] = lfif->image_count;
       img_dims[3] = 1;
 
-      if (lfif->bits_per_channel <= 8) {
-        return LFIFCompress<3, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      if (lfif->max_rgb_value < 256) {
+        return LFIFCompress<3, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
       }
-      else if (lfif->bits_per_channel <= 16) {
-        return LFIFCompress<3, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      else {
+        return LFIFCompress<3, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
       }
     break;
 
@@ -84,11 +87,11 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
 
-      if (lfif->bits_per_channel <= 8) {
-        return LFIFCompress<4, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      if (lfif->max_rgb_value < 256) {
+        return LFIFCompress<4, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
       }
-      else if (lfif->bits_per_channel <= 16) {
-        return LFIFCompress<4, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->bits_per_channel, output);
+      else {
+        return LFIFCompress<4, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
       }
     break;
 
@@ -120,7 +123,8 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
   input.read(magic_number, 8);
   lfif->method = getCompressMethod(string(magic_number));
 
-  input.read(reinterpret_cast<char *>(&lfif->bits_per_channel), sizeof(lfif->bits_per_channel));
+  input.read(reinterpret_cast<char *>(&lfif->max_rgb_value), sizeof(lfif->max_rgb_value));
+  lfif->max_rgb_value = be16toh(lfif->max_rgb_value);
 
   input.read(reinterpret_cast<char *>(&lfif->image_width), sizeof(lfif->image_width));
   lfif->image_width = be64toh(lfif->image_width);
@@ -151,11 +155,11 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
 
-      if (lfif->bits_per_channel <= 8) {
-        return LFIFDecompress<2, uint8_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint8_t *>(rgb_buffer));
+      if (lfif->max_rgb_value < 256) {
+        return LFIFDecompress<2, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));
       }
-      else if (lfif->bits_per_channel <= 16) {
-        return LFIFDecompress<2, uint16_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint16_t *>(rgb_buffer));
+      else {
+        return LFIFDecompress<2, uint16_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint16_t *>(rgb_buffer));
       }
     break;
 
@@ -163,11 +167,11 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
       img_dims[2] = lfif->image_count;
       img_dims[3] = 1;
 
-      if (lfif->bits_per_channel <= 8) {
-        return LFIFDecompress<3, uint8_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint8_t *>(rgb_buffer));
+      if (lfif->max_rgb_value < 256) {
+        return LFIFDecompress<3, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));
       }
-      else if (lfif->bits_per_channel <= 16) {
-        return LFIFDecompress<3, uint16_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint16_t *>(rgb_buffer));
+      else {
+        return LFIFDecompress<3, uint16_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint16_t *>(rgb_buffer));
       }
     break;
 
@@ -176,11 +180,11 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
 
-      if (lfif->bits_per_channel <= 8) {
-        return LFIFDecompress<4, uint8_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint8_t *>(rgb_buffer));
+      if (lfif->max_rgb_value < 256) {
+        return LFIFDecompress<4, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));
       }
-      else if (lfif->bits_per_channel <= 16) {
-        return LFIFDecompress<4, uint16_t>(input, img_dims, lfif->bits_per_channel, static_cast<uint16_t *>(rgb_buffer));
+      else {
+        return LFIFDecompress<4, uint16_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint16_t *>(rgb_buffer));
       }
     break;
 
