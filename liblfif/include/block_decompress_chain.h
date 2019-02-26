@@ -18,7 +18,7 @@
 template <size_t D, typename T>
 class BlockDecompressChain {
 public:
-  BlockDecompressChain<D, T> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, T max_rgb_value);
+  BlockDecompressChain<D, T> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits);
   BlockDecompressChain<D, T> &runLengthDecode();
   BlockDecompressChain<D, T> &detraverse(TraversalTable<D> &traversal_table);
   BlockDecompressChain<D, T> &diffDecodeDC(QDATAUNIT &previous_DC);

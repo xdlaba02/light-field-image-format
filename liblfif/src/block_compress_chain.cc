@@ -121,12 +121,10 @@ BlockCompressChain<D, T>::traverse(const TraversalTable<D> &traversal_table) {
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::runLengthEncode(T max_rgb_value) {
+BlockCompressChain<D, T>::runLengthEncode(size_t max_zeroes) {
   std::vector<RunLengthPair> runlength {};
 
   runlength.push_back({0, m_traversed_block[0]});
-
-  size_t max_zeroes = constpow(2, RunLengthPair::zeroesBits(DCTOutputBits<D>(ceil(log2(max_rgb_value)))));
 
   size_t zeroes = 0;
   for (size_t i = 1; i < constpow(8, D); i++) {
@@ -152,12 +150,10 @@ BlockCompressChain<D, T>::runLengthEncode(T max_rgb_value) {
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], T max_rgb_value) {
-  size_t amp_bits = DCTOutputBits<D>(ceil(log2(max_rgb_value)));
-
-  m_runlength[0].addToWeights(weights[0], amp_bits);
+BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], size_t class_bits) {
+  m_runlength[0].addToWeights(weights[0], class_bits);
   for (size_t i = 1; i < m_runlength.size(); i++) {
-    m_runlength[i].addToWeights(weights[1], amp_bits);
+    m_runlength[i].addToWeights(weights[1], class_bits);
   }
 
   return *this;
@@ -165,12 +161,10 @@ BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], T max_rgb
 
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
-BlockCompressChain<D, T>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, T max_rgb_value) {
-  size_t amp_bits = DCTOutputBits<D>(ceil(log2(max_rgb_value)));
-
-  m_runlength[0].huffmanEncodeToStream(encoder[0], stream, amp_bits);
+BlockCompressChain<D, T>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
+  m_runlength[0].huffmanEncodeToStream(encoder[0], stream, class_bits);
   for (size_t i = 1; i < m_runlength.size(); i++) {
-    m_runlength[i].huffmanEncodeToStream(encoder[1], stream, amp_bits);
+    m_runlength[i].huffmanEncodeToStream(encoder[1], stream, class_bits);
   }
 
   return *this;

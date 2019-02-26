@@ -41,6 +41,12 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
   size_t blocks_cnt {};
   size_t pixels_cnt {};
 
+  size_t rgb_bits    {};
+  size_t amp_bits    {};
+  size_t zeroes_bits {};
+  size_t class_bits  {};
+  size_t max_zeroes  {};
+
   color_convertors[0] =  RGBToY;
   color_convertors[1] =  RGBToCb;
   color_convertors[2] =  RGBToCr;
@@ -72,6 +78,12 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
     blocks_cnt *= ceil(img_dims[i]/8.);
     pixels_cnt *= img_dims[i];
   }
+
+  rgb_bits = ceil(log2(max_rgb_value));
+  amp_bits = log2(constpow(8, D)) + rgb_bits - D - (D/2);
+  class_bits = RunLengthPair::classBits(amp_bits);
+  zeroes_bits = RunLengthPair::zeroesBits(class_bits);
+  max_zeroes = constpow(2, zeroes_bits);
 
   quant_table[0]
   . baseLuma()
@@ -119,8 +131,8 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
         . quantize(*quant_tables[channel])
         . diffEncodeDC(previous_DC[channel])
         . traverse(*traversal_tables[channel])
-        . runLengthEncode(max_rgb_value)
-        . huffmanAddWeights(huffman_weights[channel], max_rgb_value);
+        . runLengthEncode(max_zeroes)
+        . huffmanAddWeights(huffman_weights[channel], class_bits);
       }
     }
   }
@@ -162,8 +174,8 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
         . quantize(*quant_tables[channel])
         . diffEncodeDC(previous_DC[channel])
         . traverse(*traversal_tables[channel])
-        . runLengthEncode(max_rgb_value)
-        . encodeToStream(huffman_encoders[channel], bitstream, max_rgb_value);
+        . runLengthEncode(max_zeroes)
+        . encodeToStream(huffman_encoders[channel], bitstream, class_bits);
       }
     }
   }

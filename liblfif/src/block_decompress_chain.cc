@@ -14,17 +14,15 @@ template class BlockDecompressChain<4, uint16_t>;
 
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, T max_rgb_value) {
+BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits) {
   RunLengthPair              pair      {};
   std::vector<RunLengthPair> runlength {};
 
-  size_t amp_bits = DCTOutputBits<D>(ceil(log2(max_rgb_value)));
-
-  pair.huffmanDecodeFromStream(huffman_decoders[0], bitstream, amp_bits);
+  pair.huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
   runlength.push_back(pair);
 
   do {
-    pair.huffmanDecodeFromStream(huffman_decoders[1], bitstream, amp_bits);
+    pair.huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
     runlength.push_back(pair);
   } while(!pair.endOfBlock());
 

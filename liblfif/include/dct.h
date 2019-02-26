@@ -77,9 +77,4 @@ struct idct<1> {
   }
 };
 
-template <size_t D>
-size_t DCTOutputBits(size_t input_bits) {
-  return log2(constpow(8, D)) + input_bits - D - (D/2);
-}
-
 #endif

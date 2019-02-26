@@ -13,7 +13,6 @@
 #include "dct.h"
 #include "runlength.h"
 
-
 #include <cstdlib>
 #include <cstdint>
 
@@ -28,9 +27,9 @@ public:
   BlockCompressChain<D, T> &addToReferenceBlock(ReferenceBlock<D> &reference);
   BlockCompressChain<D, T> &diffEncodeDC(QDATAUNIT &previous_DC);
   BlockCompressChain<D, T> &traverse(const TraversalTable<D> &traversal_table);
-  BlockCompressChain<D, T> &runLengthEncode(T max_rgb_value);
-  BlockCompressChain<D, T> &huffmanAddWeights(HuffmanWeights weights[2], T max_rgb_value);
-  BlockCompressChain<D, T> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, T max_rgb_value);
+  BlockCompressChain<D, T> &runLengthEncode(size_t max_zeroes);
+  BlockCompressChain<D, T> &huffmanAddWeights(HuffmanWeights weights[2], size_t class_bits);
+  BlockCompressChain<D, T> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits);
 
 public: //FIXME
   Block<RGBPixel<T>, D>      m_rgb_block;

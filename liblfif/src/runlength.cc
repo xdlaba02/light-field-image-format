@@ -4,18 +4,18 @@
 #include <cmath>
 
 RunLengthPair &
-RunLengthPair::addToWeights(HuffmanWeights &weights, size_t amp_bits) {
-  weights[huffmanSymbol(amp_bits)]++;
+RunLengthPair::addToWeights(HuffmanWeights &weights, size_t class_bits) {
+  weights[huffmanSymbol(class_bits)]++;
 
   return *this;
 }
 
 RunLengthPair &
-RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream, size_t amp_bits) {
+RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) {
   HuffmanClass amp_class {};
   RLAMPUNIT    amp       {};
 
-  encoder.encodeSymbolToStream(huffmanSymbol(amp_bits), stream);
+  encoder.encodeSymbolToStream(huffmanSymbol(class_bits), stream);
 
   amp = amplitude;
   if (amp < 0) {
@@ -33,13 +33,13 @@ RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream
 
 
 RunLengthPair &
-RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stream, size_t amp_bits) {
-  HuffmanSymbol huffman_symbol {};
+RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits) {
   HuffmanClass  amp_class      {};
+  HuffmanSymbol huffman_symbol {};
 
   huffman_symbol  = decoder.decodeSymbolFromStream(stream);
-  amp_class       = huffman_symbol & (~(static_cast<HuffmanSymbol>(-1) << classBits(amp_bits)));
-  zeroes          = huffman_symbol >> classBits(amp_bits);
+  amp_class       = huffman_symbol & (~(static_cast<HuffmanSymbol>(-1) << class_bits));
+  zeroes          = huffman_symbol >> class_bits;
   amplitude       = 0;
 
   if (amp_class != 0) {
@@ -64,15 +64,14 @@ bool RunLengthPair::endOfBlock() const {
 }
 
 
-size_t RunLengthPair::zeroesBits(size_t amp_bits) {
-  return sizeof(HuffmanSymbol) * 8 - classBits(amp_bits);
+size_t RunLengthPair::zeroesBits(size_t class_bits) {
+  return sizeof(HuffmanSymbol) * 8 - class_bits;
 }
 
 
 size_t RunLengthPair::classBits(size_t amp_bits) {
   return ceil(log2(amp_bits));
 }
-
 
 HuffmanClass RunLengthPair::huffmanClass() const {
   RLAMPUNIT amp = amplitude;
@@ -81,7 +80,7 @@ HuffmanClass RunLengthPair::huffmanClass() const {
   }
 
   HuffmanClass huff_class = 0;
-  while (amp > 0) {
+  while (amp) {
     amp >>= 1;
     huff_class++;
   }
@@ -90,6 +89,6 @@ HuffmanClass RunLengthPair::huffmanClass() const {
 }
 
 
-HuffmanSymbol RunLengthPair::huffmanSymbol(size_t amp_bits) const {
-  return zeroes << classBits(amp_bits) | huffmanClass();
+HuffmanSymbol RunLengthPair::huffmanSymbol(size_t class_bits) const {
+  return zeroes << class_bits | huffmanClass();
 }

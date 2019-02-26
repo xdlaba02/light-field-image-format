@@ -39,6 +39,10 @@ int LFIFDecompress(ifstream &input, const uint64_t img_dims[D+1], T max_rgb_valu
   size_t blocks_cnt {};
   size_t pixels_cnt {};
 
+  size_t rgb_bits    {};
+  size_t amp_bits    {};
+  size_t class_bits  {};
+
   huffman_decoders[0] =  huffman_decoder[0];
   huffman_decoders[1] =  huffman_decoder[1];
   huffman_decoders[2] =  huffman_decoder[1];
@@ -80,6 +84,10 @@ int LFIFDecompress(ifstream &input, const uint64_t img_dims[D+1], T max_rgb_valu
     pixels_cnt *= img_dims[i];
   }
 
+  rgb_bits = ceil(log2(max_rgb_value));
+  amp_bits = log2(constpow(8, D)) + rgb_bits - D - (D/2);
+  class_bits = RunLengthPair::classBits(amp_bits);
+
   previous_DC[0] = 0;
   previous_DC[1] = 0;
   previous_DC[2] = 0;
@@ -90,7 +98,7 @@ int LFIFDecompress(ifstream &input, const uint64_t img_dims[D+1], T max_rgb_valu
     for (size_t block = 0; block < blocks_cnt; block++) {
       for (size_t channel = 0; channel < 3; channel++) {
         block_decompress_chain
-        . decodeFromStream(huffman_decoders[channel], bitstream, max_rgb_value)
+        . decodeFromStream(huffman_decoders[channel], bitstream, class_bits)
         . runLengthDecode()
         . detraverse(*traversal_tables[channel])
         . diffDecodeDC(previous_DC[channel])
