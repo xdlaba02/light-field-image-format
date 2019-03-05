@@ -71,8 +71,13 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
 
     case LFIF_3D:
+      /* Alternative, there may be high frequencies in edge blocks when square root of image count is not divisable by 8
       img_dims[2] = lfif->image_count;
       img_dims[3] = 1;
+      */
+
+      img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
+      img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
 
       if (lfif->max_rgb_value < 256) {
         return LFIFCompress<3, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
