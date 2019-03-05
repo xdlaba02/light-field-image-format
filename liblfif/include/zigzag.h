@@ -65,19 +65,10 @@ struct zigzagCore {
 };
 
 template <>
-struct zigzagCore<2> {
+struct zigzagCore<1> {
   template <typename F>
-  zigzagCore(F &put, std::array<int64_t, 2> dims, int64_t size, std::vector<size_t> &table, size_t DD) {
-    while ((dims[1] < size) && (dims[0] >= 0)) {
-      put(dims[1] * size + dims[0]);
-      dims[0]--;
-      dims[1]++;
-    }
-
-    for (int64_t i = 0; i < constpow(size, DD - 2); i++) {
-      rotate<2>(&table[i * constpow(size, 2)], size);
-    }
-
+  zigzagCore(F &put, std::array<int64_t, 1> dims, int64_t, std::vector<size_t> &, size_t) {
+    put(dims[0]);
   }
 };
 
