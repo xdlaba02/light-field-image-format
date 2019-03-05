@@ -4,56 +4,8 @@
 \******************************************************************************/
 
 #include "zigzag.h"
-#include "constpow.h"
 
-template <size_t D>
-struct rotateF {
-  template <typename IF, typename OF>
-  rotateF(const IF &input, const OF &output, size_t size) {
-    for (size_t y = 0; y < size; y++) {
-      auto inputF = [&](size_t x) {
-        return input(y * size + x);
-      };
 
-      auto outputF = [&](size_t x) -> size_t & {
-        return output(x * size + y);
-      };
-
-      rotateF<D-1>(inputF, outputF, size);
-    }
-  }
-};
-
-template <>
-struct rotateF<1> {
-  template <typename IF, typename OF>
-  rotateF(const IF &input, const OF &output, size_t size) {
-    for (size_t x = 0; x < size; x++) {
-      output(size) = input(size);
-    }
-  }
-};
-
-template <size_t D>
-void rotate(size_t *input, size_t size) {
-  std::vector<size_t> output(constpow(size, D));
-
-  auto inputF = [&](size_t index) {
-    return input[index];
-  };
-
-  auto outputF = [&](size_t index) -> size_t & {
-    return output[index];
-  };
-
-  rotateF<D>(inputF, outputF, size);
-
-  for (size_t i = 0; i < output.size(); i++) {
-    input[i] = output[i];
-  }
-}
-
-/*
 void rotate2D(size_t *input, size_t size) {
   std::vector<size_t> output(size * size);
 
@@ -100,7 +52,7 @@ void rotate4D(size_t *input, size_t size) {
   for (size_t i = 0; i < output.size(); i++) {
     input[i] = output[i];
   }
-}*/
+}
 
 std::vector<size_t> generateZigzagTable2D(int64_t size) {
   std::vector<size_t> table(size * size);
@@ -119,7 +71,7 @@ std::vector<size_t> generateZigzagTable2D(int64_t size) {
       y++;
     }
 
-    rotate<2>(&table[0], size);
+    rotate2D(&table[0], size);
 
     if (xx < size - 1) {
       xx++;
@@ -157,7 +109,7 @@ std::vector<size_t> generateZigzagTable3D(int64_t size) {
       }
 
       for (int64_t i = 0; i < size; i++) {
-        rotate<2>(&table[i * size * size], size);
+        rotate2D(&table[i * size * size], size);
       }
 
       if (yy > 0) {
@@ -170,7 +122,7 @@ std::vector<size_t> generateZigzagTable3D(int64_t size) {
       zz++;
     }
 
-    rotate<3>(&table[0], size);
+    rotate3D(&table[0], size);
 
     if (xxx < size - 1) {
       xxx++;
@@ -218,7 +170,7 @@ std::vector<size_t> generateZigzagTable4D(int64_t size) {
         }
 
         for (int64_t i = 0; i < size * size; i++) {
-          rotate<2>(&table[i * size * size], size);
+          rotate2D(&table[i * size * size], size);
         }
 
         if (yy > 0) {
@@ -232,7 +184,7 @@ std::vector<size_t> generateZigzagTable4D(int64_t size) {
       }
 
       for (int64_t i = 0; i < size; i++) {
-        rotate<3>(&table[i * size * size * size], size);
+        rotate3D(&table[i * size * size * size], size);
       }
 
       if (www > 0) {
@@ -248,7 +200,7 @@ std::vector<size_t> generateZigzagTable4D(int64_t size) {
       hhh++;
     }
 
-    rotate<4>(&table[0], size);
+    rotate4D(&table[0], size);
 
     if (xxxx < size - 1) {
       xxxx++;
