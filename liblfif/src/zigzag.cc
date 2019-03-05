@@ -5,7 +5,6 @@
 
 #include "zigzag.h"
 
-
 void rotate2D(size_t *input, size_t size) {
   std::vector<size_t> output(size * size);
 
@@ -166,6 +165,7 @@ std::vector<size_t> generateZigzagTable4D(int64_t size) {
         while ((y < size) && (x >= 0)) {
           table[((hhh * size + ww) * size + y) * size + x] = index++;
           x--;
+
           y++;
         }
 
