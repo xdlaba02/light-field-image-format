@@ -7,6 +7,7 @@
 #define TRAVERSAL_TABLE_H
 
 #include "lfiftypes.h"
+#include "quant_table.h"
 
 #include <iosfwd>
 
@@ -20,8 +21,11 @@ template <size_t D>
 class TraversalTable {
 public:
   TraversalTable<D> &constructByReference(const ReferenceBlock<D> &reference_block);
+  TraversalTable<D> &constructByQuantTable(const QuantTable<D> &quant_table);
   TraversalTable<D> &constructByRadius();
   TraversalTable<D> &constructByDiagonals();
+  TraversalTable<D> &constructByHyperboloid();
+  TraversalTable<D> &constructZigzag();
 
   TraversalTable<D> &writeToStream(std::ofstream &stream);
   TraversalTable<D> &readFromStream(std::ifstream &stream);
