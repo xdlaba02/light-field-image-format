@@ -8,6 +8,8 @@
 
 #include "lfiftypes.h"
 
+#include <cmath>
+
 template<size_t D, typename T>
 struct getBlock {
   template <typename IF, typename OF>

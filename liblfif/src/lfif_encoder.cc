@@ -86,12 +86,10 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
   max_zeroes = constpow(2, zeroes_bits);
 
   quant_table[0]
-  . baseLuma()
-  . scaleByQuality(quality);
+  . baseDiagonalTable(QuantTable<D>::base_luma, quality);
 
   quant_table[1]
-  . baseChroma()
-  . scaleByQuality(quality);
+  . baseDiagonalTable(QuantTable<D>::base_chroma, quality);
 
   for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {

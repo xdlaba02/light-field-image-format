@@ -20,16 +20,21 @@ using namespace std;
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-s <quality-step>]" << endl;
+  cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a]" << endl;
 }
 
 int main(int argc, char *argv[]) {
   const char *input_file_mask {};
   const char *output_file  {};
+  const char *quality_first {};
+  const char *quality_last {};
 
   const char *quality_step    {};
 
   uint8_t q_step  {};
+  uint8_t q_first  {};
+  uint8_t q_last  {};
+  bool append             {};
 
   vector<uint8_t> rgb_data {};
 
@@ -47,7 +52,7 @@ int main(int argc, char *argv[]) {
   int row_stride               {};
 
   char opt {};
-  while ((opt = getopt(argc, argv, "i:o:s:")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:s:f:l:a")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -65,7 +70,28 @@ int main(int argc, char *argv[]) {
 
       case 'o':
         if (!output_file) {
-          output_file = optarg;;
+          output_file = optarg;
+          continue;
+        }
+      break;
+
+      case 'f':
+        if (!quality_first) {
+          quality_first = optarg;
+          continue;
+        }
+      break;
+
+      case 'l':
+        if (!quality_last) {
+          quality_last = optarg;
+          continue;
+        }
+      break;
+
+      case 'a':
+        if (!append) {
+          append = true;
           continue;
         }
       break;
@@ -93,6 +119,26 @@ int main(int argc, char *argv[]) {
     q_step = tmp;
   }
 
+  q_first = q_step;
+  if (quality_first) {
+    int tmp = atoi(quality_first);
+    if ((tmp < 1) || (tmp > 100)) {
+      print_usage(argv[0]);
+      return 1;
+    }
+    q_first = tmp;
+  }
+
+  q_last = 100;
+  if (quality_last) {
+    int tmp = atoi(quality_last);
+    if ((tmp < 1) || (tmp > 100)) {
+      print_usage(argv[0]);
+      return 1;
+    }
+    q_last = tmp;
+  }
+
   if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
     return 2;
   }
@@ -118,12 +164,18 @@ int main(int argc, char *argv[]) {
 
   row_stride = width * 3;
 
-  ofstream output(output_file);
-  output << "'mozjpeg' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+  ofstream output {};
+  if (append) {
+    output.open(output_file, std::fstream::app);
+  }
+  else {
+    output.open(output_file, std::fstream::trunc);
+    output << "'mozjpeg' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+  }
 
   size_t image_pixels = width * height * image_count;
 
-  for (size_t quality = q_step; quality <= 100; quality += q_step) {
+  for (size_t quality = q_first; quality <= q_last; quality += q_step) {
     cerr << "Q" << quality << " STARTED" << endl;
 
     size_t compressed_size = 0;

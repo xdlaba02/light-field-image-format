@@ -169,8 +169,8 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
     break;
 
     case LFIF_3D:
-      img_dims[2] = lfif->image_count;
-      img_dims[3] = 1;
+      img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
+      img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
 
       if (lfif->max_rgb_value < 256) {
         return LFIFDecompress<3, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));

@@ -18,6 +18,7 @@ TraversalTable<D>::constructByReference(const ReferenceBlock<D> &reference_block
     srt[i].second = i;
   }
 
+  //do NOT sort DC coefficient, thus +1 at the begining. 
   stable_sort(srt.begin() + 1, srt.end(), [](auto &left, auto &right) {
     return left.first > right.first;
   });

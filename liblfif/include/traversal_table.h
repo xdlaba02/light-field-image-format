@@ -20,6 +20,7 @@ using ReferenceBlock = Block<REFBLOCKUNIT, D>;
 template <size_t D>
 class TraversalTable {
 public:
+  // TODO Reference as median
   TraversalTable<D> &constructByReference(const ReferenceBlock<D> &reference_block);
   TraversalTable<D> &constructByQuantTable(const QuantTable<D> &quant_table);
   TraversalTable<D> &constructByRadius();

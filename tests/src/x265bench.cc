@@ -24,7 +24,7 @@ using namespace std;
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-s <quality-step>]" << endl;
+  cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-f <fist-bitrate>] [-l <last-bitrate>] [-a]" << endl;
 }
 
 void encode(AVCodecContext *context, AVFrame *frame, AVPacket *pkt, const function<void(AVPacket *)> &callback) {
@@ -74,6 +74,8 @@ void decode(AVCodecContext *context, AVFrame *frame, AVPacket *pkt, const functi
 int main(int argc, char *argv[]) {
   const char *input_file_mask {};
   const char *output_file     {};
+  const char *first_bitrate     {};
+  const char *last_bitrate     {};
 
   vector<uint8_t> rgb_data  {};
 
@@ -84,8 +86,13 @@ int main(int argc, char *argv[]) {
 
   size_t image_pixels  {};
 
+  double f_b {};
+  double l_b {};
+
+  bool append {};
+
   char opt {};
-  while ((opt = getopt(argc, argv, "i:o:")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:f:l:a")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -96,7 +103,28 @@ int main(int argc, char *argv[]) {
 
       case 'o':
         if (!output_file) {
-          output_file = optarg;;
+          output_file = optarg;
+          continue;
+        }
+      break;
+
+      case 'f':
+        if (!first_bitrate) {
+          first_bitrate = optarg;
+          continue;
+        }
+      break;
+
+      case 'l':
+        if (!last_bitrate) {
+          last_bitrate = optarg;
+          continue;
+        }
+      break;
+
+      case 'a':
+        if (!append) {
+          append = true;
           continue;
         }
       break;
@@ -111,6 +139,16 @@ int main(int argc, char *argv[]) {
   if (!input_file_mask || !output_file) {
     print_usage(argv[0]);
     return 1;
+  }
+
+  f_b = 0.1;
+  if (first_bitrate) {
+    f_b = stod(first_bitrate);
+  }
+
+  l_b = 15;
+  if (last_bitrate) {
+    l_b = stod(last_bitrate);
   }
 
   if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
@@ -180,15 +218,15 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  decoder = avcodec_find_decoder(AV_CODEC_ID_HEVC);
+  decoder = avcodec_find_decoder(AV_CODEC_ID_H265);
   if (!decoder) {
-    cerr << "decoder AV_CODEC_ID_HEVC not found" << endl;
+    cerr << "decoder AV_CODEC_ID_H265 not found" << endl;
     exit(1);
   }
 
-  coder = avcodec_find_encoder_by_name("libx265");
+  coder = avcodec_find_encoder(AV_CODEC_ID_H265);
   if (!coder) {
-    cerr << "coder 'libx265' not found" << endl;
+    cerr << "coder AV_CODEC_ID_H265 not found" << endl;
     exit(1);
   }
 
@@ -210,7 +248,7 @@ int main(int argc, char *argv[]) {
   in_context->time_base = {1, int(image_count)};
   in_context->framerate = {int(image_count), 1};
 
-  in_context->gop_size = image_count;
+  in_context->gop_size = 0;
   in_context->pix_fmt = AV_PIX_FMT_YUV444P;
 
   in_convert_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24, width, height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
@@ -225,10 +263,16 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  ofstream output(output_file);
-  output << "'x265' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+  ofstream output {};
+  if (append) {
+    output.open(output_file, std::fstream::app);
+  }
+  else {
+    output.open(output_file, std::fstream::trunc);
+    output << "'x265 intra' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+  }
 
-  for (double bpp = 0.1; bpp <= 10; bpp *= 1.25893) {
+  for (double bpp = f_b; bpp <= l_b; bpp *= 1.25893) {
     vector<uint8_t> out_rgb_data {};
     size_t compressed_size = 0;
 
@@ -248,7 +292,8 @@ int main(int argc, char *argv[]) {
     size_t input_iterator = 0;
 
     auto saveFrame = [&](AVFrame *frame) {
-      sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, height, rgb_frame->data, rgb_frame->linesize);
+      int outLinesize[1] = { static_cast<int>(3 * width) };
+      sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, height, rgb_frame->data, outLinesize);
 
       for (int pix = 0; pix < rgb_frame->width * rgb_frame->height * 3; pix++) {
         double tmp = rgb_data[input_iterator] - rgb_frame->data[0][pix];
@@ -269,6 +314,7 @@ int main(int argc, char *argv[]) {
       int inLinesize[1] = { static_cast<int>(3 * width) };
       sws_scale(in_convert_ctx, inData, inLinesize, 0, height, in_frame->data, in_frame->linesize);
 
+      in_frame->pict_type = AV_PICTURE_TYPE_I;
       in_frame->pts = image;
 
       encode(in_context, in_frame, pkt, decodePkt);
@@ -289,6 +335,10 @@ int main(int argc, char *argv[]) {
 
     cerr << bpp << " " << psnr << " " << out_bpp << endl;
     output << bpp << " " << psnr << " " << out_bpp << endl;
+
+    if (abs(bpp - out_bpp) > 2) {
+      break;
+    }
   }
 
   avcodec_free_context(&in_context);

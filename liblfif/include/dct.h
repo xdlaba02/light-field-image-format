@@ -9,6 +9,7 @@
 #include "constpow.h"
 
 #include <cmath>
+#include <array>
 
 using DCTDATAUNIT = double;
 
