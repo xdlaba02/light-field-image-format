@@ -7,6 +7,7 @@
 #define QUANT_TABLE_H
 
 #include "lfiftypes.h"
+#include "dct.h"
 
 #include <iosfwd>
 
@@ -15,8 +16,8 @@ using QTABLEUNIT = uint64_t;
 template <size_t D>
 class QuantTable {
 public:
-  QuantTable<D> &baseDiagonalTable(const QTABLEUNIT *qtable, uint8_t quality);
-  QuantTable<D> &baseCopyTable(const QTABLEUNIT *qtable, uint8_t quality);
+  QuantTable<D> &baseDiagonalTable(const std::array<QTABLEUNIT, 64> &qtable, uint8_t quality);
+  QuantTable<D> &baseCopyTable(const std::array<QTABLEUNIT, 64> &qtable, uint8_t quality);
   QuantTable<D> &baseUniform(uint8_t quality);
 
   QuantTable<D> &writeToStream(std::ofstream &stream);
@@ -24,7 +25,7 @@ public:
 
   QTABLEUNIT operator [](size_t index) const;
 
-  static constexpr QTABLEUNIT base_luma[] = {
+  static constexpr std::array<QTABLEUNIT, 64> base_luma = {
     16,  11,  10,  16,  24,  40,  51,  61,
     12,  12,  14,  19,  26,  58,  60,  55,
     14,  13,  16,  24,  40,  57,  69,  56,
@@ -35,7 +36,7 @@ public:
     72,  92,  95,  98, 112, 100, 103,  99
   };
 
-  static constexpr QTABLEUNIT base_chroma[] = {
+  static constexpr std::array<QTABLEUNIT, 64> base_chroma = {
     17, 18, 24, 47, 99, 99, 99, 99,
     18, 21, 26, 66, 99, 99, 99, 99,
     24, 26, 56, 99, 99, 99, 99, 99,
@@ -47,7 +48,7 @@ public:
   };
 
 private:
-  QTABLEUNIT averageForDiagonal(const QTABLEUNIT *qtable, size_t diagonal);
+  QTABLEUNIT averageForDiagonal(const std::array<QTABLEUNIT, 64> &qtable, size_t diagonal);
   QuantTable<D> &scaleByQuality(uint8_t quality);
 
   Block<QTABLEUNIT, D> m_block;

@@ -12,7 +12,7 @@
 #include <iosfwd>
 
 using REFBLOCKUNIT = double;
-using TTABLEUNIT = int64_t;
+using TTABLEUNIT = size_t;
 
 template<size_t D>
 using ReferenceBlock = Block<REFBLOCKUNIT, D>;

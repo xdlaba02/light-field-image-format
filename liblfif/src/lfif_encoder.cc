@@ -75,12 +75,12 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
   pixels_cnt = 1;
 
   for (size_t i = 0; i < D; i++) {
-    blocks_cnt *= ceil(img_dims[i]/8.);
+    blocks_cnt *= ceil(img_dims[i]/static_cast<double>(BLOCK_SIZE));
     pixels_cnt *= img_dims[i];
   }
 
   rgb_bits = ceil(log2(max_rgb_value));
-  amp_bits = log2(constpow(8, D)) + rgb_bits - D - (D/2);
+  amp_bits = ceil(log2(constpow(BLOCK_SIZE, D))) + rgb_bits - D - (D/2);
   class_bits = RunLengthPair::classBits(amp_bits);
   zeroes_bits = RunLengthPair::zeroesBits(class_bits);
   max_zeroes = constpow(2, zeroes_bits);

@@ -49,7 +49,7 @@ BlockDecompressChain<D, T>::runLengthDecode() {
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::detraverse(TraversalTable<D> &traversal_table) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_quantized_block[i] = m_traversed_block[traversal_table[i]];
   }
 
@@ -68,7 +68,7 @@ BlockDecompressChain<D, T>::diffDecodeDC(QDATAUNIT &previous_DC) {
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::dequantize(QuantTable<D> &quant_table) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_transformed_block[i] = static_cast<double>(m_quantized_block[i]) * quant_table[i];
   }
 
@@ -88,7 +88,7 @@ BlockDecompressChain<D, T>::inverseDiscreteCosineTransform() {
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::decenterValues(T max_rgb_value) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_ycbcr_block[i] += (max_rgb_value + 1) / 2;
   }
 
@@ -98,7 +98,7 @@ BlockDecompressChain<D, T>::decenterValues(T max_rgb_value) {
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, uint16_t), T max_rgb_value) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     f(m_rgb_block[i], m_ycbcr_block[i], max_rgb_value);
   }
 

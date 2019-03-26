@@ -28,7 +28,7 @@ public:
   BlockDecompressChain<D, T> &colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, uint16_t), T max_rgb_value);
   BlockDecompressChain<D, T> &putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block, T max_rgb_value);
 
-public: //FIXME
+private:
   std::vector<RunLengthPair> m_runlength;
   Block<QDATAUNIT,        D> m_traversed_block;
   Block<QDATAUNIT,        D> m_quantized_block;

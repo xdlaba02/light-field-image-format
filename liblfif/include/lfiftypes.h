@@ -13,6 +13,8 @@
 #include <array>
 #include <fstream>
 
+const size_t BLOCK_SIZE = 8;
+
 using RGBUNIT   = uint16_t;
 using QDATAUNIT = int64_t;
 using YCBCRUNIT = double;
@@ -25,7 +27,7 @@ struct RGBPixel {
 };
 
 template<typename T, size_t D>
-using Block = std::array<T, static_cast<size_t>(constpow(8, D))>;
+using Block = std::array<T, static_cast<size_t>(constpow(BLOCK_SIZE, D))>;
 
 template<typename T>
 inline void writeValueToStream(std::ofstream &stream, T data) {

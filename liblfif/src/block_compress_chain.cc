@@ -48,7 +48,7 @@ BlockCompressChain<D, T>::newRGBBlock(const T *rgb_data, const uint64_t img_dims
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::colorConvert(YCBCRUNIT (*f)(double, double, double, uint16_t), T max_rgb_value) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     double R = m_rgb_block[i].r;
     double G = m_rgb_block[i].g;
     double B = m_rgb_block[i].b;
@@ -62,7 +62,7 @@ BlockCompressChain<D, T>::colorConvert(YCBCRUNIT (*f)(double, double, double, ui
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::centerValues(T max_rgb_value) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_ycbcr_block[i] -= (max_rgb_value + 1) / 2;
   }
 
@@ -82,7 +82,7 @@ BlockCompressChain<D, T>::forwardDiscreteCosineTransform() {
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::quantize(const QuantTable<D> &quant_table) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_quantized_block[i] = m_transformed_block[i] / quant_table[i];
   }
 
@@ -92,7 +92,7 @@ BlockCompressChain<D, T>::quantize(const QuantTable<D> &quant_table) {
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::addToReferenceBlock(ReferenceBlock<D> &reference) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     reference[i] += abs(m_quantized_block[i]);
   }
 
@@ -112,7 +112,7 @@ BlockCompressChain<D, T>::diffEncodeDC(QDATAUNIT &previous_DC) {
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::traverse(const TraversalTable<D> &traversal_table) {
-  for (size_t i = 0; i < constpow(8, D); i++) {
+  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_traversed_block[traversal_table[i]] = m_quantized_block[i];
   }
 
@@ -127,7 +127,7 @@ BlockCompressChain<D, T>::runLengthEncode(size_t max_zeroes) {
   runlength.push_back({0, m_traversed_block[0]});
 
   size_t zeroes = 0;
-  for (size_t i = 1; i < constpow(8, D); i++) {
+  for (size_t i = 1; i < constpow(BLOCK_SIZE, D); i++) {
     if (m_traversed_block[i] == 0) {
       zeroes++;
     }

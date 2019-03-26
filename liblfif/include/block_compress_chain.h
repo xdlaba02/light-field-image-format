@@ -31,7 +31,7 @@ public:
   BlockCompressChain<D, T> &huffmanAddWeights(HuffmanWeights weights[2], size_t class_bits);
   BlockCompressChain<D, T> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits);
 
-public: //FIXME
+private:
   Block<RGBPixel<T>, D>      m_rgb_block;
   Block<YCBCRUNIT,   D>      m_ycbcr_block;
   Block<DCTDATAUNIT, D>      m_transformed_block;
