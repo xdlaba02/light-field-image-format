@@ -20,7 +20,7 @@ HuffmanEncoder &HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffma
   return *this;
 }
 
-HuffmanEncoder &HuffmanEncoder::writeToStream(ofstream &stream) {
+HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) {
   uint8_t codelengths_cnt = m_huffman_codelengths.back().first + 1;
   stream.put(codelengths_cnt);
 
@@ -149,7 +149,7 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
   return *this;
 }
 
-HuffmanDecoder &HuffmanDecoder::readFromStream(ifstream &stream) {
+HuffmanDecoder &HuffmanDecoder::readFromStream(istream &stream) {
   m_huffman_counts.resize(stream.get());
   stream.read(reinterpret_cast<char *>(m_huffman_counts.data()), m_huffman_counts.size());
 

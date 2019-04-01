@@ -20,7 +20,7 @@ using HuffmanWeights  = std::map<HuffmanSymbol, uint64_t>;
 class HuffmanEncoder {
 public:
   HuffmanEncoder &generateFromWeights(const HuffmanWeights &huffman_weights);
-  HuffmanEncoder &writeToStream(std::ofstream &stream);
+  HuffmanEncoder &writeToStream(std::ostream &stream);
   HuffmanEncoder &encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream);
 
 private:
@@ -33,7 +33,7 @@ private:
 
 class HuffmanDecoder {
 public:
-  HuffmanDecoder &readFromStream(std::ifstream &stream);
+  HuffmanDecoder &readFromStream(std::istream &stream);
   HuffmanSymbol decodeSymbolFromStream(IBitstream &stream);
 
 private:

@@ -110,7 +110,7 @@ QuantTable<D>::baseUniform(uint8_t quality) {
 
 template <size_t D>
 QuantTable<D> &
-QuantTable<D>::writeToStream(std::ofstream &stream) {
+QuantTable<D>::writeToStream(std::ostream &stream) {
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     writeValueToStream<uint8_t>(stream, m_block[i]);
   }
@@ -120,7 +120,7 @@ QuantTable<D>::writeToStream(std::ofstream &stream) {
 
 template <size_t D>
 QuantTable<D> &
-QuantTable<D>::readFromStream(std::ifstream &stream) {
+QuantTable<D>::readFromStream(std::istream &stream) {
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_block[i] = readValueFromStream<uint8_t>(stream);
   }

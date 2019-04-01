@@ -20,8 +20,8 @@ public:
   QuantTable<D> &baseCopyTable(const std::array<QTABLEUNIT, 64> &qtable, uint8_t quality);
   QuantTable<D> &baseUniform(uint8_t quality);
 
-  QuantTable<D> &writeToStream(std::ofstream &stream);
-  QuantTable<D> &readFromStream(std::ifstream &stream);
+  QuantTable<D> &writeToStream(std::ostream &stream);
+  QuantTable<D> &readFromStream(std::istream &stream);
 
   QTABLEUNIT operator [](size_t index) const;
 
