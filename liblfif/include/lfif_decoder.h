@@ -6,12 +6,13 @@
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
 
-#include <cstdint>
+#include "block_decompress_chain.h"
 
-#include <iosfwd>
+#include <cstdint>
+#include <istream>
 
 template<size_t D, typename T>
-int LFIFDecompress(istream &input, const uint64_t img_dims[D+1], T max_rgb_value, T *rgb_data) {
+int LFIFDecompress(std::istream &input, const uint64_t img_dims[D+1], T max_rgb_value, T *rgb_data) {
   BlockDecompressChain<D, T> block_decompress_chain {};
   QuantTable<D>              quant_table     [2]    {};
   TraversalTable<D>          traversal_table [2]    {};

@@ -6,12 +6,15 @@
 #ifndef LFIF_ENCODER_H
 #define LFIF_ENCODER_H
 
-#include <cstdint>
+#include "block_compress_chain.h"
+#include "colorspace.h"
+#include "bitstream.h"
 
-#include <iosfwd>
+#include <cstdint>
+#include <ostream>
 
 template<size_t D, typename T>
-int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, T max_rgb_value, ostream &output) {
+int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t quality, T max_rgb_value, std::ostream &output) {
   BlockCompressChain<D, T> block_compress_chain    {};
   QuantTable<D>            quant_table      [2]    {};
   ReferenceBlock<D>        reference_block  [2]    {};
