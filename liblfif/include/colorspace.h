@@ -10,16 +10,16 @@
 
 #include <cmath>
 
-inline YCBCRUNIT RGBToY(double R, double G, double B, uint16_t) {
+inline YCBCRUNIT RGBToY(uint16_t R, uint16_t G, uint16_t B) {
   return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
 
-inline YCBCRUNIT RGBToCb(double R, double G, double B, uint16_t max_rgb_value) {
-  return ((max_rgb_value + 1) / 2) - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
+inline YCBCRUNIT RGBToCb(uint16_t R, uint16_t G, uint16_t B) {
+  return (-0.168736 * R) - (0.331264 * G) + (0.5 * B);
 }
 
-inline YCBCRUNIT RGBToCr(double R, double G, double B, uint16_t max_rgb_value) {
-  return ((max_rgb_value + 1) / 2) + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
+inline YCBCRUNIT RGBToCr(uint16_t R, uint16_t G, uint16_t B) {
+  return (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
 inline void YtoRGB(RGBPixel<double> &rgb, YCBCRUNIT Y, uint16_t) {

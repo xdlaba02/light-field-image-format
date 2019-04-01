@@ -7,6 +7,7 @@
 #define LFIF_DECODER_H
 
 #include "block_decompress_chain.h"
+#include "colorspace.h"
 
 #include <cstdint>
 #include <istream>

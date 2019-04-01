@@ -2,6 +2,7 @@
 #include "lfif_encoder.h"
 #include "lfif_decoder.h"
 #include "lfiftypes.h"
+#include "colorspace.h"
 
 #include <cmath>
 
@@ -43,6 +44,33 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
+  auto inputF1 = [&](size_t channel, size_t index) -> uint16_t {
+    if (lfif->max_rgb_value < 256) {
+      return static_cast<const uint8_t *>(rgb_data)[index * 3 + channel];
+    }
+    else {
+      return static_cast<const uint16_t *>(rgb_data)[index * 3 + channel];
+    }
+  };
+
+  auto inputF2 = [&](size_t channel, size_t index) -> YCBCRUNIT {
+    switch (channel) {
+      case 0:
+        return RGBToY(inputF1(0, index), inputF1(1, index), inputF1(2, index)) - (lfif->max_rgb_value + 1) / 2;
+        break;
+
+      case 1:
+        return RGBToCb(inputF1(0, index), inputF1(1, index), inputF1(2, index));
+        break;
+
+      case 2:
+        return RGBToCr(inputF1(0, index), inputF1(1, index), inputF1(2, index));
+        break;
+    }
+
+    return 0;
+  };
+
   writeValueToStream<uint16_t>(output, lfif->max_rgb_value);
   writeValueToStream<uint64_t>(output, lfif->image_width);
   writeValueToStream<uint64_t>(output, lfif->image_height);
@@ -53,25 +81,14 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
   switch (lfif->method) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
-
-      if (lfif->max_rgb_value < 256) {
-        return LFIFCompress<2, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
-      }
-      else {
-        return LFIFCompress<2, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
-      }
+      lfifCompress<2>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
     break;
 
     case LFIF_3D:
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
 
-      if (lfif->max_rgb_value < 256) {
-        return LFIFCompress<3, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
-      }
-      else {
-        return LFIFCompress<3, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
-      }
+      lfifCompress<3>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
     break;
 
     case LFIF_4D:
@@ -79,12 +96,7 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
 
-      if (lfif->max_rgb_value < 256) {
-        return LFIFCompress<4, uint8_t>(static_cast<const uint8_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
-      }
-      else {
-        return LFIFCompress<4, uint16_t>(static_cast<const uint16_t *>(rgb_data), img_dims, lfif->quality, lfif->max_rgb_value, output);
-      }
+      lfifCompress<4>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
     break;
 
     default:
@@ -93,7 +105,7 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
 
   }
 
-  return -1;
+  return 0;
 }
 
 int LFIFReadHeader(LFIFDecompressStruct *lfif) {
