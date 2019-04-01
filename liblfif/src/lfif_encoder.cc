@@ -153,7 +153,7 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
     }
   }
 
-  OBitstream bitstream(output);
+  OBitstream bitstream(&output);
 
   previous_DC[0] = 0;
   previous_DC[1] = 0;

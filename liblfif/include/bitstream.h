@@ -8,7 +8,8 @@
 
 #include <cstdint>
 
-#include <iosfwd>
+#include <istream>
+#include <ostream>
 #include <vector>
 
 /******************************************************************************\
@@ -16,12 +17,11 @@
 \******************************************************************************/
 class Bitstream {
 public:
-  Bitstream();
-  ~Bitstream();
+  Bitstream(): m_index{}, m_accumulator{} {};
 
 protected:
-  int8_t m_index;
-  int8_t m_accumulator;
+  uint8_t m_index;
+  uint8_t m_accumulator;
 };
 
 /******************************************************************************\
@@ -29,15 +29,17 @@ protected:
 \******************************************************************************/
 class IBitstream: public Bitstream {
 public:
-  IBitstream(std::ifstream &stream);
-  ~IBitstream();
+  IBitstream() = default;
+  IBitstream(std::istream *stream): m_stream{ stream } {}
+
+  void open(std::istream *stream) { m_stream = stream; }
 
   std::vector<bool> read(const size_t size);
   bool readBit();
-  bool eof();
+  bool eof() { return m_stream->eof(); }
 
 private:
-  std::ifstream &m_stream;
+  std::istream *m_stream;
 };
 
 /******************************************************************************\
@@ -45,15 +47,18 @@ private:
 \******************************************************************************/
 class OBitstream: public Bitstream {
 public:
-  OBitstream(std::ofstream &stream);
-  ~OBitstream();
+  OBitstream() = default;
+  OBitstream(std::ostream *stream): m_stream{ stream } {}
+  ~OBitstream() { flush(); }
+
+  void open(std::ostream *stream) { m_stream = stream; }
 
   void write(const std::vector<bool> &data);
   void writeBit(const bool bit);
   void flush();
 
 private:
-  std::ofstream &m_stream;
+  std::ostream *m_stream;
 };
 
 #endif

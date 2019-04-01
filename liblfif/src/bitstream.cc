@@ -9,17 +9,6 @@
 
 using namespace std;
 
-Bitstream::Bitstream(): m_index{}, m_accumulator{} {}
-Bitstream::~Bitstream() {}
-
-IBitstream::IBitstream(ifstream &stream): m_stream{stream} {}
-IBitstream::~IBitstream() {}
-
-OBitstream::OBitstream(ofstream &stream): m_stream{stream} {}
-OBitstream::~OBitstream() {
-  flush();
-}
-
 vector<bool> IBitstream::read(const size_t size) {
   vector<bool> data {};
   for (size_t i = 0; i < size; i++) {
@@ -29,20 +18,16 @@ vector<bool> IBitstream::read(const size_t size) {
 }
 
 bool IBitstream::readBit() {
-  if (m_index <= 0) {
-    m_accumulator = m_stream.get();
-    m_index = 8;
+  if (m_index > 7) {
+    m_accumulator = m_stream->get();
+    m_index = 0;
   }
 
-  bool data {(m_accumulator & (1 << (m_index - 1))) >> (m_index - 1)};
+  bool data { m_accumulator & (1 << (7 - m_index)) };
 
-  m_index--;
+  m_index++;
 
   return data;
-}
-
-bool IBitstream::eof() {
-  return m_stream.eof();
 }
 
 void OBitstream::write(const vector<bool> &data) {
@@ -51,7 +36,7 @@ void OBitstream::write(const vector<bool> &data) {
   }
 }
 
-void OBitstream::writeBit(const bool bit) {
+void OBitstream::writeBit(bool bit) {
   if (m_index > 7) {
     flush();
   }
@@ -62,7 +47,7 @@ void OBitstream::writeBit(const bool bit) {
 
 void OBitstream::flush() {
   if (m_index > 0) {
-    m_stream.put(m_accumulator);
+    m_stream->put(m_accumulator);
     m_index = 0;
     m_accumulator = 0;
   }

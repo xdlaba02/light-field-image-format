@@ -92,7 +92,7 @@ int LFIFDecompress(ifstream &input, const uint64_t img_dims[D+1], T max_rgb_valu
   previous_DC[1] = 0;
   previous_DC[2] = 0;
 
-  IBitstream bitstream(input);
+  IBitstream bitstream(&input);
 
   for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
