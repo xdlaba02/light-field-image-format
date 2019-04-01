@@ -30,9 +30,9 @@ protected:
 class IBitstream: public Bitstream {
 public:
   IBitstream() = default;
-  IBitstream(std::istream *stream): m_stream{ stream } {}
+  IBitstream(std::istream *stream): m_stream{ stream } { m_index = 8; }
 
-  void open(std::istream *stream) { m_stream = stream; }
+  void open(std::istream *stream) { m_stream = stream; m_index = 8; }
 
   std::vector<bool> read(const size_t size);
   bool readBit();
