@@ -122,9 +122,14 @@ BlockCompressChain<D, T>::traverse(const TraversalTable<D> &traversal_table) {
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::runLengthEncode(size_t max_zeroes) {
-  std::vector<RunLengthPair> runlength {};
+  auto pairs_it = std::begin(m_runlength);
 
-  runlength.push_back({0, m_traversed_block[0]});
+  auto push_pair = [&pairs_it](RunLengthPair &&pair) {
+    *pairs_it = pair;
+    pairs_it++;
+  };
+
+  push_pair({0, m_traversed_block[0]});
 
   size_t zeroes = 0;
   for (size_t i = 1; i < constpow(BLOCK_SIZE, D); i++) {
@@ -133,17 +138,15 @@ BlockCompressChain<D, T>::runLengthEncode(size_t max_zeroes) {
     }
     else {
       while (zeroes >= max_zeroes) {
-        runlength.push_back({max_zeroes - 1, 0});
+        push_pair({max_zeroes - 1, 0});
         zeroes -= max_zeroes;
       }
-      runlength.push_back({zeroes, m_traversed_block[i]});
+      push_pair({zeroes, m_traversed_block[i]});
       zeroes = 0;
     }
   }
 
-  runlength.push_back({0, 0});
-
-  m_runlength = runlength;
+  push_pair({0, 0});
 
   return *this;
 }
@@ -151,10 +154,14 @@ BlockCompressChain<D, T>::runLengthEncode(size_t max_zeroes) {
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], size_t class_bits) {
-  m_runlength[0].addToWeights(weights[0], class_bits);
-  for (size_t i = 1; i < m_runlength.size(); i++) {
-    m_runlength[i].addToWeights(weights[1], class_bits);
-  }
+  auto pairs_it = std::begin(m_runlength);
+
+  pairs_it->addToWeights(weights[0], class_bits);
+
+  do {
+    pairs_it++;
+    pairs_it->addToWeights(weights[1], class_bits);
+  } while (!pairs_it->eob());
 
   return *this;
 }
@@ -162,10 +169,14 @@ BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], size_t cl
 template <size_t D, typename T>
 BlockCompressChain<D, T> &
 BlockCompressChain<D, T>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
-  m_runlength[0].huffmanEncodeToStream(encoder[0], stream, class_bits);
-  for (size_t i = 1; i < m_runlength.size(); i++) {
-    m_runlength[i].huffmanEncodeToStream(encoder[1], stream, class_bits);
-  }
+  auto pairs_it = std::begin(m_runlength);
+
+  pairs_it->huffmanEncodeToStream(encoder[0], stream, class_bits);
+
+  do {
+    pairs_it++;
+    pairs_it->huffmanEncodeToStream(encoder[1], stream, class_bits);
+  } while (!pairs_it->eob());
 
   return *this;
 }

@@ -1,15 +1,6 @@
 #include "runlength.h"
 #include "bitstream.h"
 
-#include <cmath>
-
-RunLengthPair &
-RunLengthPair::addToWeights(HuffmanWeights &weights, size_t class_bits) {
-  weights[huffmanSymbol(class_bits)]++;
-
-  return *this;
-}
-
 RunLengthPair &
 RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) {
   HuffmanClass amp_class {};
@@ -56,39 +47,4 @@ RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stre
   }
 
   return *this;
-}
-
-
-bool RunLengthPair::endOfBlock() const {
-  return (!zeroes) && (!amplitude);
-}
-
-
-size_t RunLengthPair::zeroesBits(size_t class_bits) {
-  return sizeof(HuffmanSymbol) * 8 - class_bits;
-}
-
-
-size_t RunLengthPair::classBits(size_t amp_bits) {
-  return ceil(log2(amp_bits));
-}
-
-HuffmanClass RunLengthPair::huffmanClass() const {
-  RLAMPUNIT amp = amplitude;
-  if (amp < 0) {
-    amp = -amp;
-  }
-
-  HuffmanClass huff_class = 0;
-  while (amp) {
-    amp >>= 1;
-    huff_class++;
-  }
-
-  return huff_class;
-}
-
-
-HuffmanSymbol RunLengthPair::huffmanSymbol(size_t class_bits) const {
-  return zeroes << class_bits | huffmanClass();
 }
