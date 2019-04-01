@@ -60,12 +60,12 @@ BlockDecompressChain<D, T>::runLengthDecode() {
 
   size_t pixel_index = 0;
   auto pairs_it = std::begin(m_runlength);
-  while (!pairs_it->eob() && (pairs_it != std::end(m_runlength))) {
+  do {
     pixel_index += pairs_it->zeroes;
     m_traversed_block[pixel_index] = pairs_it->amplitude;
     pixel_index++;
     pairs_it++;
-  }
+  } while (!pairs_it->eob() && (pairs_it != std::end(m_runlength)));
 
   return *this;
 }
