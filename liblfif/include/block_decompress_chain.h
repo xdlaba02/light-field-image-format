@@ -29,7 +29,7 @@ public:
   BlockDecompressChain<D, T> &putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block, T max_rgb_value);
 
 private:
-  std::vector<RunLengthPair> m_runlength;
+  Block<RunLengthPair,    D> m_runlength;
   Block<QDATAUNIT,        D> m_traversed_block;
   Block<QDATAUNIT,        D> m_quantized_block;
   Block<DCTDATAUNIT,      D> m_transformed_block;

@@ -15,18 +15,14 @@ template class BlockDecompressChain<4, uint16_t>;
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits) {
-  RunLengthPair              pair      {};
-  std::vector<RunLengthPair> runlength {};
+  auto pairs_it = std::begin(m_runlength);
 
-  pair.huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
-  runlength.push_back(pair);
+  pairs_it->huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
 
   do {
-    pair.huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
-    runlength.push_back(pair);
-  } while(!pair.endOfBlock());
-
-  m_runlength = runlength;
+    pairs_it++;
+    pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
+  } while(!pairs_it->eob());
 
   return *this;
 }
@@ -37,10 +33,12 @@ BlockDecompressChain<D, T>::runLengthDecode() {
   m_traversed_block.fill(0);
 
   size_t pixel_index = 0;
-  for (auto &pair: m_runlength) {
-    pixel_index += pair.zeroes;
-    m_traversed_block[pixel_index] = pair.amplitude;
+  auto pairs_it = std::begin(m_runlength);
+  while (!pairs_it->eob()) {
+    pixel_index += pairs_it->zeroes;
+    m_traversed_block[pixel_index] = pairs_it->amplitude;
     pixel_index++;
+    pairs_it++;
   }
 
   return *this;

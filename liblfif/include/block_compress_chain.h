@@ -37,7 +37,7 @@ private:
   Block<DCTDATAUNIT, D>      m_transformed_block;
   Block<QDATAUNIT,   D>      m_quantized_block;
   Block<QDATAUNIT,   D>      m_traversed_block;
-  std::vector<RunLengthPair> m_runlength;
+  Block<RunLengthPair, D>    m_runlength;
 };
 
 #endif
