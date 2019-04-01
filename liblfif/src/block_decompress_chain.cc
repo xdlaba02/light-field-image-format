@@ -12,6 +12,7 @@ template class BlockDecompressChain<2, uint16_t>;
 template class BlockDecompressChain<3, uint16_t>;
 template class BlockDecompressChain<4, uint16_t>;
 
+#include <iostream>
 template <size_t D, typename T>
 BlockDecompressChain<D, T> &
 BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits) {
@@ -22,7 +23,7 @@ BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2],
   do {
     pairs_it++;
     pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
-  } while(!pairs_it->eob());
+  } while(!pairs_it->eob() && (pairs_it != std::end(m_runlength)));
 
   return *this;
 }
@@ -34,7 +35,7 @@ BlockDecompressChain<D, T>::runLengthDecode() {
 
   size_t pixel_index = 0;
   auto pairs_it = std::begin(m_runlength);
-  while (!pairs_it->eob()) {
+  while (!pairs_it->eob() && (pairs_it != std::end(m_runlength))) {
     pixel_index += pairs_it->zeroes;
     m_traversed_block[pixel_index] = pairs_it->amplitude;
     pixel_index++;
