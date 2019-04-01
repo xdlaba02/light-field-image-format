@@ -84,7 +84,7 @@ struct lfifCompress {
       for (size_t block = 0; block < blocks_cnt; block++) {
         for (size_t channel = 0; channel < 3; channel++) {
           auto inputF = [&](size_t index) {
-            return input(channel, index);
+            return input(channel, img * pixels_cnt + index);
           };
 
           auto outputF = [&](size_t index) -> auto & {
@@ -114,7 +114,7 @@ struct lfifCompress {
       for (size_t block = 0; block < blocks_cnt; block++) {
         for (size_t channel = 0; channel < 3; channel++) {
           auto inputF = [&](size_t index) {
-            return input(channel, index);
+            return input(channel, img * pixels_cnt + index);
           };
 
           auto outputF = [&](size_t index) -> auto & {
@@ -162,7 +162,7 @@ struct lfifCompress {
       for (size_t block = 0; block < blocks_cnt; block++) {
         for (size_t channel = 0; channel < 3; channel++) {
           auto inputF = [&](size_t index) {
-            return input(channel, index);
+            return input(channel, img * pixels_cnt + index);
           };
 
           auto outputF = [&](size_t index) -> auto & {

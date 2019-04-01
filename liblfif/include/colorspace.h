@@ -10,31 +10,27 @@
 
 #include <cmath>
 
-inline YCBCRUNIT RGBToY(uint16_t R, uint16_t G, uint16_t B) {
+inline YCBCRUNIT RGBToY(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
   return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
 
-inline YCBCRUNIT RGBToCb(uint16_t R, uint16_t G, uint16_t B) {
-  return (-0.168736 * R) - (0.331264 * G) + (0.5 * B);
+inline YCBCRUNIT RGBToCb(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  return - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
 }
 
-inline YCBCRUNIT RGBToCr(uint16_t R, uint16_t G, uint16_t B) {
+inline YCBCRUNIT RGBToCr(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
   return (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
-inline void YtoRGB(RGBPixel<double> &rgb, YCBCRUNIT Y, uint16_t) {
-  rgb.r = Y;
-  rgb.g = Y;
-  rgb.b = Y;
+inline YCBCRUNIT YCbCrToR(YCBCRUNIT Y, YCBCRUNIT, YCBCRUNIT Cr) {
+  return Y + 1.402 * Cr;
 }
 
-inline void CbtoRGB(RGBPixel<double> &rgb, YCBCRUNIT Cb, uint16_t max_rgb_value) {
-  rgb.g -= 0.344136 * (Cb - ((max_rgb_value + 1) / 2));
-  rgb.b += 1.772    * (Cb - ((max_rgb_value + 1) / 2));
+inline YCBCRUNIT YCbCrToG(YCBCRUNIT Y, YCBCRUNIT Cb, YCBCRUNIT Cr) {
+  return Y - 0.344136 * Cb - 0.714136 * Cr;
 }
 
-inline void CrtoRGB(RGBPixel<double> &rgb, YCBCRUNIT Cr, uint16_t max_rgb_value) {
-  rgb.r += 1.402    * (Cr - ((max_rgb_value + 1) / 2));
-  rgb.g -= 0.714136 * (Cr - ((max_rgb_value + 1) / 2));
+inline YCBCRUNIT YCbCrToB(YCBCRUNIT Y, YCBCRUNIT Cb, YCBCRUNIT) {
+  return Y + 1.772 * Cb;
 }
 #endif

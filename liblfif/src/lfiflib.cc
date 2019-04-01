@@ -137,6 +137,7 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
 int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
   ifstream input       {};
   uint64_t img_dims[5] {};
+  std::vector<float> ycbcr_buffer(lfif->image_width * lfif->image_height * lfif->image_count * 3);
 
   input.open(lfif->input_file_name);
   if (input.fail()) {
@@ -145,43 +146,29 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
 
   input.ignore(8 + 2 + 3 * 8);
 
+  auto outputF = [&](size_t channel, size_t index) -> float & {
+    return ycbcr_buffer[index * 3 + channel];
+  };
+
   img_dims[0] = lfif->image_width;
   img_dims[1] = lfif->image_height;
   switch (lfif->method) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
-
-      if (lfif->max_rgb_value < 256) {
-        return LFIFDecompress<2, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));
-      }
-      else {
-        return LFIFDecompress<2, uint16_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint16_t *>(rgb_buffer));
-      }
+      lfif_decompress<2>(input, img_dims, lfif->max_rgb_value, outputF);
     break;
 
     case LFIF_3D:
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
-
-      if (lfif->max_rgb_value < 256) {
-        return LFIFDecompress<3, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));
-      }
-      else {
-        return LFIFDecompress<3, uint16_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint16_t *>(rgb_buffer));
-      }
+      lfif_decompress<3>(input, img_dims, lfif->max_rgb_value, outputF);
     break;
 
     case LFIF_4D:
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
-
-      if (lfif->max_rgb_value < 256) {
-        return LFIFDecompress<4, uint8_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint8_t *>(rgb_buffer));
-      }
-      else {
-        return LFIFDecompress<4, uint16_t>(input, img_dims, lfif->max_rgb_value, static_cast<uint16_t *>(rgb_buffer));
-      }
+      lfif_decompress<4>(input, img_dims, lfif->max_rgb_value, outputF);
     break;
 
     default:
@@ -189,5 +176,26 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
     break;
   }
 
-  return -1;
+  for (size_t i = 0; i < lfif->image_width * lfif->image_height * lfif->image_count; i++) {
+    YCBCRUNIT  Y = ycbcr_buffer[i * 3 + 0] + ((lfif->max_rgb_value + 1) / 2);
+    YCBCRUNIT Cb = ycbcr_buffer[i * 3 + 1];
+    YCBCRUNIT Cr = ycbcr_buffer[i * 3 + 2];
+
+    RGBUNIT R = std::clamp<YCBCRUNIT>(YCbCrToR(Y, Cb, Cr), 0, lfif->max_rgb_value);
+    RGBUNIT G = std::clamp<YCBCRUNIT>(YCbCrToG(Y, Cb, Cr), 0, lfif->max_rgb_value);
+    RGBUNIT B = std::clamp<YCBCRUNIT>(YCbCrToB(Y, Cb, Cr), 0, lfif->max_rgb_value);
+
+    if (lfif->max_rgb_value > 255) {
+      static_cast<uint16_t *>(rgb_buffer)[i * 3 + 0] = R;
+      static_cast<uint16_t *>(rgb_buffer)[i * 3 + 1] = G;
+      static_cast<uint16_t *>(rgb_buffer)[i * 3 + 2] = B;
+    }
+    else {
+      static_cast<uint8_t *>(rgb_buffer)[i * 3 + 0] = R;
+      static_cast<uint8_t *>(rgb_buffer)[i * 3 + 1] = G;
+      static_cast<uint8_t *>(rgb_buffer)[i * 3 + 2] = B;
+    }
+  }
+
+  return 0;
 }

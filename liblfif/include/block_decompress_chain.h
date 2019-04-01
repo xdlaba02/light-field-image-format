@@ -16,31 +16,26 @@
 
 #include <vector>
 
-template <size_t D, typename T>
+template <size_t D>
 class BlockDecompressChain {
 public:
-  BlockDecompressChain<D, T> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits);
-  BlockDecompressChain<D, T> &runLengthDecode();
-  BlockDecompressChain<D, T> &detraverse(TraversalTable<D> &traversal_table);
-  BlockDecompressChain<D, T> &diffDecodeDC(QDATAUNIT &previous_DC);
-  BlockDecompressChain<D, T> &dequantize(QuantTable<D> &quant_table);
-  BlockDecompressChain<D, T> &inverseDiscreteCosineTransform();
-  BlockDecompressChain<D, T> &decenterValues(T max_rgb_value);
-  BlockDecompressChain<D, T> &colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, uint16_t), T max_rgb_value);
-  BlockDecompressChain<D, T> &putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block, T max_rgb_value);
+  BlockDecompressChain<D> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits);
+  BlockDecompressChain<D> &runLengthDecode();
+  BlockDecompressChain<D> &detraverse(TraversalTable<D> &traversal_table);
+  BlockDecompressChain<D> &diffDecodeDC(QDATAUNIT &previous_DC);
+  BlockDecompressChain<D> &dequantize(QuantTable<D> &quant_table);
+  BlockDecompressChain<D> &inverseDiscreteCosineTransform();
 
-private:
-  Block<RunLengthPair,    D> m_runlength;
-  Block<QDATAUNIT,        D> m_traversed_block;
-  Block<QDATAUNIT,        D> m_quantized_block;
-  Block<DCTDATAUNIT,      D> m_transformed_block;
-  Block<YCBCRUNIT,        D> m_ycbcr_block;
-  Block<RGBPixel<double>, D> m_rgb_block;
+  Block<RunLengthPair, D> m_runlength;
+  Block<QDATAUNIT,     D> m_traversed_block;
+  Block<QDATAUNIT,     D> m_quantized_block;
+  Block<DCTDATAUNIT,   D> m_transformed_block;
+  Block<YCBCRUNIT,     D> m_ycbcr_block;
 };
 
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits) {
+template <size_t D>
+BlockDecompressChain<D> &
+BlockDecompressChain<D>::decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits) {
   auto pairs_it = std::begin(m_runlength);
 
   pairs_it->huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
@@ -53,9 +48,9 @@ BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2],
   return *this;
 }
 
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::runLengthDecode() {
+template <size_t D>
+BlockDecompressChain<D> &
+BlockDecompressChain<D>::runLengthDecode() {
   m_traversed_block.fill(0);
 
   size_t pixel_index = 0;
@@ -70,9 +65,9 @@ BlockDecompressChain<D, T>::runLengthDecode() {
   return *this;
 }
 
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::detraverse(TraversalTable<D> &traversal_table) {
+template <size_t D>
+BlockDecompressChain<D> &
+BlockDecompressChain<D>::detraverse(TraversalTable<D> &traversal_table) {
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_quantized_block[i] = m_traversed_block[traversal_table[i]];
   }
@@ -80,18 +75,18 @@ BlockDecompressChain<D, T>::detraverse(TraversalTable<D> &traversal_table) {
   return *this;
 }
 
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::diffDecodeDC(QDATAUNIT &previous_DC) {
+template <size_t D>
+BlockDecompressChain<D> &
+BlockDecompressChain<D>::diffDecodeDC(QDATAUNIT &previous_DC) {
   m_quantized_block[0] += previous_DC;
   previous_DC = m_quantized_block[0];
 
   return *this;
 }
 
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::dequantize(QuantTable<D> &quant_table) {
+template <size_t D>
+BlockDecompressChain<D> &
+BlockDecompressChain<D>::dequantize(QuantTable<D> &quant_table) {
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
     m_transformed_block[i] = static_cast<double>(m_quantized_block[i]) * quant_table[i];
   }
@@ -99,70 +94,14 @@ BlockDecompressChain<D, T>::dequantize(QuantTable<D> &quant_table) {
   return *this;
 }
 
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::inverseDiscreteCosineTransform() {
+template <size_t D>
+BlockDecompressChain<D> &
+BlockDecompressChain<D>::inverseDiscreteCosineTransform() {
   m_ycbcr_block.fill(0);
 
   idct<D>([&](size_t index) -> DCTDATAUNIT { return m_transformed_block[index];}, [&](size_t index) -> DCTDATAUNIT & { return m_ycbcr_block[index]; });
 
   return *this;
 }
-
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::decenterValues(T max_rgb_value) {
-  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-    m_ycbcr_block[i] += (max_rgb_value + 1) / 2;
-  }
-
-  return *this;
-}
-
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::colorConvert(void (*f)(RGBPixel<double> &, YCBCRUNIT, uint16_t), T max_rgb_value) {
-  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-    f(m_rgb_block[i], m_ycbcr_block[i], max_rgb_value);
-  }
-
-  return *this;
-}
-
-template <size_t D, typename T>
-BlockDecompressChain<D, T> &
-BlockDecompressChain<D, T>::putRGBBlock(T *rgb_data, const uint64_t img_dims[D], size_t block, T max_rgb_value) {
-  auto inputR = [&](size_t index) {
-    return std::clamp<double>(m_rgb_block[index].r, 0, max_rgb_value);
-  };
-
-  auto inputG = [&](size_t index) {
-    return std::clamp<double>(m_rgb_block[index].g, 0, max_rgb_value);
-  };
-
-  auto inputB = [&](size_t index) {
-    return std::clamp<double>(m_rgb_block[index].b, 0, max_rgb_value);
-  };
-
-
-  auto outputR = [&](size_t index) -> T & {
-    return rgb_data[index * 3 + 0];
-  };
-
-  auto outputG = [&](size_t index) -> T & {
-    return rgb_data[index * 3 + 1];
-  };
-
-  auto outputB = [&](size_t index) -> T & {
-    return rgb_data[index * 3 + 2];
-  };
-
-  putBlock<D>(inputR, block, img_dims, outputR);
-  putBlock<D>(inputG, block, img_dims, outputG);
-  putBlock<D>(inputB, block, img_dims, outputB);
-
-  return *this;
-}
-
 
 #endif

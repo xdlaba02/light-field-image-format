@@ -42,7 +42,7 @@ HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) {
 }
 
 HuffmanEncoder &HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) {
-  stream.write(m_huffman_map.at(symbol));
+  stream.write(m_huffman_map[symbol]);
   return *this;
 }
 
