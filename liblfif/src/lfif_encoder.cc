@@ -10,6 +10,7 @@
 
 #include <fstream>
 
+#include <iostream>
 using namespace std;
 
 template int LFIFCompress<2, uint8_t>(const uint8_t *, const uint64_t *, uint8_t, uint8_t, ofstream &);
@@ -91,6 +92,8 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
   quant_table[1]
   . baseDiagonalTable(QuantTable<D>::base_chroma, quality);
 
+  /*
+
   for (size_t img = 0; img < img_dims[D]; img++) {
     for (size_t block = 0; block < blocks_cnt; block++) {
       block_compress_chain
@@ -105,11 +108,18 @@ int LFIFCompress(const T *rgb_data, const uint64_t img_dims[D+1], uint8_t qualit
         . addToReferenceBlock(*reference_blocks[channel]);
       }
     }
-  }
+  }*/
 
   for (size_t i = 0; i < 2; i++) {
     traversal_table[i]
-    . constructByReference(reference_block[i]);
+    . constructZigzag();
+  }
+
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 8; x++) {
+      std::cerr << traversal_table[0][y * 8 + x] << ", ";
+    }
+    std::cerr << "\n";
   }
 
   previous_DC[0] = 0;

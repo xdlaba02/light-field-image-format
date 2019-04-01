@@ -36,16 +36,16 @@ template <size_t D>
 struct zigzagCore {
   template <typename F>
   zigzagCore(F &put, std::array<size_t, D> dims, size_t *table, size_t depth) {
-    std::array<size_t, D - 1> dims_new {};
-    for (size_t i = 0; i < D - 1; i++) {
-      dims_new[i] = dims[i];
-    }
-
-    auto put_new = [&](size_t i) {
-      put(dims[D-1] * constpow(BLOCK_SIZE, D-1) + i);
-    };
-
     while ((dims[D-1] < BLOCK_SIZE) && (std::accumulate(dims.begin(), dims.end() - 1, 0) >= 0)) {
+      std::array<size_t, D - 1> dims_new {};
+      for (size_t i = 0; i < D - 1; i++) {
+        dims_new[i] = dims[i];
+      }
+
+      auto put_new = [&](size_t i) {
+        put(dims[D-1] * constpow(BLOCK_SIZE, D-1) + i);
+      };
+
       zigzagCore<D-1>(put_new, dims_new, table, depth + 1);
 
       for (int64_t i = D - 2; i >= 0; i--) {
