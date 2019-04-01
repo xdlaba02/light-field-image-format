@@ -137,7 +137,8 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
 int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
   ifstream input       {};
   uint64_t img_dims[5] {};
-  std::vector<float> ycbcr_buffer(lfif->image_width * lfif->image_height * lfif->image_count * 3);
+  std::vector<bool>  overflow_flag(lfif->image_width * lfif->image_height * lfif->image_count * 3);
+  std::vector<bool> underflow_flag(lfif->image_width * lfif->image_height * lfif->image_count * 3);
 
   input.open(lfif->input_file_name);
   if (input.fail()) {
@@ -146,8 +147,25 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
 
   input.ignore(8 + 2 + 3 * 8);
 
-  auto outputF = [&](size_t channel, size_t index) -> float & {
-    return ycbcr_buffer[index * 3 + channel];
+  auto outputF = [&](size_t index, const std::tuple<YCBCRUNIT, YCBCRUNIT, YCBCRUNIT> &ycbcr) {
+    YCBCRUNIT  Y = std::get<0>(ycbcr) + ((lfif->max_rgb_value + 1) / 2);
+    YCBCRUNIT Cb = std::get<1>(ycbcr);
+    YCBCRUNIT Cr = std::get<2>(ycbcr);
+
+    RGBUNIT R = std::clamp<YCBCRUNIT>(YCbCrToR(Y, Cb, Cr), 0, lfif->max_rgb_value);
+    RGBUNIT G = std::clamp<YCBCRUNIT>(YCbCrToG(Y, Cb, Cr), 0, lfif->max_rgb_value);
+    RGBUNIT B = std::clamp<YCBCRUNIT>(YCbCrToB(Y, Cb, Cr), 0, lfif->max_rgb_value);
+
+    if (lfif->max_rgb_value > 255) {
+      static_cast<uint16_t *>(rgb_buffer)[index * 3 + 0] = R;
+      static_cast<uint16_t *>(rgb_buffer)[index * 3 + 1] = G;
+      static_cast<uint16_t *>(rgb_buffer)[index * 3 + 2] = B;
+    }
+    else {
+      static_cast<uint8_t *>(rgb_buffer)[index * 3 + 0] = R;
+      static_cast<uint8_t *>(rgb_buffer)[index * 3 + 1] = G;
+      static_cast<uint8_t *>(rgb_buffer)[index * 3 + 2] = B;
+    }
   };
 
   img_dims[0] = lfif->image_width;
@@ -175,27 +193,5 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
       return -1;
     break;
   }
-
-  for (size_t i = 0; i < lfif->image_width * lfif->image_height * lfif->image_count; i++) {
-    YCBCRUNIT  Y = ycbcr_buffer[i * 3 + 0] + ((lfif->max_rgb_value + 1) / 2);
-    YCBCRUNIT Cb = ycbcr_buffer[i * 3 + 1];
-    YCBCRUNIT Cr = ycbcr_buffer[i * 3 + 2];
-
-    RGBUNIT R = std::clamp<YCBCRUNIT>(YCbCrToR(Y, Cb, Cr), 0, lfif->max_rgb_value);
-    RGBUNIT G = std::clamp<YCBCRUNIT>(YCbCrToG(Y, Cb, Cr), 0, lfif->max_rgb_value);
-    RGBUNIT B = std::clamp<YCBCRUNIT>(YCbCrToB(Y, Cb, Cr), 0, lfif->max_rgb_value);
-
-    if (lfif->max_rgb_value > 255) {
-      static_cast<uint16_t *>(rgb_buffer)[i * 3 + 0] = R;
-      static_cast<uint16_t *>(rgb_buffer)[i * 3 + 1] = G;
-      static_cast<uint16_t *>(rgb_buffer)[i * 3 + 2] = B;
-    }
-    else {
-      static_cast<uint8_t *>(rgb_buffer)[i * 3 + 0] = R;
-      static_cast<uint8_t *>(rgb_buffer)[i * 3 + 1] = G;
-      static_cast<uint8_t *>(rgb_buffer)[i * 3 + 2] = B;
-    }
-  }
-
   return 0;
 }

@@ -33,8 +33,8 @@ struct getBlock {
         return input(image_y * size_x + image_index);
       };
 
-      auto outputF = [&](size_t pixel_index) -> auto & {
-        return output(pixel * constpow(BLOCK_SIZE, D-1) + pixel_index);
+      auto outputF = [&](size_t pixel_index, auto value) {
+        output(pixel * constpow(BLOCK_SIZE, D-1) + pixel_index, value);
       };
 
       getBlock<D-1>(inputF, block % blocks_x, dims, outputF);
@@ -53,7 +53,7 @@ struct getBlock<1> {
         image = dims[0] - 1;
       }
 
-      output(pixel) = input(image);
+      output(pixel, input(image));
     }
   }
 };
@@ -77,12 +77,12 @@ struct putBlock {
         break;
       }
 
-      auto inputF = [&](size_t pixel_index){
+      auto inputF = [&](size_t pixel_index) {
         return input(pixel * constpow(BLOCK_SIZE, D-1) + pixel_index);
       };
 
-      auto outputF = [&](size_t image_index)-> auto & {
-        return output(image * size_x + image_index);
+      auto outputF = [&](size_t image_index, auto value) {
+        return output(image * size_x + image_index, value);
       };
 
       putBlock<D-1>(inputF, block % blocks_x, dims, outputF);
@@ -101,7 +101,7 @@ struct putBlock<1> {
         break;
       }
 
-      output(image) = input(pixel);
+      output(image, input(pixel));
     }
   }
 };

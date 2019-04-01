@@ -87,8 +87,8 @@ struct lfifCompress {
             return input(channel, img * pixels_cnt + index);
           };
 
-          auto outputF = [&](size_t index) -> auto & {
-            return block_compress_chain.m_ycbcr_block[index];
+          auto outputF = [&](size_t index, auto val) {
+            block_compress_chain.m_ycbcr_block[index] = val;
           };
 
           getBlock<D>(inputF, block, img_dims, outputF);
@@ -117,8 +117,8 @@ struct lfifCompress {
             return input(channel, img * pixels_cnt + index);
           };
 
-          auto outputF = [&](size_t index) -> auto & {
-            return block_compress_chain.m_ycbcr_block[index];
+          auto outputF = [&](size_t index, auto val) {
+            block_compress_chain.m_ycbcr_block[index] = val;
           };
 
           getBlock<D>(inputF, block, img_dims, outputF);
@@ -165,8 +165,8 @@ struct lfifCompress {
             return input(channel, img * pixels_cnt + index);
           };
 
-          auto outputF = [&](size_t index) -> auto & {
-            return block_compress_chain.m_ycbcr_block[index];
+          auto outputF = [&](size_t index, auto val) {
+            block_compress_chain.m_ycbcr_block[index] = val;
           };
 
           getBlock<D>(inputF, block, img_dims, outputF);
