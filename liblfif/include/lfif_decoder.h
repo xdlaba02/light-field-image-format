@@ -84,7 +84,7 @@ struct lfif_decompress {
     for (size_t img = 0; img < img_dims[D]; img++) {
       for (size_t block = 0; block < blocks_cnt; block++) {
 
-        std::array<Block<YCBCRUNIT, D>, 3> block_trio {};
+        Block<std::array<YCBCRUNIT, 3>, D> current_block {};
 
         for (size_t channel = 0; channel < 3; channel++) {
           block_decompress_chain
@@ -96,15 +96,15 @@ struct lfif_decompress {
           . inverseDiscreteCosineTransform();
 
           for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-            block_trio[channel][i] = block_decompress_chain.m_ycbcr_block[i];
+            current_block[i][channel] = block_decompress_chain.m_ycbcr_block[i];
           }
         }
 
-        auto inputF = [&](size_t index) -> std::tuple<YCBCRUNIT, YCBCRUNIT, YCBCRUNIT> {
-          return { block_trio[0][index], block_trio[1][index], block_trio[2][index] };
+        auto inputF = [&](size_t index) -> const auto & {
+          return current_block[index];
         };
 
-        auto outputF = [&](size_t index, auto value) {
+        auto outputF = [&](size_t index, const auto &value) {
           output(img * pixels_cnt + index, value);
         };
 

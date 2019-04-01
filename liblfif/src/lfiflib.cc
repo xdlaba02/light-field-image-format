@@ -44,6 +44,11 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
+  writeValueToStream<uint16_t>(output, lfif->max_rgb_value);
+  writeValueToStream<uint64_t>(output, lfif->image_width);
+  writeValueToStream<uint64_t>(output, lfif->image_height);
+  writeValueToStream<uint64_t>(output, lfif->image_count);
+
   auto inputF1 = [&](size_t channel, size_t index) -> uint16_t {
     if (lfif->max_rgb_value < 256) {
       return static_cast<const uint8_t *>(rgb_data)[index * 3 + channel];
@@ -53,28 +58,17 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     }
   };
 
-  auto inputF2 = [&](size_t channel, size_t index) -> YCBCRUNIT {
-    switch (channel) {
-      case 0:
-        return RGBToY(inputF1(0, index), inputF1(1, index), inputF1(2, index)) - (lfif->max_rgb_value + 1) / 2;
-        break;
+  auto inputF2 = [&](size_t index) -> std::array<YCBCRUNIT, 3> {
+    RGBUNIT R = inputF1(0, index);
+    RGBUNIT G = inputF1(1, index);
+    RGBUNIT B = inputF1(2, index);
 
-      case 1:
-        return RGBToCb(inputF1(0, index), inputF1(1, index), inputF1(2, index));
-        break;
+    YCBCRUNIT  Y =  RGBToY(R, G, B) - (lfif->max_rgb_value + 1) / 2;
+    YCBCRUNIT Cb = RGBToCb(R, G, B);
+    YCBCRUNIT Cr = RGBToCr(R, G, B);
 
-      case 2:
-        return RGBToCr(inputF1(0, index), inputF1(1, index), inputF1(2, index));
-        break;
-    }
-
-    return 0;
+    return {Y, Cb, Cr};
   };
-
-  writeValueToStream<uint16_t>(output, lfif->max_rgb_value);
-  writeValueToStream<uint64_t>(output, lfif->image_width);
-  writeValueToStream<uint64_t>(output, lfif->image_height);
-  writeValueToStream<uint64_t>(output, lfif->image_count);
 
   img_dims[0] = lfif->image_width;
   img_dims[1] = lfif->image_height;
@@ -147,10 +141,10 @@ int LFIFDecompress(LFIFDecompressStruct *lfif, void *rgb_buffer) {
 
   input.ignore(8 + 2 + 3 * 8);
 
-  auto outputF = [&](size_t index, const std::tuple<YCBCRUNIT, YCBCRUNIT, YCBCRUNIT> &ycbcr) {
-    YCBCRUNIT  Y = std::get<0>(ycbcr) + ((lfif->max_rgb_value + 1) / 2);
-    YCBCRUNIT Cb = std::get<1>(ycbcr);
-    YCBCRUNIT Cr = std::get<2>(ycbcr);
+  auto outputF = [&](size_t index, const std::array<YCBCRUNIT, 3> &block) {
+    YCBCRUNIT  Y = block[0] + ((lfif->max_rgb_value + 1) / 2);
+    YCBCRUNIT Cb = block[1];
+    YCBCRUNIT Cr = block[2];
 
     RGBUNIT R = std::clamp<YCBCRUNIT>(YCbCrToR(Y, Cb, Cr), 0, lfif->max_rgb_value);
     RGBUNIT G = std::clamp<YCBCRUNIT>(YCbCrToG(Y, Cb, Cr), 0, lfif->max_rgb_value);

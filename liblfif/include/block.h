@@ -29,11 +29,11 @@ struct getBlock {
         image_y = dims[D-1] - 1;
       }
 
-      auto inputF = [&](size_t image_index){
+      auto inputF = [&](size_t image_index) {
         return input(image_y * size_x + image_index);
       };
 
-      auto outputF = [&](size_t pixel_index, auto value) {
+      auto outputF = [&](size_t pixel_index, const auto &value) {
         output(pixel * constpow(BLOCK_SIZE, D-1) + pixel_index, value);
       };
 
@@ -81,7 +81,7 @@ struct putBlock {
         return input(pixel * constpow(BLOCK_SIZE, D-1) + pixel_index);
       };
 
-      auto outputF = [&](size_t image_index, auto value) {
+      auto outputF = [&](size_t image_index, const auto &value) {
         return output(image * size_x + image_index, value);
       };
 

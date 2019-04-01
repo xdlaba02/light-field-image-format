@@ -16,19 +16,19 @@ template<size_t D>
 struct lfifCompress {
   template<typename F>
   lfifCompress(F &&input, const uint64_t img_dims[D+1], uint8_t quality, uint16_t max_rgb_value, std::ostream &output) {
-    BlockCompressChain<D>    block_compress_chain    {};
-    QuantTable<D>            quant_table      [2]    {};
-    ReferenceBlock<D>        reference_block  [2]    {};
-    TraversalTable<D>        traversal_table  [2]    {};
-    HuffmanWeights           huffman_weight   [2][2] {};
-    HuffmanEncoder           huffman_encoder  [2][2] {};
+    BlockCompressChain<D> block_compress_chain   {};
+    QuantTable<D>         quant_table     [2]    {};
+    ReferenceBlock<D>     reference_block [2]    {};
+    TraversalTable<D>     traversal_table [2]    {};
+    HuffmanWeights        huffman_weight  [2][2] {};
+    HuffmanEncoder        huffman_encoder [2][2] {};
 
-    QDATAUNIT                previous_DC      [3]    {};
-    QuantTable<D>           *quant_tables    [3]     {};
-    ReferenceBlock<D>       *reference_blocks[3]     {};
-    TraversalTable<D>       *traversal_tables[3]     {};
-    HuffmanWeights          *huffman_weights [3]     {};
-    HuffmanEncoder          *huffman_encoders[3]     {};
+    QDATAUNIT             previous_DC     [3]    {};
+    QuantTable<D>        *quant_tables    [3]    {};
+    ReferenceBlock<D>    *reference_blocks[3]    {};
+    TraversalTable<D>    *traversal_tables[3]    {};
+    HuffmanWeights       *huffman_weights [3]    {};
+    HuffmanEncoder       *huffman_encoders[3]    {};
 
     size_t blocks_cnt {};
     size_t pixels_cnt {};
@@ -82,16 +82,24 @@ struct lfifCompress {
 
     for (size_t img = 0; img < img_dims[D]; img++) {
       for (size_t block = 0; block < blocks_cnt; block++) {
+
+        Block<std::array<YCBCRUNIT, 3>, D> current_block {};
+
+        auto inputF = [&](size_t index) {
+          return input(img * pixels_cnt + index);
+        };
+
+        auto outputF = [&](size_t index, const auto &value) {
+          current_block[index] = value;
+        };
+
+        getBlock<D>(inputF, block, img_dims, outputF);
+
         for (size_t channel = 0; channel < 3; channel++) {
-          auto inputF = [&](size_t index) {
-            return input(channel, img * pixels_cnt + index);
-          };
 
-          auto outputF = [&](size_t index, auto val) {
-            block_compress_chain.m_ycbcr_block[index] = val;
-          };
-
-          getBlock<D>(inputF, block, img_dims, outputF);
+          for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
+            block_compress_chain.m_ycbcr_block[i] = current_block[i][channel];
+          }
 
           block_compress_chain
           . forwardDiscreteCosineTransform()
@@ -112,16 +120,23 @@ struct lfifCompress {
 
     for (size_t img = 0; img < img_dims[D]; img++) {
       for (size_t block = 0; block < blocks_cnt; block++) {
+        Block<std::array<YCBCRUNIT, 3>, D> current_block {};
+
+        auto inputF = [&](size_t index) {
+          return input(img * pixels_cnt + index);
+        };
+
+        auto outputF = [&](size_t index, const auto &value) {
+          current_block[index] = value;
+        };
+
+        getBlock<D>(inputF, block, img_dims, outputF);
+
         for (size_t channel = 0; channel < 3; channel++) {
-          auto inputF = [&](size_t index) {
-            return input(channel, img * pixels_cnt + index);
-          };
 
-          auto outputF = [&](size_t index, auto val) {
-            block_compress_chain.m_ycbcr_block[index] = val;
-          };
-
-          getBlock<D>(inputF, block, img_dims, outputF);
+          for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
+            block_compress_chain.m_ycbcr_block[i] = current_block[i][channel];
+          }
 
           block_compress_chain
           . forwardDiscreteCosineTransform()
@@ -160,16 +175,24 @@ struct lfifCompress {
 
     for (size_t img = 0; img < img_dims[D]; img++) {
       for (size_t block = 0; block < blocks_cnt; block++) {
+
+        Block<std::array<YCBCRUNIT, 3>, D> current_block {};
+
+        auto inputF = [&](size_t index) {
+          return input(img * pixels_cnt + index);
+        };
+
+        auto outputF = [&](size_t index, const auto &value) {
+          current_block[index] = value;
+        };
+
+        getBlock<D>(inputF, block, img_dims, outputF);
+
         for (size_t channel = 0; channel < 3; channel++) {
-          auto inputF = [&](size_t index) {
-            return input(channel, img * pixels_cnt + index);
-          };
 
-          auto outputF = [&](size_t index, auto val) {
-            block_compress_chain.m_ycbcr_block[index] = val;
-          };
-
-          getBlock<D>(inputF, block, img_dims, outputF);
+          for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
+            block_compress_chain.m_ycbcr_block[i] = current_block[i][channel];
+          }
 
           block_compress_chain
           . forwardDiscreteCosineTransform()
