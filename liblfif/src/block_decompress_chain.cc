@@ -133,9 +133,9 @@ BlockDecompressChain<D, T>::putRGBBlock(T *rgb_data, const uint64_t img_dims[D],
     return rgb_data[index * 3 + 2];
   };
 
-  putBlock<D, T>(inputR, block, img_dims, outputR);
-  putBlock<D, T>(inputG, block, img_dims, outputG);
-  putBlock<D, T>(inputB, block, img_dims, outputB);
+  putBlock<D>(inputR, block, img_dims, outputR);
+  putBlock<D>(inputG, block, img_dims, outputG);
+  putBlock<D>(inputB, block, img_dims, outputB);
 
   return *this;
 }

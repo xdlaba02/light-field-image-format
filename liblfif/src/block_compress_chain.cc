@@ -38,9 +38,9 @@ BlockCompressChain<D, T>::newRGBBlock(const T *rgb_data, const uint64_t img_dims
     return m_rgb_block[index].b;
   };
 
-  getBlock<D, T>(inputR, block, img_dims, outputR);
-  getBlock<D, T>(inputG, block, img_dims, outputG);
-  getBlock<D, T>(inputB, block, img_dims, outputB);
+  getBlock<D>(inputR, block, img_dims, outputR);
+  getBlock<D>(inputG, block, img_dims, outputG);
+  getBlock<D>(inputB, block, img_dims, outputB);
 
   return *this;
 }
