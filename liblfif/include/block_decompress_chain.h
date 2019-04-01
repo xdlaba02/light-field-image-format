@@ -48,7 +48,7 @@ BlockDecompressChain<D, T>::decodeFromStream(HuffmanDecoder huffman_decoders[2],
   do {
     pairs_it++;
     pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
-  } while(!pairs_it->eob() && (pairs_it != std::end(m_runlength)));
+  } while(!pairs_it->eob() && (pairs_it != (std::end(m_runlength) - 1)));
 
   return *this;
 }

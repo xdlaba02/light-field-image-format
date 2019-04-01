@@ -20,17 +20,14 @@ TESTS = $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
 
 all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(TESTS)
 
-MULTIPPM = ../tools/build/file_mask.o ../tools/build/plenoppm.o ../libppm/bin/libppm.a
-LFIF 		 = ../liblfif/bin/liblfif.a
+$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o
+	$(CC) -lm -pthread $^ ../tools/build/file_mask.o ../tools/build/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a -o $@
 
-$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(MULTIPPM) $(LFIF)
-	$(CC) -lm -pthread $^ -o $@
+$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o
+	$(CC) -lm $^ ../tools/build/file_mask.o ../tools/build/plenoppm.o ../libppm/bin/libppm.a /opt/mozjpeg/lib64/libjpeg.a -o $@
 
-$(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(MULTIPPM) /opt/mozjpeg/lib64/libjpeg.a
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(MULTIPPM)
-	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
+$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o
+	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ ../tools/build/file_mask.o ../tools/build/plenoppm.o ../libppm/bin/libppm.a -o $@
 
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cc

@@ -192,7 +192,7 @@ BlockCompressChain<D, T>::huffmanAddWeights(HuffmanWeights weights[2], size_t cl
   do {
     pairs_it++;
     pairs_it->addToWeights(weights[1], class_bits);
-  } while (!pairs_it->eob() && (pairs_it != std::end(m_runlength)));
+  } while (!pairs_it->eob() && (pairs_it != (std::end(m_runlength) - 1)));
 
   return *this;
 }
@@ -207,7 +207,7 @@ BlockCompressChain<D, T>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &
   do {
     pairs_it++;
     pairs_it->huffmanEncodeToStream(encoder[1], stream, class_bits);
-  } while (!pairs_it->eob() && (pairs_it != std::end(m_runlength)));
+  } while (!pairs_it->eob() && (pairs_it != (std::end(m_runlength) - 1)));
 
   return *this;
 }
