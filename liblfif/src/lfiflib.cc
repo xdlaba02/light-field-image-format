@@ -1,6 +1,7 @@
 #include "lfiflib.h"
 #include "lfif_encoder.h"
 #include "lfif_decoder.h"
+#include "lfiftypes.h"
 
 #include <cmath>
 
@@ -42,19 +43,10 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
-  uint16_t tmp16 {};
-  tmp16 = htobe16(lfif->max_rgb_value);
-  output.write(reinterpret_cast<const char *>(&tmp16), sizeof(tmp16));
-
-  uint64_t tmp64 {};
-  tmp64 = htobe64(lfif->image_width);
-  output.write(reinterpret_cast<const char *>(&tmp64), sizeof(tmp64));
-
-  tmp64 = htobe64(lfif->image_height);
-  output.write(reinterpret_cast<const char *>(&tmp64), sizeof(tmp64));
-
-  tmp64 = htobe64(lfif->image_count);
-  output.write(reinterpret_cast<const char *>(&tmp64), sizeof(tmp64));
+  writeValueToStream<uint16_t>(output, lfif->max_rgb_value);
+  writeValueToStream<uint64_t>(output, lfif->image_width);
+  writeValueToStream<uint64_t>(output, lfif->image_height);
+  writeValueToStream<uint64_t>(output, lfif->image_count);
 
   img_dims[0] = lfif->image_width;
   img_dims[1] = lfif->image_height;
@@ -71,11 +63,6 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
 
     case LFIF_3D:
-      /* Alternative, there may be high frequencies in edge blocks when square root of image count is not divisable by 8
-      img_dims[2] = lfif->image_count;
-      img_dims[3] = 1;
-      */
-
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
 
@@ -128,18 +115,10 @@ int LFIFReadHeader(LFIFDecompressStruct *lfif) {
   input.read(magic_number, 8);
   lfif->method = getCompressMethod(string(magic_number));
 
-  input.read(reinterpret_cast<char *>(&lfif->max_rgb_value), sizeof(lfif->max_rgb_value));
-  lfif->max_rgb_value = be16toh(lfif->max_rgb_value);
-
-  input.read(reinterpret_cast<char *>(&lfif->image_width), sizeof(lfif->image_width));
-  lfif->image_width = be64toh(lfif->image_width);
-
-  input.read(reinterpret_cast<char *>(&lfif->image_height), sizeof(lfif->image_height));
-  lfif->image_height = be64toh(lfif->image_height);
-
-  input.read(reinterpret_cast<char *>(&lfif->image_count), sizeof(lfif->image_count));
-  lfif->image_count = be64toh(lfif->image_count);
-
+  lfif->max_rgb_value = readValueFromStream<uint16_t>(input);
+  lfif->image_width   = readValueFromStream<uint64_t>(input);
+  lfif->image_height  = readValueFromStream<uint64_t>(input);
+  lfif->image_count   = readValueFromStream<uint64_t>(input);
   return 0;
 }
 
