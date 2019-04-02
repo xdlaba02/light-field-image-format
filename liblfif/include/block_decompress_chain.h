@@ -16,8 +16,8 @@
 
 #include <vector>
 
-template <size_t D>
-void decodeFromStream(IBitstream &bitstream, Block<RunLengthPair, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
+template <size_t BS, size_t D>
+void decodeFromStream(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
   auto pairs_it = std::begin(runlength);
 
   pairs_it->huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
@@ -28,8 +28,8 @@ void decodeFromStream(IBitstream &bitstream, Block<RunLengthPair, D> &runlength,
   } while(!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
 
-template <size_t D>
-void runLengthDecode(const Block<RunLengthPair, D> &runlength, Block<QDATAUNIT, D> &traversed_block) {
+template <size_t BS, size_t D>
+void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUNIT, BS, D> &traversed_block) {
   traversed_block.fill(0);
 
   size_t pixel_index = 0;
@@ -42,30 +42,30 @@ void runLengthDecode(const Block<RunLengthPair, D> &runlength, Block<QDATAUNIT, 
   } while (!pairs_it->eob() && (pairs_it != std::end(runlength)));
 }
 
-template <size_t D>
-void detraverse(Block<QDATAUNIT, D> &traversed_block, const TraversalTable<D> &traversal_table) {
-  Block<QDATAUNIT, D> traversed_block_copy(traversed_block);
+template <size_t BS, size_t D>
+void detraverse(Block<QDATAUNIT, BS, D> &traversed_block, const TraversalTable<BS, D> &traversal_table) {
+  Block<QDATAUNIT, BS, D> traversed_block_copy(traversed_block);
 
-  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
+  for (size_t i = 0; i < constpow(BS, D); i++) {
     traversed_block[i] = traversed_block_copy[traversal_table[i]];
   }
 }
 
-template <size_t D>
-void diffDecodeDC(Block<QDATAUNIT, D> &diff_encoded_block, QDATAUNIT &previous_DC) {
+template <size_t BS, size_t D>
+void diffDecodeDC(Block<QDATAUNIT, BS, D> &diff_encoded_block, QDATAUNIT &previous_DC) {
   diff_encoded_block[0] += previous_DC;
   previous_DC = diff_encoded_block[0];
 }
 
-template <size_t D>
-void dequantize(const Block<QDATAUNIT, D> &quantized_block, Block<DCTDATAUNIT, D> &dct_block, const QuantTable<D> &quant_table) {
-  for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
+template <size_t BS, size_t D>
+void dequantize(const Block<QDATAUNIT, BS, D> &quantized_block, Block<DCTDATAUNIT, BS, D> &dct_block, const QuantTable<BS, D> &quant_table) {
+  for (size_t i = 0; i < constpow(BS, D); i++) {
     dct_block[i] = static_cast<DCTDATAUNIT>(quantized_block[i]) * quant_table[i];
   }
 }
 
-template <size_t D>
-void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, D> &dct_block, Block<YCBCRUNIT, D> &ycbcr_block) {
+template <size_t BS, size_t D>
+void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, Block<YCBCRUNIT, BS, D> &ycbcr_block) {
   ycbcr_block.fill(0);
 
   auto inputF = [&](size_t index) {
@@ -76,7 +76,7 @@ void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, D> &dct_block, Bloc
     return ycbcr_block[index];
   };
 
-  idct<D>(inputF, outputF);
+  idct<BS, D>(inputF, outputF);
 }
 
 #endif

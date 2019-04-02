@@ -12,18 +12,18 @@
 #include <cstdint>
 #include <istream>
 
-template<size_t D>
-struct lfif_decompress {
+template<size_t BS, size_t D>
+struct lfifDecompress {
   template <typename F>
-  lfif_decompress(std::istream &input, const uint64_t img_dims[D+1], uint16_t max_rgb_value, F &&output) {
-    QuantTable<D>           quant_table         [2]    {};
-    TraversalTable<D>       traversal_table     [2]    {};
+  lfifDecompress(std::istream &input, const uint64_t img_dims[D+1], uint16_t max_rgb_value, F &&output) {
+    QuantTable<BS, D>       quant_table         [2]    {};
+    TraversalTable<BS, D>   traversal_table     [2]    {};
     HuffmanDecoder          huffman_decoder     [2][2] {};
 
     QDATAUNIT               previous_DC         [3]    {};
     HuffmanDecoder         *huffman_decoders_ptr[3]    {};
-    TraversalTable<D>      *traversal_table_ptr [3]    {};
-    QuantTable<D>          *quant_table_ptr     [3]    {};
+    TraversalTable<BS, D>  *traversal_table_ptr [3]    {};
+    QuantTable<BS, D>      *quant_table_ptr     [3]    {};
 
     size_t blocks_cnt {};
     size_t pixels_cnt {};
@@ -34,11 +34,11 @@ struct lfif_decompress {
 
     IBitstream bitstream {};
 
-    Block<std::array<YCBCRUNIT, 3>, D> current_block   {};
-    Block<RunLengthPair,            D> runlength       {};
-    Block<QDATAUNIT,                D> quantized_block {};
-    Block<DCTDATAUNIT,              D> dct_block       {};
-    Block<YCBCRUNIT,                D> ycbcr_block     {};
+    Block<std::array<YCBCRUNIT, 3>, BS, D> current_block   {};
+    Block<           RunLengthPair, BS, D> runlength       {};
+    Block<               QDATAUNIT, BS, D> quantized_block {};
+    Block<             DCTDATAUNIT, BS, D> dct_block       {};
+    Block<               YCBCRUNIT, BS, D> ycbcr_block     {};
 
     auto inputF = [&](size_t index) -> const auto & {
       return current_block[index];
@@ -77,12 +77,12 @@ struct lfif_decompress {
     pixels_cnt = 1;
 
     for (size_t i = 0; i < D; i++) {
-      blocks_cnt *= ceil(img_dims[i]/static_cast<double>(BLOCK_SIZE));
+      blocks_cnt *= ceil(img_dims[i]/static_cast<double>(BS));
       pixels_cnt *= img_dims[i];
     }
 
     rgb_bits = ceil(log2(max_rgb_value));
-    amp_bits = ceil(log2(constpow(BLOCK_SIZE, D))) + rgb_bits - D - (D/2);
+    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2);
     class_bits = RunLengthPair::classBits(amp_bits);
 
     bitstream.open(&input);
@@ -99,19 +99,19 @@ struct lfif_decompress {
 
       for (size_t block = 0; block < blocks_cnt; block++) {
         for (size_t channel = 0; channel < 3; channel++) {
-          decodeFromStream<D>(bitstream, runlength, huffman_decoders_ptr[channel], class_bits);
-          runLengthDecode<D>(runlength, quantized_block);
-          detraverse<D>(quantized_block, *traversal_table_ptr[channel]);
-          diffDecodeDC<D>(quantized_block, previous_DC[channel]);
-          dequantize<D>(quantized_block, dct_block, *quant_table_ptr[channel]);
-          inverseDiscreteCosineTransform<D>(dct_block, ycbcr_block);
+          decodeFromStream<BS, D>(bitstream, runlength, huffman_decoders_ptr[channel], class_bits);
+          runLengthDecode<BS, D>(runlength, quantized_block);
+          detraverse<BS, D>(quantized_block, *traversal_table_ptr[channel]);
+          diffDecodeDC<BS, D>(quantized_block, previous_DC[channel]);
+          dequantize<BS, D>(quantized_block, dct_block, *quant_table_ptr[channel]);
+          inverseDiscreteCosineTransform<BS, D>(dct_block, ycbcr_block);
 
-          for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
+          for (size_t i = 0; i < constpow(BS, D); i++) {
             current_block[i][channel] = ycbcr_block[i];
           }
         }
 
-        putBlock<D>(inputF, block, img_dims, outputF);
+        putBlock<BS, D>(inputF, block, img_dims, outputF);
       }
     }
   }

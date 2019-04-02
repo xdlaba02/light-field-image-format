@@ -13,68 +13,107 @@
 
 using DCTDATAUNIT = float;
 
-constexpr Block<DCTDATAUNIT, 2> init_coefs() {
-  Block<DCTDATAUNIT, 2> c {};
-  for(size_t u = 0; u < BLOCK_SIZE; ++u) {
-    for(size_t x = 0; x < BLOCK_SIZE; ++x) {
-      c[u * BLOCK_SIZE + x] = cos(((2 * x + 1) * u * M_PI ) / (2 * BLOCK_SIZE)) * sqrt(2.0/BLOCK_SIZE) * (u == 0 ? (1 / sqrt(2)) : 1);
+template <size_t BS>
+constexpr Block<DCTDATAUNIT, BS, 2> init_coefs() {
+  Block<DCTDATAUNIT, BS, 2> coefs {};
+
+  for(size_t u = 0; u < BS; ++u) {
+    for(size_t x = 0; x < BS; ++x) {
+      coefs[u * BS + x] = cos(((2 * x + 1) * u * M_PI ) / (2 * BS)) * sqrt(2.0 / BS) * (u == 0 ? (1 / sqrt(2)) : 1);
     }
   }
-  return c;
+
+  return coefs;
 }
 
-template <size_t D>
+template <size_t BS, size_t D>
 struct fdct {
   template <typename IF, typename OF>
   fdct(IF &&input, OF &&output) {
-    DCTDATAUNIT tmp[constpow(BLOCK_SIZE, D)] {};
-    for (size_t slice = 0; slice < BLOCK_SIZE; slice++) {
-      fdct<D-1>([&](size_t index) -> DCTDATAUNIT { return input(slice*constpow(BLOCK_SIZE, D-1) + index); }, [&](size_t index) -> DCTDATAUNIT & { return tmp[slice * constpow(BLOCK_SIZE, D-1) + index]; });
+    Block<DCTDATAUNIT, BS, D> tmp {};
+
+    for (size_t slice = 0; slice < BS; slice++) {
+      auto inputF = [&](size_t index) {
+        return input(slice * constpow(BS, D - 1) + index);
+      };
+
+      auto outputF = [&](size_t index) -> auto & {
+        return tmp[slice * constpow(BS, D - 1) + index];
+      };
+
+      fdct<BS, D - 1>(inputF, outputF);
     }
-    for (size_t noodle = 0; noodle < constpow(BLOCK_SIZE, D-1); noodle++) {
-      fdct<1>([&](size_t index) -> DCTDATAUNIT { return tmp[index*constpow(BLOCK_SIZE, D-1) + noodle]; }, [&](size_t index) -> DCTDATAUNIT & { return output(index * constpow(BLOCK_SIZE, D-1) + noodle); });
+
+    for (size_t noodle = 0; noodle < constpow(BS, D - 1); noodle++) {
+      auto inputF = [&](size_t index) {
+        return tmp[index * constpow(BS, D - 1) + noodle];
+      };
+
+      auto outputF = [&](size_t index) -> auto & {
+        return output(index * constpow(BS, D - 1) + noodle);
+      };
+
+      fdct<BS, 1>(inputF, outputF);
     }
   }
 };
 
 
-template <>
-struct fdct<1> {
+template <size_t BS>
+struct fdct<BS, 1> {
   template <typename IF, typename OF>
   fdct(IF &&input, OF &&output) {
-    static constexpr Block<DCTDATAUNIT, 2> coefs = init_coefs();
+    static constexpr Block<DCTDATAUNIT, BS, 2> coefs = init_coefs<BS>();
 
-    for (size_t u = 0; u < BLOCK_SIZE; u++) {
-      for (size_t x = 0; x < BLOCK_SIZE; x++) {
-        output(u) += input(x) * coefs[u*BLOCK_SIZE+x];
+    for (size_t u = 0; u < BS; u++) {
+      for (size_t x = 0; x < BS; x++) {
+        output(u) += input(x) * coefs[u * BS + x];
       }
     }
   }
 };
 
-template <size_t D>
+template <size_t BS, size_t D>
 struct idct {
   template <typename IF, typename OF>
   idct(IF &&input, OF &&output) {
-    DCTDATAUNIT tmp[constpow(BLOCK_SIZE, D)] {};
-    for (size_t slice = 0; slice < BLOCK_SIZE; slice++) {
-      idct<D-1>([&](size_t index) -> DCTDATAUNIT { return input(slice*constpow(BLOCK_SIZE, D-1) + index); }, [&](size_t index) -> DCTDATAUNIT & { return tmp[slice*constpow(BLOCK_SIZE, D-1) + index]; });
+    Block<DCTDATAUNIT, BS, D> tmp {};
+
+    for (size_t slice = 0; slice < BS; slice++) {
+      auto inputF = [&](size_t index) {
+        return input(slice * constpow(BS, D - 1) + index);
+      };
+
+      auto outputF = [&](size_t index) -> auto & {
+        return tmp[slice * constpow(BS, D - 1) + index];
+      };
+
+      idct<BS, D - 1>(inputF, outputF);
     }
-    for (size_t noodle = 0; noodle < constpow(BLOCK_SIZE, D-1); noodle++) {
-      idct<1>([&](size_t index) -> DCTDATAUNIT { return tmp[index*constpow(BLOCK_SIZE, D-1) + noodle]; }, [&](size_t index) -> DCTDATAUNIT & { return output(index*constpow(BLOCK_SIZE, D-1) + noodle); });
+
+    for (size_t noodle = 0; noodle < constpow(BS, D - 1); noodle++) {
+      auto inputF = [&](size_t index) {
+        return tmp[index * constpow(BS, D - 1) + noodle];
+      };
+
+      auto outputF = [&](size_t index) -> auto & {
+        return output(index * constpow(BS, D - 1) + noodle);
+      };
+
+      idct<BS, 1>(inputF, outputF);
     }
   }
 };
 
-template <>
-struct idct<1> {
+template <size_t BS>
+struct idct<BS, 1> {
   template <typename IF, typename OF>
   idct(IF &&input, OF &&output) {
-    static constexpr Block<DCTDATAUNIT, 2> coefs = init_coefs();
-    
-    for (size_t x = 0; x < BLOCK_SIZE; x++) {
-      for (size_t u = 0; u < BLOCK_SIZE; u++) {
-        output(x) += input(u) * coefs[u*BLOCK_SIZE+x];
+    static constexpr Block<DCTDATAUNIT, BS, 2> coefs = init_coefs<BS>();
+
+    for (size_t x = 0; x < BS; x++) {
+      for (size_t u = 0; u < BS; u++) {
+        output(x) += input(u) * coefs[u * BS + x];
       }
     }
   }
