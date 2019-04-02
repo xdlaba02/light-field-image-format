@@ -16,9 +16,7 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
 
-TESTS = $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
-
-all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(TESTS)
+all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench
 
 $(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o
 	$(CC) -lm -pthread $^ ../tools/build/file_mask.o ../tools/build/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a -o $@

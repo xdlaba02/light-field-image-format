@@ -18,8 +18,7 @@
 #include <cstdint>
 
 template <size_t D>
-class BlockCompressChain {
-public:
+struct BlockCompressChain {
   BlockCompressChain<D> &forwardDiscreteCosineTransform();
   BlockCompressChain<D> &quantize(const QuantTable<D> &quant_table);
   BlockCompressChain<D> &addToReferenceBlock(ReferenceBlock<D> &reference);

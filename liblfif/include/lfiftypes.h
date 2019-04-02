@@ -13,7 +13,11 @@
 #include <array>
 #include <fstream>
 
-const size_t BLOCK_SIZE = 9;
+#ifdef M_BLOCK_SIZE
+const size_t BLOCK_SIZE = M_BLOCK_SIZE;
+#else
+const size_t BLOCK_SIZE = 8;
+#endif
 
 using RGBUNIT   = uint16_t;
 using QDATAUNIT = int64_t;

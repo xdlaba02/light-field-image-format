@@ -17,8 +17,7 @@
 #include <vector>
 
 template <size_t D>
-class BlockDecompressChain {
-public:
+struct BlockDecompressChain {
   BlockDecompressChain<D> &decodeFromStream(HuffmanDecoder huffman_decoders[2], IBitstream &bitstream, size_t class_bits);
   BlockDecompressChain<D> &runLengthDecode();
   BlockDecompressChain<D> &detraverse(TraversalTable<D> &traversal_table);
