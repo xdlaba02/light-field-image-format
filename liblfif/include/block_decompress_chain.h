@@ -65,15 +65,15 @@ void dequantize(const Block<QDATAUNIT, BS, D> &quantized_block, Block<DCTDATAUNI
 }
 
 template <size_t BS, size_t D>
-void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, Block<INPUTUNIT, BS, D> &ycbcr_block) {
-  ycbcr_block.fill(0);
+void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, Block<INPUTUNIT, BS, D> &output_block) {
+  output_block.fill(0);
 
   auto inputF = [&](size_t index) {
     return dct_block[index];
   };
 
   auto outputF = [&](size_t index) -> auto & {
-    return ycbcr_block[index];
+    return output_block[index];
   };
 
   idct<BS, D>(inputF, outputF);

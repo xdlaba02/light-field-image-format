@@ -41,7 +41,7 @@ struct lfifCompress {
     size_t max_zeroes  {};
 
     Block<std::array<INPUTUNIT, 3>, BS, D> current_block   {};
-    Block<INPUTUNIT,                BS, D> ycbcr_block     {};
+    Block<INPUTUNIT,                BS, D> input_block     {};
     Block<DCTDATAUNIT,              BS, D> dct_block       {};
     Block<QDATAUNIT,                BS, D> quantized_block {};
     Block<RunLengthPair,            BS, D> runlength       {};
@@ -105,10 +105,10 @@ struct lfifCompress {
 
         for (size_t channel = 0; channel < 3; channel++) {
           for (size_t i = 0; i < constpow(BS, D); i++) {
-            ycbcr_block[i] = current_block[i][channel];
+            input_block[i] = current_block[i][channel];
           }
 
-          forwardDiscreteCosineTransform<BS, D>(ycbcr_block, dct_block);
+          forwardDiscreteCosineTransform<BS, D>(input_block, dct_block);
                                 quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
                      addToReferenceBlock<BS, D>(quantized_block, *reference_blocks[channel]);
         }
@@ -134,10 +134,10 @@ struct lfifCompress {
 
         for (size_t channel = 0; channel < 3; channel++) {
           for (size_t i = 0; i < constpow(BS, D); i++) {
-            ycbcr_block[i] = current_block[i][channel];
+            input_block[i] = current_block[i][channel];
           }
 
-          forwardDiscreteCosineTransform<BS, D>(ycbcr_block, dct_block);
+          forwardDiscreteCosineTransform<BS, D>(input_block, dct_block);
                                 quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
                             diffEncodeDC<BS, D>(quantized_block, previous_DC[channel]);
                                 traverse<BS, D>(quantized_block, *traversal_tables[channel]);
@@ -181,10 +181,10 @@ struct lfifCompress {
 
         for (size_t channel = 0; channel < 3; channel++) {
           for (size_t i = 0; i < constpow(BS, D); i++) {
-            ycbcr_block[i] = current_block[i][channel];
+            input_block[i] = current_block[i][channel];
           }
 
-          forwardDiscreteCosineTransform<BS, D>(ycbcr_block, dct_block);
+          forwardDiscreteCosineTransform<BS, D>(input_block, dct_block);
                                 quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
                             diffEncodeDC<BS, D>(quantized_block, previous_DC[channel]);
                                 traverse<BS, D>(quantized_block, *traversal_tables[channel]);

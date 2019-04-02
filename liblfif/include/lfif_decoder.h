@@ -38,7 +38,7 @@ struct lfifDecompress {
     Block<           RunLengthPair, BS, D> runlength       {};
     Block<               QDATAUNIT, BS, D> quantized_block {};
     Block<             DCTDATAUNIT, BS, D> dct_block       {};
-    Block<               INPUTUNIT, BS, D> ycbcr_block     {};
+    Block<               INPUTUNIT, BS, D> output_block     {};
 
     auto inputF = [&](size_t index) -> const auto & {
       return current_block[index];
@@ -104,10 +104,10 @@ struct lfifDecompress {
           detraverse<BS, D>(quantized_block, *traversal_table_ptr[channel]);
           diffDecodeDC<BS, D>(quantized_block, previous_DC[channel]);
           dequantize<BS, D>(quantized_block, dct_block, *quant_table_ptr[channel]);
-          inverseDiscreteCosineTransform<BS, D>(dct_block, ycbcr_block);
+          inverseDiscreteCosineTransform<BS, D>(dct_block, output_block);
 
           for (size_t i = 0; i < constpow(BS, D); i++) {
-            current_block[i][channel] = ycbcr_block[i];
+            current_block[i][channel] = output_block[i];
           }
         }
 

@@ -18,11 +18,11 @@
 #include <cstdint>
 
 template <size_t BS, size_t D>
-void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &ycbcr_block, Block<DCTDATAUNIT, BS, D> &transformed_block) {
+void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &output_block, Block<DCTDATAUNIT, BS, D> &transformed_block) {
   transformed_block.fill(0);
 
   auto inputF = [&](size_t index) {
-    return ycbcr_block[index];
+    return output_block[index];
   };
 
   auto outputF = [&](size_t index) -> auto & {
