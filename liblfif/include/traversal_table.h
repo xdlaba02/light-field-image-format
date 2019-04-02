@@ -6,9 +6,9 @@
 #ifndef TRAVERSAL_TABLE_H
 #define TRAVERSAL_TABLE_H
 
-#include "lfiftypes.h"
 #include "quant_table.h"
 #include "zigzag.h"
+#include "endian_t.h"
 
 #include <iosfwd>
 
@@ -21,7 +21,6 @@ using ReferenceBlock = Block<REFBLOCKUNIT, D>;
 template <size_t D>
 class TraversalTable {
 public:
-  // TODO Reference as median
   TraversalTable<D> &constructByReference(const ReferenceBlock<D> &reference_block);
   TraversalTable<D> &constructByQuantTable(const QuantTable<D> &quant_table);
   TraversalTable<D> &constructByRadius();
@@ -138,22 +137,22 @@ TraversalTable<D>::writeToStream(std::ostream &stream) {
 
   if (max_bits <= 8) {
     for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-      writeValueToStream<uint8_t>(stream, m_block[i]);
+      writeValueToStream<uint8_t>(m_block[i], stream);
     }
   }
   else if (max_bits <= 16) {
     for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-      writeValueToStream<uint16_t>(stream, m_block[i]);
+      writeValueToStream<uint16_t>(m_block[i], stream);
     }
   }
   else if (max_bits <= 32) {
     for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-      writeValueToStream<uint32_t>(stream, m_block[i]);
+      writeValueToStream<uint32_t>(m_block[i], stream);
     }
   }
   else if (max_bits <= 64) {
     for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-      writeValueToStream<uint64_t>(stream, m_block[i]);
+      writeValueToStream<uint64_t>(m_block[i], stream);
     }
   }
 

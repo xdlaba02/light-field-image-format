@@ -11,7 +11,7 @@
 #include <cmath>
 #include <array>
 
-using DCTDATAUNIT = double;
+using DCTDATAUNIT = float;
 
 constexpr Block<DCTDATAUNIT, 2> init_coefs() {
   Block<DCTDATAUNIT, 2> c {};
@@ -22,8 +22,6 @@ constexpr Block<DCTDATAUNIT, 2> init_coefs() {
   }
   return c;
 }
-
-constexpr Block<DCTDATAUNIT, 2> coefs = init_coefs();
 
 template <size_t D>
 struct fdct {
@@ -44,6 +42,8 @@ template <>
 struct fdct<1> {
   template <typename IF, typename OF>
   fdct(IF &&input, OF &&output) {
+    static constexpr Block<DCTDATAUNIT, 2> coefs = init_coefs();
+
     for (size_t u = 0; u < BLOCK_SIZE; u++) {
       for (size_t x = 0; x < BLOCK_SIZE; x++) {
         output(u) += input(x) * coefs[u*BLOCK_SIZE+x];
@@ -70,6 +70,8 @@ template <>
 struct idct<1> {
   template <typename IF, typename OF>
   idct(IF &&input, OF &&output) {
+    static constexpr Block<DCTDATAUNIT, 2> coefs = init_coefs();
+    
     for (size_t x = 0; x < BLOCK_SIZE; x++) {
       for (size_t u = 0; u < BLOCK_SIZE; u++) {
         output(x) += input(u) * coefs[u*BLOCK_SIZE+x];

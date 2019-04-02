@@ -3,6 +3,7 @@
 #include "lfif_decoder.h"
 #include "lfiftypes.h"
 #include "colorspace.h"
+#include "endian_t.h"
 
 #include <cmath>
 
@@ -44,10 +45,10 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
     break;
   }
 
-  writeValueToStream<uint16_t>(output, lfif->max_rgb_value);
-  writeValueToStream<uint64_t>(output, lfif->image_width);
-  writeValueToStream<uint64_t>(output, lfif->image_height);
-  writeValueToStream<uint64_t>(output, lfif->image_count);
+  writeValueToStream<uint16_t>(lfif->max_rgb_value, output);
+  writeValueToStream<uint64_t>(lfif->image_width,   output);
+  writeValueToStream<uint64_t>(lfif->image_height,  output);
+  writeValueToStream<uint64_t>(lfif->image_count,   output);
 
   auto inputF1 = [&](size_t channel, size_t index) -> uint16_t {
     if (lfif->max_rgb_value < 256) {

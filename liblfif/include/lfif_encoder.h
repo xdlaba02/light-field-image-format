@@ -17,6 +17,7 @@ struct lfifCompress {
   template<typename F>
   lfifCompress(F &&input, const uint64_t img_dims[D+1], uint8_t quality, uint16_t max_rgb_value, std::ostream &output) {
     BlockCompressChain<D> block_compress_chain   {};
+    OBitstream            bitstream              {};
     QuantTable<D>         quant_table     [2]    {};
     ReferenceBlock<D>     reference_block [2]    {};
     TraversalTable<D>     traversal_table [2]    {};
@@ -30,8 +31,8 @@ struct lfifCompress {
     HuffmanWeights       *huffman_weights [3]    {};
     HuffmanEncoder       *huffman_encoders[3]    {};
 
-    size_t blocks_cnt {};
-    size_t pixels_cnt {};
+    size_t blocks_cnt  {};
+    size_t pixels_cnt  {};
 
     size_t rgb_bits    {};
     size_t amp_bits    {};
@@ -167,7 +168,7 @@ struct lfifCompress {
       }
     }
 
-    OBitstream bitstream(&output);
+    bitstream.open(&output);
 
     previous_DC[0] = 0;
     previous_DC[1] = 0;

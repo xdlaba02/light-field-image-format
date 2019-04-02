@@ -17,6 +17,7 @@ struct lfif_decompress {
   template <typename F>
   lfif_decompress(std::istream &input, const uint64_t img_dims[D+1], uint16_t max_rgb_value, F &&output) {
     BlockDecompressChain<D> block_decompress_chain {};
+    IBitstream              bitstream              {};
     QuantTable<D>           quant_table     [2]    {};
     TraversalTable<D>       traversal_table [2]    {};
     HuffmanDecoder          huffman_decoder [2][2] {};
@@ -75,11 +76,11 @@ struct lfif_decompress {
     amp_bits = ceil(log2(constpow(BLOCK_SIZE, D))) + rgb_bits - D - (D/2);
     class_bits = RunLengthPair::classBits(amp_bits);
 
+    bitstream.open(&input);
+
     previous_DC[0] = 0;
     previous_DC[1] = 0;
     previous_DC[2] = 0;
-
-    IBitstream bitstream(&input);
 
     for (size_t img = 0; img < img_dims[D]; img++) {
       for (size_t block = 0; block < blocks_cnt; block++) {
