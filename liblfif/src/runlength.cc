@@ -1,8 +1,7 @@
 #include "runlength.h"
 #include "bitstream.h"
 
-RunLengthPair &
-RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) {
+const RunLengthPair &RunLengthPair::huffmanEncodeToStream(const HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) const {
   HuffmanClass amp_class {};
   RLAMPUNIT    amp       {};
 
@@ -23,8 +22,7 @@ RunLengthPair::huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream
 }
 
 
-RunLengthPair &
-RunLengthPair::huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits) {
+RunLengthPair &RunLengthPair::huffmanDecodeFromStream(const HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits) {
   HuffmanClass  amp_class      {};
   HuffmanSymbol huffman_symbol {};
 

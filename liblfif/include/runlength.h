@@ -22,13 +22,13 @@ public:
   size_t    zeroes;
   RLAMPUNIT amplitude;
 
-  RunLengthPair &addToWeights(HuffmanWeights &weights, size_t class_bits) {
+  const RunLengthPair &huffmanEncodeToStream(const HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) const;
+  RunLengthPair &huffmanDecodeFromStream(const HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits);
+
+  const RunLengthPair &addToWeights(HuffmanWeights &weights, size_t class_bits) const {
     weights[huffmanSymbol(class_bits)]++;
     return *this;
   }
-
-  RunLengthPair &huffmanEncodeToStream(HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits);
-  RunLengthPair &huffmanDecodeFromStream(HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits);
 
   bool eob() const {
     return (!zeroes) && (!amplitude);

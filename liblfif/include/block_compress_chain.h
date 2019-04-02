@@ -18,88 +18,65 @@
 #include <cstdint>
 
 template <size_t D>
-struct BlockCompressChain {
-  BlockCompressChain<D> &forwardDiscreteCosineTransform();
-  BlockCompressChain<D> &quantize(const QuantTable<D> &quant_table);
-  BlockCompressChain<D> &addToReferenceBlock(ReferenceBlock<D> &reference);
-  BlockCompressChain<D> &diffEncodeDC(QDATAUNIT &previous_DC);
-  BlockCompressChain<D> &traverse(const TraversalTable<D> &traversal_table);
-  BlockCompressChain<D> &runLengthEncode(size_t max_zeroes);
-  BlockCompressChain<D> &huffmanAddWeights(HuffmanWeights weights[2], size_t class_bits);
-  BlockCompressChain<D> &encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits);
+void forwardDiscreteCosineTransform(const Block<YCBCRUNIT, D> &ycbcr_block, Block<DCTDATAUNIT, D> &transformed_block) {
+  transformed_block.fill(0);
 
-  Block<YCBCRUNIT,     D>    m_ycbcr_block;
-  Block<DCTDATAUNIT,   D>    m_transformed_block;
-  Block<QDATAUNIT,     D>    m_quantized_block;
-  Block<QDATAUNIT,     D>    m_traversed_block;
-  Block<RunLengthPair, D>    m_runlength;
-};
+  auto inputF = [&](size_t index) {
+    return ycbcr_block[index];
+  };
 
-template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::forwardDiscreteCosineTransform() {
-  m_transformed_block.fill(0);
+  auto outputF = [&](size_t index) -> auto & {
+    return transformed_block[index];
+  };
 
-  fdct<D>([&](size_t index) -> DCTDATAUNIT { return m_ycbcr_block[index];}, [&](size_t index) -> DCTDATAUNIT & { return m_transformed_block[index]; });
-
-  return *this;
+  fdct<D>(inputF, outputF);
 }
 
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::quantize(const QuantTable<D> &quant_table) {
+void quantize(const Block<DCTDATAUNIT, D> &transformed_block, Block<QDATAUNIT, D> &quantized_block, const QuantTable<D> &quant_table) {
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-    m_quantized_block[i] = m_transformed_block[i] / quant_table[i];
+    quantized_block[i] = transformed_block[i] / quant_table[i];
   }
-
-  return *this;
 }
 
+
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::addToReferenceBlock(ReferenceBlock<D> &reference) {
+void addToReferenceBlock(const Block<QDATAUNIT, D> &quantized_block, ReferenceBlock<D> &reference) {
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-    reference[i] += abs(m_quantized_block[i]);
+    reference[i] += abs(quantized_block[i]);
   }
-
-  return *this;
 }
 
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::diffEncodeDC(QDATAUNIT &previous_DC) {
-  QDATAUNIT current_DC = m_quantized_block[0];
-  m_quantized_block[0] -= previous_DC;
+void diffEncodeDC(Block<QDATAUNIT, D> &quantized_block, QDATAUNIT &previous_DC) {
+  QDATAUNIT current_DC = quantized_block[0];
+  quantized_block[0] -= previous_DC;
   previous_DC = current_DC;
-
-  return *this;
 }
 
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::traverse(const TraversalTable<D> &traversal_table) {
+void traverse(Block<QDATAUNIT, D> &diff_encoded_block, const TraversalTable<D> &traversal_table) {
+  Block<QDATAUNIT, D> diff_encoded_copy(diff_encoded_block);
+
   for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-    m_traversed_block[traversal_table[i]] = m_quantized_block[i];
+    diff_encoded_block[traversal_table[i]] = diff_encoded_copy[i];
   }
-
-  return *this;
 }
 
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::runLengthEncode(size_t max_zeroes) {
-  auto pairs_it = std::begin(m_runlength);
+void runLengthEncode(const Block<QDATAUNIT, D> &traversed_block, Block<RunLengthPair, D> &runlength, size_t max_zeroes) {
+  auto pairs_it = std::begin(runlength);
 
-  auto push_pair = [&pairs_it](RunLengthPair &&pair) {
+  auto push_pair = [&](RunLengthPair &&pair) {
     *pairs_it = pair;
     pairs_it++;
   };
 
-  push_pair({0, m_traversed_block[0]});
+  push_pair({0, traversed_block[0]});
 
   size_t zeroes = 0;
   for (size_t i = 1; i < constpow(BLOCK_SIZE, D); i++) {
-    if (m_traversed_block[i] == 0) {
+    if (traversed_block[i] == 0) {
       zeroes++;
     }
     else {
@@ -107,45 +84,35 @@ BlockCompressChain<D>::runLengthEncode(size_t max_zeroes) {
         push_pair({max_zeroes - 1, 0});
         zeroes -= max_zeroes;
       }
-      push_pair({zeroes, m_traversed_block[i]});
+      push_pair({zeroes, traversed_block[i]});
       zeroes = 0;
     }
   }
 
   push_pair({0, 0});
-
-  return *this;
 }
 
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::huffmanAddWeights(HuffmanWeights weights[2], size_t class_bits) {
-  auto pairs_it = std::begin(m_runlength);
+void huffmanAddWeights(const Block<RunLengthPair, D> &runlength, HuffmanWeights weights[2], size_t class_bits) {
+  auto pairs_it = std::begin(runlength);
 
   pairs_it->addToWeights(weights[0], class_bits);
 
   do {
     pairs_it++;
     pairs_it->addToWeights(weights[1], class_bits);
-  } while (!pairs_it->eob() && (pairs_it != (std::end(m_runlength) - 1)));
-
-  return *this;
+  } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
 
 template <size_t D>
-BlockCompressChain<D> &
-BlockCompressChain<D>::encodeToStream(HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
-  auto pairs_it = std::begin(m_runlength);
+void encodeToStream(const Block<RunLengthPair, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
+  auto pairs_it = std::begin(runlength);
 
   pairs_it->huffmanEncodeToStream(encoder[0], stream, class_bits);
 
   do {
     pairs_it++;
     pairs_it->huffmanEncodeToStream(encoder[1], stream, class_bits);
-  } while (!pairs_it->eob() && (pairs_it != (std::end(m_runlength) - 1)));
-
-  return *this;
+  } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
-
-
 #endif

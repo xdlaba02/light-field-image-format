@@ -16,17 +16,14 @@ template<size_t D>
 struct lfif_decompress {
   template <typename F>
   lfif_decompress(std::istream &input, const uint64_t img_dims[D+1], uint16_t max_rgb_value, F &&output) {
-    BlockDecompressChain<D> block_decompress_chain {};
-    IBitstream              bitstream              {};
-    QuantTable<D>           quant_table     [2]    {};
-    TraversalTable<D>       traversal_table [2]    {};
-    HuffmanDecoder          huffman_decoder [2][2] {};
+    QuantTable<D>           quant_table         [2]    {};
+    TraversalTable<D>       traversal_table     [2]    {};
+    HuffmanDecoder          huffman_decoder     [2][2] {};
 
-    QDATAUNIT               previous_DC     [3]    {};
-
-    HuffmanDecoder         *huffman_decoders[3]    {};
-    TraversalTable<D>      *traversal_tables[3]    {};
-    QuantTable<D>          *quant_tables    [3]    {};
+    QDATAUNIT               previous_DC         [3]    {};
+    HuffmanDecoder         *huffman_decoders_ptr[3]    {};
+    TraversalTable<D>      *traversal_table_ptr [3]    {};
+    QuantTable<D>          *quant_table_ptr     [3]    {};
 
     size_t blocks_cnt {};
     size_t pixels_cnt {};
@@ -35,17 +32,29 @@ struct lfif_decompress {
     size_t amp_bits   {};
     size_t class_bits {};
 
-    huffman_decoders[0] =  huffman_decoder[0];
-    huffman_decoders[1] =  huffman_decoder[1];
-    huffman_decoders[2] =  huffman_decoder[1];
+    IBitstream bitstream {};
 
-    traversal_tables[0] = &traversal_table[0];
-    traversal_tables[1] = &traversal_table[1];
-    traversal_tables[2] = &traversal_table[1];
+    Block<std::array<YCBCRUNIT, 3>, D> current_block   {};
+    Block<RunLengthPair,            D> runlength       {};
+    Block<QDATAUNIT,                D> quantized_block {};
+    Block<DCTDATAUNIT,              D> dct_block       {};
+    Block<YCBCRUNIT,                D> ycbcr_block     {};
 
-    quant_tables[0]     = &quant_table[0];
-    quant_tables[1]     = &quant_table[1];
-    quant_tables[2]     = &quant_table[1];
+    auto inputF = [&](size_t index) -> const auto & {
+      return current_block[index];
+    };
+
+    huffman_decoders_ptr[0] =  huffman_decoder[0];
+    huffman_decoders_ptr[1] =  huffman_decoder[1];
+    huffman_decoders_ptr[2] =  huffman_decoder[1];
+
+    traversal_table_ptr[0] = &traversal_table[0];
+    traversal_table_ptr[1] = &traversal_table[1];
+    traversal_table_ptr[2] = &traversal_table[1];
+
+    quant_table_ptr[0]     = &quant_table[0];
+    quant_table_ptr[1]     = &quant_table[1];
+    quant_table_ptr[2]     = &quant_table[1];
 
     for (size_t i = 0; i < 2; i++) {
       quant_table[i]
@@ -83,31 +92,24 @@ struct lfif_decompress {
     previous_DC[2] = 0;
 
     for (size_t img = 0; img < img_dims[D]; img++) {
+
+      auto outputF = [&](size_t index, const auto &value) {
+        output(img * pixels_cnt + index, value);
+      };
+
       for (size_t block = 0; block < blocks_cnt; block++) {
-
-        Block<std::array<YCBCRUNIT, 3>, D> current_block {};
-
         for (size_t channel = 0; channel < 3; channel++) {
-          block_decompress_chain
-          . decodeFromStream(huffman_decoders[channel], bitstream, class_bits)
-          . runLengthDecode()
-          . detraverse(*traversal_tables[channel])
-          . diffDecodeDC(previous_DC[channel])
-          . dequantize(*quant_tables[channel])
-          . inverseDiscreteCosineTransform();
+          decodeFromStream<D>(bitstream, runlength, huffman_decoders_ptr[channel], class_bits);
+          runLengthDecode<D>(runlength, quantized_block);
+          detraverse<D>(quantized_block, *traversal_table_ptr[channel]);
+          diffDecodeDC<D>(quantized_block, previous_DC[channel]);
+          dequantize<D>(quantized_block, dct_block, *quant_table_ptr[channel]);
+          inverseDiscreteCosineTransform<D>(dct_block, ycbcr_block);
 
           for (size_t i = 0; i < constpow(BLOCK_SIZE, D); i++) {
-            current_block[i][channel] = block_decompress_chain.m_ycbcr_block[i];
+            current_block[i][channel] = ycbcr_block[i];
           }
         }
-
-        auto inputF = [&](size_t index) -> const auto & {
-          return current_block[index];
-        };
-
-        auto outputF = [&](size_t index, const auto &value) {
-          output(img * pixels_cnt + index, value);
-        };
 
         putBlock<D>(inputF, block, img_dims, outputF);
       }

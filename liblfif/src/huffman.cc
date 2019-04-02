@@ -16,11 +16,10 @@ using namespace std;
 HuffmanEncoder &HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffman_weights) {
   generateHuffmanCodelengths(huffman_weights);
   generateHuffmanMap();
-
   return *this;
 }
 
-HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) {
+const HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) const {
   uint8_t codelengths_cnt = m_huffman_codelengths.back().first + 1;
   stream.put(codelengths_cnt);
 
@@ -41,8 +40,8 @@ HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) {
   return *this;
 }
 
-HuffmanEncoder &HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) {
-  stream.write(m_huffman_map[symbol]);
+const HuffmanEncoder &HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) const {
+  stream.write(m_huffman_map.at(symbol));
   return *this;
 }
 
@@ -117,7 +116,7 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanCodelengths(const HuffmanWeights 
 }
 
 HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
-  map<HuffmanSymbol, HuffmanCodeword> map {};
+  unordered_map<HuffmanSymbol, HuffmanCodeword> map {};
 
   // TODO PROVE ME
 
@@ -125,8 +124,6 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
 
   uint8_t huffman_codeword {};
   for (auto &pair: m_huffman_codelengths) {
-    map[pair.second];
-
     for (uint8_t i = 0; i < prefix_ones; i++) {
       map[pair.second].push_back(1);
     }
@@ -159,11 +156,11 @@ HuffmanDecoder &HuffmanDecoder::readFromStream(istream &stream) {
   return *this;
 }
 
-HuffmanSymbol HuffmanDecoder::decodeSymbolFromStream(IBitstream &stream) {
+HuffmanSymbol HuffmanDecoder::decodeSymbolFromStream(IBitstream &stream) const {
   return m_huffman_symbols[decodeOneHuffmanSymbolIndex(stream)];
 }
 
-size_t HuffmanDecoder::decodeOneHuffmanSymbolIndex(IBitstream &stream) {
+size_t HuffmanDecoder::decodeOneHuffmanSymbolIndex(IBitstream &stream) const {
   uint16_t code  = 0;
   uint16_t first = 0;
   uint16_t index = 0;
