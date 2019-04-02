@@ -17,9 +17,11 @@ using QTABLEUNIT = uint64_t;
 template <size_t BS, size_t D>
 class QuantTable {
 public:
-  QuantTable<BS, D> &baseDiagonalTable(const Block<QTABLEUNIT, 8, 2> &qtable, uint8_t quality);
-  QuantTable<BS, D> &baseCopyTable(const Block<QTABLEUNIT, 8, 2> &qtable, uint8_t quality);
-  QuantTable<BS, D> &baseUniform(uint8_t quality);
+  QuantTable<BS, D> &baseDiagonalTable(const Block<QTABLEUNIT, BS, 2> &qtable);
+  QuantTable<BS, D> &baseCopyTable(const Block<QTABLEUNIT, BS, 2> &qtable);
+  QuantTable<BS, D> &baseUniform();
+
+  QuantTable<BS, D> &applyQuality(float quality);
 
   const QuantTable<BS, D> &writeToStream(std::ostream &stream) const;
   QuantTable<BS, D> &readFromStream(std::istream &stream);
@@ -48,16 +50,18 @@ public:
     99, 99, 99, 99, 99, 99, 99, 99
   };
 
+  static constexpr Block<QTABLEUNIT, BS, 2> scaleByDCT(const Block<QTABLEUNIT, 8, 2> &qtable);
+  static constexpr Block<QTABLEUNIT, BS, 2> scaleFillNear(const Block<QTABLEUNIT, 8, 2> &qtable);
+
 private:
-  QTABLEUNIT averageForDiagonal(const std::array<QTABLEUNIT, 64> &qtable, size_t diagonal);
-  QuantTable<BS, D> &scaleByQuality(uint8_t quality);
+  static QTABLEUNIT averageForDiagonal(const Block<QTABLEUNIT, BS, 2> &qtable, size_t diagonal);
 
   Block<QTABLEUNIT, BS, D> m_block;
 };
 
 template <size_t BS, size_t D>
 QuantTable<BS, D> &
-QuantTable<BS, D>::baseDiagonalTable(const std::array<QTABLEUNIT, 64> &qtable, uint8_t quality) {
+QuantTable<BS, D>::baseDiagonalTable(const Block<QTABLEUNIT, BS, 2> &qtable) {
   for (size_t i = 0; i < constpow(BS, D); i++) {
     size_t diagonal = 0;
     for (size_t j = 0; j < D; j++) {
@@ -66,36 +70,39 @@ QuantTable<BS, D>::baseDiagonalTable(const std::array<QTABLEUNIT, 64> &qtable, u
     m_block[i] = averageForDiagonal(qtable, diagonal);
   }
 
-  scaleByQuality(quality);
-
   return *this;
 }
 
 template <size_t BS, size_t D>
 QuantTable<BS, D> &
-QuantTable<BS, D>::baseCopyTable(const std::array<QTABLEUNIT, 64> &qtable, uint8_t quality) {
+QuantTable<BS, D>::baseCopyTable(const Block<QTABLEUNIT, BS, 2> &qtable) {
   for (size_t slice = 0; slice < constpow(BS, D - 2); slice++) {
     for (size_t y = 0; y < BS; y++) {
-      size_t orig_y = y < 8 ? y : 7;
-
       for (size_t x = 0; x < BS; x++) {
-        size_t orig_x = x < 8 ? x : 7;
-
-        m_block[(slice * BS + y) * BS + x] = qtable[orig_y * 8 + orig_x];
+        m_block[(slice * BS + y) * BS + x] = qtable[y * BS + x];
       }
     }
   }
 
-  scaleByQuality(quality);
-
   return *this;
 }
 
 template <size_t BS, size_t D>
 QuantTable<BS, D> &
-QuantTable<BS, D>::baseUniform(uint8_t quality) {
+QuantTable<BS, D>::baseUniform() {
   for (size_t i = 0; i < constpow(BS, D); i++) {
-    m_block[i] = 101 - quality;
+    m_block[i] = 51;
+  }
+
+  return *this;
+}
+
+template <size_t BS, size_t D>
+QuantTable<BS, D> &QuantTable<BS, D>::applyQuality(float quality) {
+  float scale_coef = quality < 50 ? (50.0 / quality) : (200.0 - 2 * quality) / 100;
+
+  for (size_t i = 0; i < constpow(BS, D); i++) {
+    m_block[i] = std::clamp<float>(m_block[i] * scale_coef, 1.f, 255.f);
   }
 
   return *this;
@@ -124,15 +131,66 @@ uint64_t QuantTable<BS, D>::operator [](size_t index) const {
   return m_block[index];
 }
 
+#include <iostream>
+
 template <size_t BS, size_t D>
-QTABLEUNIT QuantTable<BS, D>::averageForDiagonal(const std::array<QTABLEUNIT, 64> &qtable, size_t diagonal) {
-  double sum = 0;
+constexpr Block<QTABLEUNIT, BS, 2> QuantTable<BS, D>::scaleByDCT(const Block<QTABLEUNIT, 8, 2> &qtable) {
+  Block<DCTDATAUNIT, BS, 2> coefs  {};
+  Block<DCTDATAUNIT, BS, 2> output {};
+  Block<QTABLEUNIT, BS, 2>  table  {};
+
+  auto finputF = [&](size_t index) -> DCTDATAUNIT {
+    return qtable[index];
+  };
+
+  auto foutputF = [&](size_t index) -> DCTDATAUNIT & {
+    return coefs[(index / 8) * BS + (index % 8)];
+  };
+
+  fdct<8, 2>(finputF, foutputF);
+
+  auto iinputF = [&](size_t index) -> DCTDATAUNIT {
+    return coefs[index];
+  };
+
+  auto ioutputF = [&](size_t index) -> DCTDATAUNIT & {
+    return output[index];
+  };
+
+  idct<BS, 2>(iinputF, ioutputF);
+
+  for (size_t i = 0; i < constpow(BS, 2); i++) {
+    table[i] = std::round(output[i]);
+  }
+
+  return table;
+}
+
+template <size_t BS, size_t D>
+constexpr Block<QTABLEUNIT, BS, 2> QuantTable<BS, D>::scaleFillNear(const Block<QTABLEUNIT, 8, 2> &qtable) {
+  Block<QTABLEUNIT, BS, 2> output {};
+
+  for (size_t y = 0; y < BS; y++) {
+    size_t input_y = y < 8 ? y : 7;
+    for (size_t x = 0; x < BS; x++) {
+      size_t input_x = x < 8 ? x : 7;
+
+      output[y * BS + x] = qtable[input_y * 8 + input_x];
+    }
+  }
+
+  return output;
+}
+
+template <size_t BS, size_t D>
+QTABLEUNIT QuantTable<BS, D>::averageForDiagonal(const Block<QTABLEUNIT, BS, 2> &qtable, size_t diagonal) {
+  float sum = 0;
   size_t cnt = 0;
 
-  for (size_t y = 0; y < 8; y++) {
-    for (size_t x = 0; x < 8; x++) {
+  for (size_t y = 0; y < BS; y++) {
+    for (size_t x = 0; x < BS; x++) {
       if (x + y == diagonal) {
-        sum += qtable[y*8+x];
+        sum += qtable[y * BS + x];
         cnt++;
       }
     }
@@ -143,18 +201,6 @@ QTABLEUNIT QuantTable<BS, D>::averageForDiagonal(const std::array<QTABLEUNIT, 64
   }
 
   return qtable[63];
-}
-
-template <size_t BS, size_t D>
-QuantTable<BS, D> &
-QuantTable<BS, D>::scaleByQuality(uint8_t quality) {
-  double scale_coef = quality < 50 ? (50.0 / quality) : (200.0 - 2 * quality) / 100;
-
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    m_block[i] = std::clamp<double>(m_block[i] * scale_coef, 1, 255);
-  }
-
-  return *this;
 }
 
 #endif

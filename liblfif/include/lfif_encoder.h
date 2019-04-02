@@ -17,6 +17,7 @@ struct lfifCompress {
   template<typename F>
   lfifCompress(F &&input, const uint64_t img_dims[D+1], uint8_t quality, uint16_t max_rgb_value, std::ostream &output) {
     OBitstream             bitstream              {};
+
     QuantTable<BS, D>      quant_table     [2]    {};
     ReferenceBlock<BS, D>  reference_block [2]    {};
     TraversalTable<BS, D>  traversal_table [2]    {};
@@ -84,20 +85,22 @@ struct lfifCompress {
     max_zeroes = constpow(2, zeroes_bits);
 
     quant_table[0]
-    . baseDiagonalTable(QuantTable<BS, D>::base_luma, quality);
+    . baseDiagonalTable(QuantTable<BS, D>::scaleByDCT(QuantTable<BS, D>::base_luma));
 
     quant_table[1]
-    . baseDiagonalTable(QuantTable<BS, D>::base_chroma, quality);
+    . baseDiagonalTable(QuantTable<BS, D>::scaleByDCT(QuantTable<BS, D>::base_chroma));
 
+    for (size_t i = 0; i < 2; i++) {
+      quant_table[i]
+      . applyQuality(quality);
+    }
 
     for (size_t img = 0; img < img_dims[D]; img++) {
-
       auto inputF = [&](size_t index) {
         return input(img * pixels_cnt + index);
       };
 
       for (size_t block = 0; block < blocks_cnt; block++) {
-
         getBlock<BS, D>(inputF, block, img_dims, outputF);
 
         for (size_t channel = 0; channel < 3; channel++) {
@@ -106,8 +109,8 @@ struct lfifCompress {
           }
 
           forwardDiscreteCosineTransform<BS, D>(ycbcr_block, dct_block);
-          quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
-          addToReferenceBlock<BS, D>(quantized_block, *reference_blocks[channel]);
+                                quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
+                     addToReferenceBlock<BS, D>(quantized_block, *reference_blocks[channel]);
         }
       }
     }
@@ -122,13 +125,11 @@ struct lfifCompress {
     previous_DC[2] = 0;
 
     for (size_t img = 0; img < img_dims[D]; img++) {
-
       auto inputF = [&](size_t index) {
         return input(img * pixels_cnt + index);
       };
 
       for (size_t block = 0; block < blocks_cnt; block++) {
-
         getBlock<BS, D>(inputF, block, img_dims, outputF);
 
         for (size_t channel = 0; channel < 3; channel++) {
@@ -137,11 +138,11 @@ struct lfifCompress {
           }
 
           forwardDiscreteCosineTransform<BS, D>(ycbcr_block, dct_block);
-          quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
-          diffEncodeDC<BS, D>(quantized_block, previous_DC[channel]);
-          traverse<BS, D>(quantized_block, *traversal_tables[channel]);
-          runLengthEncode<BS, D>(quantized_block, runlength, max_zeroes);
-          huffmanAddWeights<BS, D>(runlength, huffman_weights[channel], class_bits);
+                                quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
+                            diffEncodeDC<BS, D>(quantized_block, previous_DC[channel]);
+                                traverse<BS, D>(quantized_block, *traversal_tables[channel]);
+                         runLengthEncode<BS, D>(quantized_block, runlength, max_zeroes);
+                       huffmanAddWeights<BS, D>(runlength, huffman_weights[channel], class_bits);
         }
       }
     }
@@ -171,27 +172,24 @@ struct lfifCompress {
     previous_DC[2] = 0;
 
     for (size_t img = 0; img < img_dims[D]; img++) {
-
       auto inputF = [&](size_t index) {
         return input(img * pixels_cnt + index);
       };
 
       for (size_t block = 0; block < blocks_cnt; block++) {
-
         getBlock<BS, D>(inputF, block, img_dims, outputF);
 
         for (size_t channel = 0; channel < 3; channel++) {
-
           for (size_t i = 0; i < constpow(BS, D); i++) {
             ycbcr_block[i] = current_block[i][channel];
           }
 
           forwardDiscreteCosineTransform<BS, D>(ycbcr_block, dct_block);
-          quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
-          diffEncodeDC<BS, D>(quantized_block, previous_DC[channel]);
-          traverse<BS, D>(quantized_block, *traversal_tables[channel]);
-          runLengthEncode<BS, D>(quantized_block, runlength, max_zeroes);
-          encodeToStream<BS, D>(runlength, huffman_encoders[channel], bitstream, class_bits);
+                                quantize<BS, D>(dct_block, quantized_block, *quant_tables[channel]);
+                            diffEncodeDC<BS, D>(quantized_block, previous_DC[channel]);
+                                traverse<BS, D>(quantized_block, *traversal_tables[channel]);
+                         runLengthEncode<BS, D>(quantized_block, runlength, max_zeroes);
+                          encodeToStream<BS, D>(runlength, huffman_encoders[channel], bitstream, class_bits);
         }
       }
     }
