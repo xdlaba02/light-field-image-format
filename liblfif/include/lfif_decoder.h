@@ -34,11 +34,11 @@ struct lfifDecompress {
 
     IBitstream bitstream {};
 
-    Block<std::array<YCBCRUNIT, 3>, BS, D> current_block   {};
+    Block<std::array<INPUTUNIT, 3>, BS, D> current_block   {};
     Block<           RunLengthPair, BS, D> runlength       {};
     Block<               QDATAUNIT, BS, D> quantized_block {};
     Block<             DCTDATAUNIT, BS, D> dct_block       {};
-    Block<               YCBCRUNIT, BS, D> ycbcr_block     {};
+    Block<               INPUTUNIT, BS, D> ycbcr_block     {};
 
     auto inputF = [&](size_t index) -> const auto & {
       return current_block[index];

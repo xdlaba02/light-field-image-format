@@ -40,8 +40,8 @@ struct lfifCompress {
     size_t class_bits  {};
     size_t max_zeroes  {};
 
-    Block<std::array<YCBCRUNIT, 3>, BS, D> current_block   {};
-    Block<YCBCRUNIT,                BS, D> ycbcr_block     {};
+    Block<std::array<INPUTUNIT, 3>, BS, D> current_block   {};
+    Block<INPUTUNIT,                BS, D> ycbcr_block     {};
     Block<DCTDATAUNIT,              BS, D> dct_block       {};
     Block<QDATAUNIT,                BS, D> quantized_block {};
     Block<RunLengthPair,            BS, D> runlength       {};

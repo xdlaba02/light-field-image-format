@@ -10,27 +10,59 @@
 
 #include <cmath>
 
-inline YCBCRUNIT RGBToY(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+namespace YCbCr {
+
+inline INPUTUNIT RGBToY(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
   return (0.299 * R) + (0.587 * G) + (0.114 * B);
 }
 
-inline YCBCRUNIT RGBToCb(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+inline INPUTUNIT RGBToCb(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
   return - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
 }
 
-inline YCBCRUNIT RGBToCr(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+inline INPUTUNIT RGBToCr(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
   return (0.5 * R) - (0.418688 * G) - (0.081312 * B);
 }
 
-inline YCBCRUNIT YCbCrToR(YCBCRUNIT Y, YCBCRUNIT, YCBCRUNIT Cr) {
+inline INPUTUNIT YCbCrToR(INPUTUNIT Y, INPUTUNIT, INPUTUNIT Cr) {
   return Y + 1.402 * Cr;
 }
 
-inline YCBCRUNIT YCbCrToG(YCBCRUNIT Y, YCBCRUNIT Cb, YCBCRUNIT Cr) {
+inline INPUTUNIT YCbCrToG(INPUTUNIT Y, INPUTUNIT Cb, INPUTUNIT Cr) {
   return Y - 0.344136 * Cb - 0.714136 * Cr;
 }
 
-inline YCBCRUNIT YCbCrToB(YCBCRUNIT Y, YCBCRUNIT Cb, YCBCRUNIT) {
+inline INPUTUNIT YCbCrToB(INPUTUNIT Y, INPUTUNIT Cb, INPUTUNIT) {
   return Y + 1.772 * Cb;
+}
+
+}
+
+namespace YCoCg {
+
+inline INPUTUNIT RGBToY(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  return (0.25 * R) + (0.5 * G) + (0.25 * B);
+}
+
+inline INPUTUNIT RGBToCo(RGBUNIT R, RGBUNIT, RGBUNIT B) {
+  return (0.5 * R) - (0.5 * B);
+}
+
+inline INPUTUNIT RGBToCg(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  return - (0.25 * R) + (0.5 * G) - (0.25 * B);
+}
+
+inline INPUTUNIT YCoCgToR(INPUTUNIT Y, INPUTUNIT Co, INPUTUNIT Cg) {
+  return Y + Co - Cg;
+}
+
+inline INPUTUNIT YCoCgToG(INPUTUNIT Y, INPUTUNIT, INPUTUNIT Cg) {
+  return Y + Cg;
+}
+
+inline INPUTUNIT YCoCgToB(INPUTUNIT Y, INPUTUNIT Co, INPUTUNIT Cg) {
+  return Y - Co - Cg;
+}
+
 }
 #endif
