@@ -76,14 +76,14 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
   switch (lfif->method) {
     case LFIF_2D:
       img_dims[2] = lfif->image_count;
-      lfifCompress<9, 2>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
+      lfifCompress<8, 2>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
     break;
 
     case LFIF_3D:
       img_dims[2] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
 
-      lfifCompress<9, 3>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
+      lfifCompress<8, 3>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
     break;
 
     case LFIF_4D:
@@ -91,7 +91,7 @@ int LFIFCompress(LFIFCompressStruct *lfif, const void *rgb_data) {
       img_dims[3] = static_cast<uint64_t>(sqrt(lfif->image_count));
       img_dims[4] = 1;
 
-      lfifCompress<9, 4>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
+      lfifCompress<8, 4>(inputF2, img_dims, lfif->quality, lfif->max_rgb_value, output);
     break;
 
     default:
