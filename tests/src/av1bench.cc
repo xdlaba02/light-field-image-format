@@ -1,5 +1,5 @@
 /******************************************************************************\
-* SOUBOR: x265bench.cc
+* SOUBOR: av1bench.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
@@ -224,15 +224,15 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  decoder = avcodec_find_decoder(AV_CODEC_ID_H265);
+  decoder = avcodec_find_decoder(AV_CODEC_ID_AV1);
   if (!decoder) {
-    cerr << "decoder AV_CODEC_ID_H265 not found" << endl;
+    cerr << "decoder AV_CODEC_ID_AV1 not found" << endl;
     exit(1);
   }
 
-  coder = avcodec_find_encoder(AV_CODEC_ID_H265);
+  coder = avcodec_find_encoder(AV_CODEC_ID_AV1);
   if (!coder) {
-    cerr << "coder AV_CODEC_ID_H265 not found" << endl;
+    cerr << "coder AV_CODEC_ID_AV1 not found" << endl;
     exit(1);
   }
 
@@ -274,19 +274,24 @@ int main(int argc, char *argv[]) {
   }
   else {
     output.open(output_file, std::fstream::trunc);
-    output << "'x265' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+    output << "'av1' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
   }
 
   for (double bpp = f_b; bpp <= l_b; bpp *= 1.25893) {
+    cerr << "BPP: " << bpp << "\n";
+
     vector<uint8_t> out_rgb_data {};
     size_t compressed_size = 0;
 
     in_context->bit_rate = bpp * image_pixels;
+    in_context->strict_std_compliance = -2;
 
     if (avcodec_open2(in_context, coder, nullptr) < 0) {
       cerr << "Could not open coder" << endl;
       exit(1);
     }
+
+    out_context->strict_std_compliance = -2;
 
     if (avcodec_open2(out_context, decoder, nullptr) < 0) {
       cerr << "Could not open decoder" << endl;
@@ -315,6 +320,8 @@ int main(int argc, char *argv[]) {
     };
 
     for (size_t image = 0; image < image_count; image++) {
+      cerr << "IMG: " << image << "\n";
+
       uint8_t *inData[1] = { &rgb_data[image * width * height * 3] };
       int inLinesize[1] = { static_cast<int>(3 * width) };
       sws_scale(in_convert_ctx, inData, inLinesize, 0, height, in_frame->data, in_frame->linesize);
