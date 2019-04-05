@@ -6,7 +6,6 @@
 #include "plenoppm.h"
 
 #include <xvcenc.h>
-#include <xvcdec.h>
 
 #include <getopt.h>
 #include <cmath>
@@ -17,6 +16,7 @@
 #include <iostream>
 #include <sstream>
 #include <cassert>
+#include <bitset>
 
 using namespace std;
 
@@ -128,100 +128,65 @@ int main(int argc, char *argv[]) {
     output << "'xvc' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
   }
 
-  const xvc_encoder_api  *xvc_capi {};
-  xvc_encoder_parameters *cparams  {};
-  xvc_encoder            *encoder  {};
+  const xvc_encoder_api  *xvc_api {};
+  xvc_encoder_parameters *params  {};
+  xvc_encoder            *encoder {};
+  xvc_enc_pic_buffer rec_pic_buffer = { 0, 0 };
 
-  xvc_capi = xvc_encoder_api_get();
-  cparams = xvc_capi->parameters_create();;
+  xvc_api = xvc_encoder_api_get();
+  params = xvc_api->parameters_create();
 
-  xvc_capi->parameters_set_default(cparams);
+  xvc_api->parameters_set_default(params);
 
-  cparams->width = width;
-  cparams->height = height;
-  cparams->chroma_format = XVC_ENC_CHROMA_FORMAT_444;
+  params->width = width;
+  params->height = height;
+  params->chroma_format = XVC_ENC_CHROMA_FORMAT_444;
+  params->input_bitdepth = 8;
 
-  xvc_enc_return_code cret = xvc_capi->parameters_check(cparams);
-  if (cret != XVC_ENC_OK) {
-    cerr << xvc_capi->xvc_enc_get_error_text(cret) << endl;
+  xvc_enc_return_code ret = xvc_api->parameters_check(params);
+  if (ret != XVC_ENC_OK) {
+    cerr << xvc_api->xvc_enc_get_error_text(ret) << endl;
     return 0;
   }
 
-  encoder = xvc_capi->encoder_create(cparams);
-
-  const xvc_decoder_api *xvc_dapi {};
-  xvc_decoder_parameters *dparams {};
-  xvc_decoder *decoder            {};
-  xvc_decoded_picture decoded_pic {};
-
-  xvc_dapi = xvc_decoder_api_get();
-  dparams = xvc_dapi->parameters_create();
-
-  xvc_dapi->parameters_set_default(dparams);
-  dparams->output_width  = width;
-  dparams->output_height = height;
-  dparams->output_chroma_format = XVC_DEC_CHROMA_FORMAT_444;
-
-  xvc_dec_return_code dret = xvc_dapi->parameters_check(dparams);
-  if (dret != XVC_DEC_OK) {
-    cerr << xvc_dapi->xvc_dec_get_error_text(dret) << endl;
-    return 0;
-  }
-
-  decoder = xvc_dapi->decoder_create(dparams);
+  encoder = xvc_api->encoder_create(params);
 
   xvc_enc_nal_unit *nal_units;
   int num_nal_units;
 
   bool   loop_check {true};
   size_t img        {0};
-  size_t input_ite  {0};
+  size_t rec_ite    {0};
   double mse        {0.0};
   size_t total_size {0};
-
-  auto saveFrame = [&](xvc_decoded_picture *pic) {
-    cerr << "SIZE: " << pic->size << " " << image_pixels * 3 << "\n";
-    for (size_t pix = 0; pix < pic->size; pix++) {
-      double tmp = rgb_data[input_ite] - pic->bytes[pix];
-      mse += tmp * tmp;
-      input_ite++;
-    }
-  };
-
-  auto decodePkt = [&](xvc_enc_nal_unit *unit) {
-    if (unit) {
-      total_size += unit->size;
-      dret = xvc_dapi->decoder_decode_nal(decoder, unit->bytes, unit->size, 0);
-    }
-    else {
-      dret = xvc_dapi->decoder_flush(decoder);
-    }
-
-    if (xvc_dapi->decoder_get_picture(decoder, &decoded_pic) == XVC_DEC_OK) {
-      saveFrame(&decoded_pic);
-    }
-  };
-
   while (loop_check) {
     if (img < image_count) {
       cerr << "IMG: " << img << "\n";
-      xvc_enc_return_code ret = xvc_capi->encoder_encode(encoder, &rgb_data[img * width * height * 3], &nal_units, &num_nal_units, nullptr);
+      xvc_enc_return_code ret = xvc_api->encoder_encode(encoder, &rgb_data[img * width * height * 3], &nal_units, &num_nal_units, &rec_pic_buffer);
       assert(ret == XVC_ENC_OK || ret == XVC_ENC_NO_MORE_OUTPUT);
       img++;
     }
     else {
-      xvc_enc_return_code ret = xvc_capi->encoder_flush(encoder, &nal_units, &num_nal_units, nullptr);
+      xvc_enc_return_code ret = xvc_api->encoder_flush(encoder, &nal_units, &num_nal_units, &rec_pic_buffer);
       loop_check = (ret == XVC_ENC_OK);
     }
 
     for (int i = 0; i < num_nal_units; i++) {
-      decodePkt(&nal_units[i]);
+      cerr << "NAL: " << i << "\n";
+      total_size += nal_units[i].size;
     }
 
-    decodePkt(nullptr);
+    if (rec_pic_buffer.size > 0) {
+      for (size_t i = 0; i < image_pixels * 3; i++) {
+        cerr << bitset<8>(rgb_data[rec_ite]) << " " << bitset<8>(rec_pic_buffer.pic[i]) << "\n";
+        double tmp = rgb_data[rec_ite] - rec_pic_buffer.pic[i];
+        mse += tmp * tmp;
+        rec_ite++;
+      }
+    }
   }
 
-  mse /= image_pixels * 3;
+  mse /= image_count * width * height * 3;
 
   double bpp = total_size * 8.0 / image_pixels;
   double psnr = 10 * log10((255 * 255) / mse);
@@ -230,10 +195,10 @@ int main(int argc, char *argv[]) {
   output << psnr << " " << bpp << endl;
 
   if (encoder) {
-    xvc_capi->encoder_destroy(encoder);
+    xvc_api->encoder_destroy(encoder);
   }
-  if (cparams) {
-    xvc_capi->parameters_destroy(cparams);
+  if (params) {
+    xvc_api->parameters_destroy(params);
   }
 
   return 0;
