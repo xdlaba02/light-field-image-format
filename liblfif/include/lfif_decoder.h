@@ -82,7 +82,7 @@ struct lfifDecompress {
     }
 
     rgb_bits = ceil(log2(max_rgb_value));
-    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2);
+    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2) + 1;
     class_bits = RunLengthPair::classBits(amp_bits);
 
     bitstream.open(&input);

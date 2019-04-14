@@ -79,7 +79,7 @@ struct lfifCompress {
     }
 
     rgb_bits = ceil(log2(max_rgb_value));
-    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2);
+    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2) + 1;
     class_bits = RunLengthPair::classBits(amp_bits);
     zeroes_bits = RunLengthPair::zeroesBits(class_bits);
     max_zeroes = constpow(2, zeroes_bits);
