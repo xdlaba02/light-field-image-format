@@ -13,10 +13,6 @@
 #include <array>
 #include <numeric>
 
-std::vector<size_t> generateZigzagTable2D(int64_t size);
-std::vector<size_t> generateZigzagTable3D(int64_t size);
-std::vector<size_t> generateZigzagTable4D(int64_t size);
-
 template <size_t BS, size_t D>
 void rotate(size_t table[constpow(BS, D)]) {
   Block<size_t, BS, D> tmp {};

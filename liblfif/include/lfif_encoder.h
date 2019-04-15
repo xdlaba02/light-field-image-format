@@ -84,15 +84,11 @@ struct lfifCompress {
     zeroes_bits = RunLengthPair::zeroesBits(class_bits);
     max_zeroes = constpow(2, zeroes_bits);
 
-    quant_table[0]
-    . baseDiagonalTable(QuantTable<BS, D>::scaleByDCT(QuantTable<BS, D>::base_luma));
-
-    quant_table[1]
-    . baseDiagonalTable(QuantTable<BS, D>::scaleByDCT(QuantTable<BS, D>::base_chroma));
+    quant_table[0] = averageDiagonalTable<BS, 2, D>(scaleByDCT<8, 2, BS>(base_luma));
+    quant_table[1] = averageDiagonalTable<BS, 2, D>(scaleByDCT<8, 2, BS>(base_chroma));
 
     for (size_t i = 0; i < 2; i++) {
-      quant_table[i]
-      . applyQuality(quality);
+      quant_table[i] = clampTable<BS, D>(applyQuality<BS, D>(quant_table[i], quality), 1, 255);
     }
 
     for (size_t img = 0; img < img_dims[D]; img++) {
@@ -148,8 +144,7 @@ struct lfifCompress {
     }
 
     for (size_t i = 0; i < 2; i++) {
-      quant_table[i]
-      . writeToStream(output);
+      writeToStream<BS, D>(quant_table[i], output);
     }
 
     for (size_t i = 0; i < 2; i++) {

@@ -38,7 +38,7 @@ struct lfifDecompress {
     Block<           RunLengthPair, BS, D> runlength       {};
     Block<               QDATAUNIT, BS, D> quantized_block {};
     Block<             DCTDATAUNIT, BS, D> dct_block       {};
-    Block<               INPUTUNIT, BS, D> output_block     {};
+    Block<               INPUTUNIT, BS, D> output_block    {};
 
     auto inputF = [&](size_t index) -> const auto & {
       return current_block[index];
@@ -57,8 +57,7 @@ struct lfifDecompress {
     quant_table_ptr[2]     = &quant_table[1];
 
     for (size_t i = 0; i < 2; i++) {
-      quant_table[i]
-      . readFromStream(input);
+      quant_table[i] = readFromStream<BS, D>(input);
     }
 
     for (size_t i = 0; i < 2; i++) {
@@ -92,18 +91,17 @@ struct lfifDecompress {
     previous_DC[2] = 0;
 
     for (size_t img = 0; img < img_dims[D]; img++) {
-
       auto outputF = [&](size_t index, const auto &value) {
         output(img * pixels_cnt + index, value);
       };
 
       for (size_t block = 0; block < blocks_cnt; block++) {
         for (size_t channel = 0; channel < 3; channel++) {
-          decodeFromStream<BS, D>(bitstream, runlength, huffman_decoders_ptr[channel], class_bits);
-          runLengthDecode<BS, D>(runlength, quantized_block);
-          detraverse<BS, D>(quantized_block, *traversal_table_ptr[channel]);
-          diffDecodeDC<BS, D>(quantized_block, previous_DC[channel]);
-          dequantize<BS, D>(quantized_block, dct_block, *quant_table_ptr[channel]);
+                        decodeFromStream<BS, D>(bitstream, runlength, huffman_decoders_ptr[channel], class_bits);
+                         runLengthDecode<BS, D>(runlength, quantized_block);
+                              detraverse<BS, D>(quantized_block, *traversal_table_ptr[channel]);
+                            diffDecodeDC<BS, D>(quantized_block, previous_DC[channel]);
+                              dequantize<BS, D>(quantized_block, dct_block, *quant_table_ptr[channel]);
           inverseDiscreteCosineTransform<BS, D>(dct_block, output_block);
 
           for (size_t i = 0; i < constpow(BS, D); i++) {
