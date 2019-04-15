@@ -11,9 +11,6 @@
 #include <numeric>
 #include <fstream>
 
-#include <iostream>
-#include <bitset>
-
 using namespace std;
 
 HuffmanEncoder &HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffman_weights) {
@@ -26,8 +23,6 @@ const HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) const {
   HuffmanCodelength max_codelength = m_huffman_codelengths.back().first;
   writeValueToStream(max_codelength, stream);
 
-  cerr << long(max_codelength) << "\n\n";
-
   auto it = m_huffman_codelengths.begin();
   for (size_t i = 0; i <= max_codelength; i++) {
     HuffmanCodelength leaves = 0;
@@ -36,16 +31,11 @@ const HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) const {
       it++;
     }
     writeValueToStream(leaves, stream);
-
-    cerr << long(leaves) << "\n";
   }
-  cerr << '\n';
 
   for (auto &pair: m_huffman_codelengths) {
     writeValueToStream(pair.second, stream);
-    cerr << bitset<8>(pair.second) << "\n";
   }
-  cerr << '\n';
 
   return *this;
 }
