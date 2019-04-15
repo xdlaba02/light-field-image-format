@@ -25,21 +25,23 @@ void decodeFromStream(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlen
   do {
     pairs_it++;
     pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
-  } while(!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
+  } while((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
 }
 
 template <size_t BS, size_t D>
 void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUNIT, BS, D> &traversed_block) {
   traversed_block.fill(0);
 
-  size_t pixel_index = 0;
+  auto block_it = std::begin(traversed_block);
   auto pairs_it = std::begin(runlength);
+
   do {
-    pixel_index += pairs_it->zeroes;
-    traversed_block[pixel_index] = pairs_it->amplitude;
-    pixel_index++;
+    block_it += pairs_it->zeroes;
+    *block_it = pairs_it->amplitude;
+
+    block_it++;
     pairs_it++;
-  } while (!pairs_it->eob() && (pairs_it != std::end(runlength)));
+  } while ((pairs_it != std::end(runlength)) && (!pairs_it->eob()) && (block_it != std::end(traversed_block)));
 }
 
 template <size_t BS, size_t D>

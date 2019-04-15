@@ -5,6 +5,7 @@
 
 #include "huffman.h"
 #include "bitstream.h"
+#include "endian_t.h"
 
 #include <algorithm>
 #include <bitset>
@@ -20,21 +21,21 @@ HuffmanEncoder &HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffma
 }
 
 const HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) const {
-  uint8_t codelengths_cnt = m_huffman_codelengths.back().first + 1;
-  stream.put(codelengths_cnt);
+  uint16_t codelengths_cnt = m_huffman_codelengths.back().first + 1;
+  writeValueToStream(codelengths_cnt, stream);
 
   auto it = m_huffman_codelengths.begin();
-  for (uint8_t i = 0; i < codelengths_cnt; i++) {
-    size_t leaves = 0;
-    while ((it < m_huffman_codelengths.end()) && ((*it).first == i)) {
+  for (size_t i = 0; i < codelengths_cnt; i++) {
+    uint16_t leaves = 0;
+    while ((it < m_huffman_codelengths.end()) && (it->first == i)) {
       leaves++;
       it++;
     }
-    stream.put(leaves);
+    writeValueToStream(leaves, stream);
   }
 
   for (auto &pair: m_huffman_codelengths) {
-    stream.put(pair.second);
+    writeValueToStream(pair.second, stream);
   }
 
   return *this;
@@ -120,22 +121,23 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
 
   // TODO PROVE ME
 
-  uint8_t prefix_ones = 0;
+  size_t  prefix_ones      {};
+  int64_t huffman_codeword {};
 
-  uint8_t huffman_codeword {};
   for (auto &pair: m_huffman_codelengths) {
-    for (uint8_t i = 0; i < prefix_ones; i++) {
+
+    for (size_t i = 0; i < prefix_ones; i++) {
       map[pair.second].push_back(1);
     }
 
-    uint8_t len = pair.first - prefix_ones;
+    size_t len = pair.first - prefix_ones;
 
-    for (uint8_t k = 0; k < len; k++) {
-      map[pair.second].push_back(bitset<8>(huffman_codeword)[7 - k]);
+    for (size_t k = 0; k < len; k++) {
+      map[pair.second].push_back(bitset<64>(huffman_codeword)[63 - k]);
     }
 
-    huffman_codeword = ((huffman_codeword >> (8 - len)) + 1) << (8 - len);
-    while (huffman_codeword > 127) {
+    huffman_codeword = ((huffman_codeword >> (64 - len)) + 1) << (64 - len);
+    while (huffman_codeword < 0) {
       prefix_ones++;
       huffman_codeword <<= 1;
     }
@@ -147,11 +149,19 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
 }
 
 HuffmanDecoder &HuffmanDecoder::readFromStream(istream &stream) {
-  m_huffman_counts.resize(stream.get());
-  stream.read(reinterpret_cast<char *>(m_huffman_counts.data()), m_huffman_counts.size());
+  uint16_t codelengths_cnt = readValueFromStream<uint16_t>(stream);
+  m_huffman_counts.resize(codelengths_cnt);
 
-  m_huffman_symbols.resize(accumulate(m_huffman_counts.begin(), m_huffman_counts.end(), 0, plus<uint8_t>()));
-  stream.read(reinterpret_cast<char *>(m_huffman_symbols.data()), m_huffman_symbols.size());
+  for (size_t i = 0; i < codelengths_cnt; i++) {
+    m_huffman_counts[i] = readValueFromStream<uint16_t>(stream);
+  }
+
+  size_t symbols_cnt = accumulate(m_huffman_counts.begin(), m_huffman_counts.end(), 0, plus<uint16_t>());
+  m_huffman_symbols.resize(symbols_cnt);
+
+  for (size_t i = 0; i < symbols_cnt; i++) {
+    m_huffman_symbols[i] = readValueFromStream<HuffmanSymbol>(stream);
+  }
 
   return *this;
 }
@@ -163,19 +173,21 @@ HuffmanSymbol HuffmanDecoder::decodeSymbolFromStream(IBitstream &stream) const {
 size_t HuffmanDecoder::decodeOneHuffmanSymbolIndex(IBitstream &stream) const {
   uint16_t code  = 0;
   uint16_t first = 0;
-  uint16_t index = 0;
+  size_t  index = 0;
   uint16_t count = 0;
+
+  //i have genuinely no idea why this is working
 
   for (size_t len = 1; len < m_huffman_counts.size(); len++) {
     code |= stream.readBit();
     count = m_huffman_counts[len];
     if (code - count < first) {
-      return index + (code - first);
+      return index + code - first;
     }
     index += count;
     first += count;
     first <<= 1;
-    code <<= 1;
+    code  <<= 1;
   }
 
   return 0;

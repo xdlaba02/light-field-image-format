@@ -13,7 +13,7 @@ class OBitstream;
 #include <vector>
 #include <unordered_map>
 
-using HuffmanSymbol   = uint8_t;
+using HuffmanSymbol   = uint16_t;
 using HuffmanCodeword = std::vector<bool>;
 using HuffmanWeights  = std::unordered_map<HuffmanSymbol, uint64_t>;
 
@@ -39,7 +39,7 @@ public:
 private:
   size_t decodeOneHuffmanSymbolIndex(IBitstream &stream) const;
 
-  std::vector<uint8_t>       m_huffman_counts;
+  std::vector<uint16_t>      m_huffman_counts;
   std::vector<HuffmanSymbol> m_huffman_symbols;
 };
 

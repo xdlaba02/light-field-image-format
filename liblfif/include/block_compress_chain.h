@@ -68,8 +68,10 @@ void runLengthEncode(const Block<QDATAUNIT, BS, D> &traversed_block, Block<RunLe
   auto pairs_it = std::begin(runlength);
 
   auto push_pair = [&](RunLengthPair &&pair) {
-    *pairs_it = pair;
-    pairs_it++;
+    if (pairs_it != std::end(runlength)) {
+      *pairs_it = pair;
+      pairs_it++;
+    }
   };
 
   push_pair({0, traversed_block[0]});
