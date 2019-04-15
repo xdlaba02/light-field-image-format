@@ -18,7 +18,7 @@ using namespace std;
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
-  uint8_t quality              {};
+  float quality              {};
 
   vector<uint8_t> rgb_data     {};
 

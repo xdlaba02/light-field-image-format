@@ -26,7 +26,9 @@ public:
   const QuantTable<BS, D> &writeToStream(std::ostream &stream) const;
   QuantTable<BS, D> &readFromStream(std::istream &stream);
 
-  QTABLEUNIT operator [](size_t index) const;
+  QTABLEUNIT operator [](size_t index) const {
+    return m_block[index];
+  }
 
   static constexpr Block<QTABLEUNIT, 8, 2> base_luma = {
     16,  11,  10,  16,  24,  40,  51,  61,
@@ -125,13 +127,6 @@ QuantTable<BS, D>::readFromStream(std::istream &stream) {
   }
   return *this;
 }
-
-template <size_t BS, size_t D>
-uint64_t QuantTable<BS, D>::operator [](size_t index) const {
-  return m_block[index];
-}
-
-#include <iostream>
 
 template <size_t BS, size_t D>
 constexpr Block<QTABLEUNIT, BS, 2> QuantTable<BS, D>::scaleByDCT(const Block<QTABLEUNIT, 8, 2> &qtable) {

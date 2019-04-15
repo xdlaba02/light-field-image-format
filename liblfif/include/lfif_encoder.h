@@ -15,7 +15,7 @@
 template<size_t BS, size_t D>
 struct lfifCompress {
   template<typename F>
-  lfifCompress(F &&input, const uint64_t img_dims[D+1], uint8_t quality, uint16_t max_rgb_value, std::ostream &output) {
+  lfifCompress(F &&input, const uint64_t img_dims[D+1], float quality, uint16_t max_rgb_value, std::ostream &output) {
     OBitstream             bitstream              {};
 
     QuantTable<BS, D>      quant_table     [2]    {};

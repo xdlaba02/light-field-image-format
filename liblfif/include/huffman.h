@@ -18,7 +18,7 @@ using HuffmanWeight      = uint64_t;
 using HuffmanCodelength  = HuffmanSymbol;
 using HuffmanCodeword    = std::vector<bool>;
 using HuffmanWeights     = std::unordered_map<HuffmanSymbol, HuffmanWeight>;
-using HuffmanMap         = std::unordered_map<HuffmanSymbol, HuffmanCodeword>
+using HuffmanMap         = std::unordered_map<HuffmanSymbol, HuffmanCodeword>;
 
 class HuffmanEncoder {
 public:

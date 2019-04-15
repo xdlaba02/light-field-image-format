@@ -16,7 +16,7 @@ void print_usage(const char *argv0) {
   cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << endl;
 }
 
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &quality) {
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality) {
   const char *arg_quality {};
 
   char opt;
@@ -56,8 +56,8 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
     return false;
   }
 
-  int tmp_quality = atoi(arg_quality);
-  if ((tmp_quality < 1) || (tmp_quality > 100)) {
+  float tmp_quality = atof(arg_quality);
+  if ((tmp_quality < 1.f) || (tmp_quality > 100.f)) {
     print_usage(argv[0]);
     return false;
   }
