@@ -124,6 +124,7 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
   int64_t huffman_codeword {};
 
   for (auto &pair: m_huffman_codelengths) {
+    map[pair.second]; //DO NOT ERASE, this will emplace a codeword of zero length
 
     for (size_t i = 0; i < prefix_ones; i++) {
       map[pair.second].push_back(1);

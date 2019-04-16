@@ -33,7 +33,7 @@ struct LfifEncoder {
   size_t blocks_cnt;
   size_t pixels_cnt;
 
-  size_t rgb_bits;
+  size_t input_bits;
   size_t amp_bits;
   size_t zeroes_bits;
   size_t class_bits;
@@ -76,8 +76,8 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
     enc.pixels_cnt *= enc.img_dims[i];
   }
 
-  enc.rgb_bits = ceil(log2(enc.max_rgb_value));
-  enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.rgb_bits - D - (D/2) + 1;
+  enc.input_bits = ceil(log2(enc.max_rgb_value));
+  enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.input_bits - D - (D/2) + 1;
   enc.class_bits = RunLengthPair::classBits(enc.amp_bits);
   enc.zeroes_bits = RunLengthPair::zeroesBits(enc.class_bits);
   enc.max_zeroes = constpow(2, enc.zeroes_bits);
@@ -322,7 +322,7 @@ struct lfifCompress {
     size_t blocks_cnt  {};
     size_t pixels_cnt  {};
 
-    size_t rgb_bits    {};
+    size_t input_bits    {};
     size_t amp_bits    {};
     size_t zeroes_bits {};
     size_t class_bits  {};
@@ -366,8 +366,8 @@ struct lfifCompress {
       pixels_cnt *= img_dims[i];
     }
 
-    rgb_bits = ceil(log2(max_rgb_value));
-    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2) + 1;
+    input_bits = ceil(log2(max_rgb_value));
+    amp_bits = ceil(log2(constpow(BS, D))) + input_bits - D - (D/2) + 1;
     class_bits = RunLengthPair::classBits(amp_bits);
     zeroes_bits = RunLengthPair::zeroesBits(class_bits);
     max_zeroes = constpow(2, zeroes_bits);

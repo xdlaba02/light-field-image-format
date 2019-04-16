@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
 
   initDecoder(decoder);
 
-  size_t output_size = decoder.pixels_cnt * decoder.img_dims[2] * 3;
+  size_t output_size = decoder.pixels_cnt * decoder.img_dims[3] * 3;
   output_size *= (decoder.max_rgb_value > 255) ? 2 : 1;
   rgb_data.resize(output_size);
 

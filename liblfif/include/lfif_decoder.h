@@ -29,7 +29,7 @@ struct LfifDecoder {
   size_t blocks_cnt;
   size_t pixels_cnt;
 
-  size_t rgb_bits;
+  size_t input_bits;
   size_t amp_bits;
   size_t class_bits;
 
@@ -113,8 +113,8 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
     dec.pixels_cnt *= dec.img_dims[i];
   }
 
-  dec.rgb_bits = ceil(log2(dec.max_rgb_value));
-  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.rgb_bits - D - (D/2) + 1;
+  dec.input_bits = ceil(log2(dec.max_rgb_value));
+  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.input_bits - D - (D/2) + 1;
   dec.class_bits = RunLengthPair::classBits(dec.amp_bits);
 }
 
@@ -169,7 +169,7 @@ struct lfifDecompress {
     size_t blocks_cnt {};
     size_t pixels_cnt {};
 
-    size_t rgb_bits   {};
+    size_t input_bits   {};
     size_t amp_bits   {};
     size_t class_bits {};
 
@@ -221,8 +221,8 @@ struct lfifDecompress {
       pixels_cnt *= img_dims[i];
     }
 
-    rgb_bits = ceil(log2(max_rgb_value));
-    amp_bits = ceil(log2(constpow(BS, D))) + rgb_bits - D - (D/2) + 1;
+    input_bits = ceil(log2(max_rgb_value));
+    amp_bits = ceil(log2(constpow(BS, D))) + input_bits - D - (D/2) + 1;
     class_bits = RunLengthPair::classBits(amp_bits);
 
     bitstream.open(&input);
