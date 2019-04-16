@@ -3,25 +3,29 @@
 # AUTOR: Drahomir Dlabaja (xdlaba02)
 ################################################################################
 
+BS = 8
+
+export BS
+
 all: liblfif libppm tools tests
 
 .PHONY: liblfif libppm tools tests clean
 
 liblfif:
-	cd liblfif && make
+	$(MAKE) -C liblfif
 
 libppm:
-	cd libppm && make
+	$(MAKE) -C libppm
 
-tools: liblfif libppm
-	cd tools && make
+tools:
+	$(MAKE) -C tools
 
-tests: tools liblfif libppm
-	cd tests && make
+tests:
+	$(MAKE) -C tests
 
 
 clean:
-	cd liblfif && make clean
-	cd libppm && make clean
-	cd tools && make clean
-	cd tests && make clean
+	$(MAKE) clean -C liblfif
+	$(MAKE) clean -C libppm
+	$(MAKE) clean -C tools
+	$(MAKE) clean -C tests

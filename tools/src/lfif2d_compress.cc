@@ -14,6 +14,12 @@
 #include <iostream>
 #include <vector>
 
+#ifdef BLOCK_SIZE
+const size_t BS = BLOCK_SIZE;
+#else
+const size_t BS = 8;
+#endif
+
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -28,8 +34,8 @@ int main(int argc, char *argv[]) {
   uint64_t image_count         {};
   uint32_t color_depth         {};
 
-  LfifEncoder<8, 2> encoder    {};
-  ofstream          output     {};
+  LfifEncoder<BS, 2> encoder   {};
+  ofstream           output    {};
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     if (color_depth < 256) {

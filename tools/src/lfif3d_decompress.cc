@@ -14,6 +14,12 @@
 #include <iostream>
 #include <vector>
 
+#ifdef BLOCK_SIZE
+const size_t BS = BLOCK_SIZE;
+#else
+const size_t BS = 8;
+#endif
+
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -22,8 +28,8 @@ int main(int argc, char *argv[]) {
 
   vector<uint8_t> rgb_data     {};
 
-  LfifDecoder<8, 3> decoder    {};
-  ifstream          input      {};
+  LfifDecoder<BS, 3> decoder   {};
+  ifstream           input     {};
 
   auto outputF0 = [&](size_t channel, size_t index, RGBUNIT value) {
     if (decoder.max_rgb_value > 255) {

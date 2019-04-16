@@ -9,14 +9,18 @@ INCDIR = include
 OBJDIR = build
 BINDIR = bin
 
+BS			 = 8
 CC 			 = g++
 INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I../tools/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/
-CFLAGS   = $(INC) -O3 -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS   = $(INC) -O3 -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
 
-all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
+all: $(BINDIR) $(OBJDIR) $(DEPDIR) rebuild_tools $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
+
+rebuild_tools:
+	$(MAKE) -C ../tools/
 
 $(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o
 	$(CC) -lm -pthread $^ ../tools/build/file_mask.o ../tools/build/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a -o $@
@@ -50,7 +54,7 @@ $(BINDIR):
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-.PHONY: clean
+.PHONY: clean rebuild_tools
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)

@@ -18,9 +18,13 @@
 #include <vector>
 #include <fstream>
 
-using namespace std;
+#ifdef BLOCK_SIZE
+const size_t BS = BLOCK_SIZE;
+#else
+const size_t BS = 8;
+#endif
 
-const size_t BLOCK_SIZE = 8;
+using namespace std;
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
@@ -34,7 +38,7 @@ double PSNR(double mse, size_t max) {
   return 10 * log10((max * max) / mse);
 }
 
-template <size_t BS, size_t D>
+template <size_t D>
 int doTest(LfifEncoder<BS, D> encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output, const char *tmp_filename) {
   LfifDecoder<BS, D> decoder   {};
 
@@ -294,7 +298,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (output_file_2D) {
-    LfifEncoder<BLOCK_SIZE, 2> encoder {};
+    LfifEncoder<BS, 2> encoder {};
 
     encoder.max_rgb_value = color_depth;
     encoder.img_dims[0] = width;
@@ -320,13 +324,13 @@ int main(int argc, char *argv[]) {
         doTest(encoder, rgb_data, quality_interval, outputs[0], "/tmp/lfifbench.lf2d");
       }
       else {
-        threads.emplace_back(doTest<BLOCK_SIZE, 2>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[0]), "/tmp/lfifbench.lf2d");
+        threads.emplace_back(doTest<2>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[0]), "/tmp/lfifbench.lf2d");
       }
     }
   }
 
   if (output_file_3D) {
-    LfifEncoder<BLOCK_SIZE, 3> encoder {};
+    LfifEncoder<BS, 3> encoder {};
 
     encoder.max_rgb_value = color_depth;
     encoder.img_dims[0] = width;
@@ -353,13 +357,13 @@ int main(int argc, char *argv[]) {
         doTest(encoder, rgb_data, quality_interval, outputs[1], "/tmp/lfifbench.lf3d");
       }
       else {
-        threads.emplace_back(doTest<BLOCK_SIZE, 3>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[1]), "/tmp/lfifbench.lf3d");
+        threads.emplace_back(doTest<3>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[1]), "/tmp/lfifbench.lf3d");
       }
     }
   }
 
   if (output_file_4D) {
-    LfifEncoder<BLOCK_SIZE, 4> encoder {};
+    LfifEncoder<BS, 4> encoder {};
 
     encoder.max_rgb_value = color_depth;
     encoder.img_dims[0] = width;
@@ -387,7 +391,7 @@ int main(int argc, char *argv[]) {
         doTest(encoder, rgb_data, quality_interval, outputs[2], "/tmp/lfifbench.lf4d");
       }
       else {
-        threads.emplace_back(doTest<BLOCK_SIZE, 4>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[2]), "/tmp/lfifbench.lf4d");
+        threads.emplace_back(doTest<4>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[2]), "/tmp/lfifbench.lf4d");
       }
     }
   }
