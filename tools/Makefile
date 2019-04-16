@@ -20,13 +20,10 @@ LFIFTOOLS  = $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfi
 
 all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(LFIFTOOLS)
 
-MULTIPPM = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
-LFIF 		 = $(MULTIPPM) ../liblfif/bin/liblfif.a
-
-$(BINDIR)/%_compress: $(OBJDIR)/%_compress.o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/%_decompress: $(OBJDIR)/%_decompress.o $(OBJDIR)/decompress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/%_decompress: $(OBJDIR)/lfif_decompress.o $(OBJDIR)/decompress.o $(LFIF)
+$(BINDIR)/%_compress: $(OBJDIR)/%_compress.o $(OBJDIR)/compress.o $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a ../liblfif/bin/liblfif.a
 	$(CC) -lm $^ -o $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cc

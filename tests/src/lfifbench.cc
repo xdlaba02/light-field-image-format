@@ -5,7 +5,9 @@
 
 #include "plenoppm.h"
 
-#include <lfiflib.h>
+#include <colorspace.h>
+#include <lfif_encoder.h>
+#include <lfif_decoder.h>
 
 #include <getopt.h>
 
@@ -18,18 +20,11 @@
 
 using namespace std;
 
+const size_t BLOCK_SIZE = 8;
+
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
   cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a]" << endl;
-}
-
-template<typename T>
-double MSE(const T *cmp1, const T *cmp2, size_t size) {
-  double mse = 0;
-  for (size_t i = 0; i < size; i++) {
-    mse += (cmp1[i] - cmp2[i]) * (cmp1[i] - cmp2[i]);
-  }
-  return mse / size;
 }
 
 double PSNR(double mse, size_t max) {
@@ -39,68 +34,103 @@ double PSNR(double mse, size_t max) {
   return 10 * log10((max * max) / mse);
 }
 
-size_t fileSize(const char *filename) {
-  ifstream encoded_file(filename, ifstream::ate | ifstream::binary);
-  return encoded_file.tellg();
-}
+template <size_t BS, size_t D>
+int doTest(LfifEncoder<BS, D> encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output, const char *tmp_filename) {
+  LfifDecoder<BS, D> decoder   {};
 
-int doTest(LFIFCompressStruct cinfo, const vector<uint8_t> &original, ofstream &output, size_t q_first, size_t q_last, size_t q_step) {
-  LFIFDecompressStruct dinfo   {};
   size_t image_pixels          {};
   size_t compressed_image_size {};
-  int    errcode               {};
-  double psnr                  {};
-  double bpp                   {};
-  vector<uint8_t> decompressed {};
+  double mse                   {};
 
-  dinfo.image_width     = cinfo.image_width;
-  dinfo.image_height    = cinfo.image_height;
-  dinfo.image_count     = cinfo.image_count;
-  dinfo.max_rgb_value   = cinfo.max_rgb_value;
-  dinfo.method          = cinfo.method;
-  dinfo.input_file_name = cinfo.output_file_name;
+  ofstream output {};
+  ifstream input  {};
 
-  image_pixels = cinfo.image_width * cinfo.image_height * cinfo.image_count;
+  image_pixels = original.size() / ((encoder.max_rgb_value > 255) ? 6 : 3);
 
-  decompressed.resize(original.size());
-
-  for (size_t quality = q_first; quality <= q_last; quality += q_step) {
-    cinfo.quality = quality;
-
-    errcode = LFIFCompress(&cinfo, original.data());
-
-    if (errcode) {
-      cerr << "ERROR: UNABLE TO OPEN FILE \"" << cinfo.output_file_name << "\" FOR WRITITNG" << endl;
-      return -1;
-    }
-
-    compressed_image_size = fileSize(cinfo.output_file_name);
-    errcode = LFIFDecompress(&dinfo, decompressed.data());
-
-    if (errcode) {
-      switch (errcode) {
-        case -1:
-          cerr << "ERROR: UNABLE TO OPEN FILE \"" << dinfo.input_file_name << "\" FOR READING" << endl;
-        break;
-
-        case -2:
-          cerr << "ERROR: MAGIC NUMBER MISMATCH" << endl;
-        break;
-      }
-
-      return -1;
-    }
-
-    if (dinfo.max_rgb_value < 256) {
-      psnr = PSNR(MSE<uint8_t>(original.data(), decompressed.data(), image_pixels * 3), dinfo.max_rgb_value);
+  auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
+    if (encoder.max_rgb_value > 255) {
+      return reinterpret_cast<const uint16_t *>(original.data())[index * 3 + channel];
     }
     else {
-      psnr = PSNR(MSE<uint16_t>(reinterpret_cast<const uint16_t *>(original.data()), reinterpret_cast<const uint16_t *>(decompressed.data()), image_pixels * 3), dinfo.max_rgb_value);
+      return reinterpret_cast<const uint8_t *>(original.data())[index * 3 + channel];
+    }
+  };
+
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    RGBUNIT R = inputF0(0, index);
+    RGBUNIT G = inputF0(1, index);
+    RGBUNIT B = inputF0(2, index);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - ((encoder.max_rgb_value + 1) / 2);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  auto outputF = [&](size_t index, const INPUTTRIPLET &triplet) {
+    INPUTUNIT  Y = triplet[0] + ((decoder.max_rgb_value + 1) / 2);
+    INPUTUNIT Cb = triplet[1];
+    INPUTUNIT Cr = triplet[2];
+
+    RGBUNIT R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, decoder.max_rgb_value);
+    RGBUNIT G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, decoder.max_rgb_value);
+    RGBUNIT B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, decoder.max_rgb_value);
+
+    mse += (inputF0(0, index) - R) * (inputF0(0, index) - R);
+    mse += (inputF0(1, index) - G) * (inputF0(1, index) - G);
+    mse += (inputF0(2, index) - B) * (inputF0(2, index) - B);
+  };
+
+  size_t last_slash_pos = string(tmp_filename).find_last_of('/');
+  if (last_slash_pos != string::npos) {
+    string command = "mkdir -p " + string(tmp_filename).substr(0, last_slash_pos);
+    system(command.c_str());
+  }
+
+
+  for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
+    mse = 0;
+
+    output.open(tmp_filename, ios::binary);
+    if (!output) {
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << tmp_filename << "\" FOR WRITITNG" << endl;
+      return -1;
     }
 
-    bpp = compressed_image_size * 8.0 / image_pixels;
+    initEncoder(encoder);
+    constructQuantizationTables(encoder, "DEFAULT", quality);
+    referenceScan(encoder, inputF); //FIRST IMAGE SCAN
+    constructTraversalTables(encoder, "DEFAULT");
+    huffmanScan(encoder, inputF); //SECOND IMAGE SCAN
+    constructHuffmanTables(encoder);
+    writeHeader(encoder, output);
+    outputScan(encoder, inputF, output); //THIRD IMAGE SCAN
 
-    output << quality  << " " << psnr << " " << bpp << endl;
+    compressed_image_size = output.tellp();
+
+    output.close();
+
+    input.open(tmp_filename, ios::binary);
+    if (!input) {
+      cerr << "ERROR: CANNON OPEN " << tmp_filename << " FOR READING\n";
+      return -2;
+    }
+
+    if (readHeader(decoder, input)) {
+      cerr << "ERROR: IMAGE HEADER INVALID\n";
+      return -3;
+    }
+
+    initDecoder(decoder);
+    decodeScan(decoder, input, outputF);
+
+    input.close();
+
+    double psnr = PSNR(mse / (image_pixels * 3), encoder.max_rgb_value);
+    double bpp = compressed_image_size * 8.0 / image_pixels;
+
+    data_output << quality  << " " << psnr << " " << bpp << endl;
   }
 
   return 0;
@@ -117,18 +147,15 @@ int main(int argc, char *argv[]) {
 
   bool nothreads              {};
   bool append                 {};
-  uint8_t q_step              {};
-  uint8_t q_first             {};
-  uint8_t q_last              {};
 
-  vector<uint8_t> rgb_data    {};
+  array<float, 3> quality_interval {};
+
+  vector<uint8_t> rgb_data {};
 
   uint64_t width       {};
   uint64_t height      {};
   uint32_t color_depth {};
   uint64_t image_count {};
-
-  LFIFCompressStruct   cinfo {};
 
   ofstream outputs[3] {};
 
@@ -214,118 +241,154 @@ int main(int argc, char *argv[]) {
   }
 
   if (!output_file_2D && !output_file_3D && !output_file_4D) {
-    cerr << "Please specify one or more options [-2 <output-filename>] [-3 <output-filename>] [-4 <output-filename>]." << endl;
+    cerr << "Please specify at least one argument [-2 <output-filename>] [-3 <output-filename>] [-4 <output-filename>]." << endl;
     print_usage(argv[0]);
     return 1;
   }
 
-  q_step = 1;
+  quality_interval[2] = 1.0;
   if (quality_step) {
-    int tmp = atoi(quality_step);
-    if ((tmp < 1) || (tmp > 100)) {
+    float tmp = atof(quality_step);
+    if ((tmp < 1.0) || (tmp > 100.0)) {
       print_usage(argv[0]);
       return 1;
     }
-    q_step = tmp;
+    quality_interval[2] = tmp;
   }
 
-  q_first = q_step;
+  quality_interval[0] = quality_interval[2];
   if (quality_first) {
-    int tmp = atoi(quality_first);
-    if ((tmp < 1) || (tmp > 100)) {
+    float tmp = atof(quality_first);
+    if ((tmp < 1.0) || (tmp > 100.0)) {
       print_usage(argv[0]);
       return 1;
     }
-    q_first = tmp;
+    quality_interval[0] = tmp;
   }
 
-  q_last = 100;
+  quality_interval[1] = 100.0;
   if (quality_last) {
-    int tmp = atoi(quality_last);
-    if ((tmp < 1) || (tmp > 100)) {
+    float tmp = atof(quality_last);
+    if ((tmp < 1.0) || (tmp > 100.0)) {
       print_usage(argv[0]);
       return 1;
     }
-    q_last = tmp;
+    quality_interval[1] = tmp;
   }
 
   if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
     return 2;
   }
 
-  if (color_depth < 256) {
-    rgb_data.resize(width * height * image_count * 3);
-  }
-  else {
-    rgb_data.resize(width * height * image_count * 3 * 2);
-  }
+  size_t input_size = width * height * image_count * 3;
+  input_size *= (color_depth > 255) ? 2 : 1;
+  rgb_data.resize(input_size);
 
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
     return 3;
   }
 
-  cinfo.image_width      = width;
-  cinfo.image_height     = height;
-  cinfo.image_count      = image_count;
-  cinfo.max_rgb_value    = color_depth;
+  ios_base::openmode flags { fstream::app };
+  if (!append) {
+    flags = fstream::trunc;
+  }
 
   if (output_file_2D) {
-    cinfo.method = LFIF_2D;
-    cinfo.output_file_name = "/tmp/lfifbench.lfif2d";
+    LfifEncoder<BLOCK_SIZE, 2> encoder {};
 
-    if (append) {
-      outputs[0].open(output_file_2D, std::fstream::app);
+    encoder.max_rgb_value = color_depth;
+    encoder.img_dims[0] = width;
+    encoder.img_dims[1] = height;
+    encoder.img_dims[2] = image_count;
+
+    size_t last_slash_pos = string(output_file_2D).find_last_of('/');
+    if (last_slash_pos != string::npos) {
+      string command = "mkdir -p " + string(output_file_2D).substr(0, last_slash_pos);
+      system(command.c_str());
+    }
+
+    outputs[0].open(output_file_2D, flags);
+    if (!outputs[0]) {
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_2D << "\" FOR WRITITNG" << endl;
     }
     else {
-      outputs[0].open(output_file_2D, std::fstream::trunc);
-      outputs[0] << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
-    }
+      if (!append) {
+        outputs[0] << "'2D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+      }
 
-    if (nothreads) {
-      doTest(cinfo, rgb_data, outputs[0], q_first, q_last, q_step);
-    }
-    else {
-      threads.push_back(thread(doTest, cinfo, ref(rgb_data), ref(outputs[0]), q_first, q_last, q_step));
+      if (nothreads) {
+        doTest(encoder, rgb_data, quality_interval, outputs[0], "/tmp/lfifbench.lf2d");
+      }
+      else {
+        threads.emplace_back(doTest<BLOCK_SIZE, 2>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[0]), "/tmp/lfifbench.lf2d");
+      }
     }
   }
 
   if (output_file_3D) {
-    cinfo.method = LFIF_3D;
-    cinfo.output_file_name = "/tmp/lfifbench.lfif3d";
+    LfifEncoder<BLOCK_SIZE, 3> encoder {};
 
-    if (append) {
-      outputs[1].open(output_file_3D, std::fstream::app);
+    encoder.max_rgb_value = color_depth;
+    encoder.img_dims[0] = width;
+    encoder.img_dims[1] = height;
+    encoder.img_dims[2] = sqrt(image_count);
+    encoder.img_dims[3] = sqrt(image_count);
+
+    size_t last_slash_pos = string(output_file_3D).find_last_of('/');
+    if (last_slash_pos != string::npos) {
+      string command = "mkdir -p " + string(output_file_3D).substr(0, last_slash_pos);
+      system(command.c_str());
+    }
+
+    outputs[1].open(output_file_3D, flags);
+    if (!outputs[1]) {
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_3D << "\" FOR WRITITNG" << endl;
     }
     else {
-      outputs[1].open(output_file_3D, std::fstream::trunc);
-      outputs[1] << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
-    }
+      if (!append) {
+        outputs[1] << "'3D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+      }
 
-    if (nothreads) {
-      doTest(cinfo, rgb_data, outputs[1], q_first, q_last, q_step);
-    }
-    else {
-      threads.push_back(thread(doTest, cinfo, ref(rgb_data), ref(outputs[1]), q_first, q_last, q_step));
+      if (nothreads) {
+        doTest(encoder, rgb_data, quality_interval, outputs[1], "/tmp/lfifbench.lf3d");
+      }
+      else {
+        threads.emplace_back(doTest<BLOCK_SIZE, 3>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[1]), "/tmp/lfifbench.lf3d");
+      }
     }
   }
 
   if (output_file_4D) {
-    cinfo.method = LFIF_4D;
-    cinfo.output_file_name = "/tmp/lfifbench.lfif4d";
+    LfifEncoder<BLOCK_SIZE, 4> encoder {};
 
-    if (append) {
-      outputs[2].open(output_file_4D, std::fstream::app);
+    encoder.max_rgb_value = color_depth;
+    encoder.img_dims[0] = width;
+    encoder.img_dims[1] = height;
+    encoder.img_dims[2] = sqrt(image_count);
+    encoder.img_dims[3] = sqrt(image_count);
+    encoder.img_dims[4] = 1;
+
+    size_t last_slash_pos = string(output_file_4D).find_last_of('/');
+    if (last_slash_pos != string::npos) {
+      string command = "mkdir -p " + string(output_file_4D).substr(0, last_slash_pos);
+      system(command.c_str());
+    }
+
+    outputs[2].open(output_file_4D, flags);
+    if (!outputs[2]) {
+      cerr << "ERROR: UNABLE TO OPEN FILE \"" << output_file_4D << "\" FOR WRITITNG" << endl;
     }
     else {
-      outputs[2].open(output_file_4D, std::fstream::trunc);
-      outputs[2] << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
-    }
+      if (!append) {
+        outputs[2] << "'4D' 'PSNR [dB]' 'bitrate [bpp]'" << endl;
+      }
 
-    if (nothreads) {
-      doTest(cinfo, rgb_data, outputs[2], q_first, q_last, q_step);
-    }
-    else {
-      threads.push_back(thread(doTest, cinfo, ref(rgb_data), ref(outputs[2]), q_first, q_last, q_step));
+      if (nothreads) {
+        doTest(encoder, rgb_data, quality_interval, outputs[2], "/tmp/lfifbench.lf4d");
+      }
+      else {
+        threads.emplace_back(doTest<BLOCK_SIZE, 4>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[2]), "/tmp/lfifbench.lf4d");
+      }
     }
   }
 

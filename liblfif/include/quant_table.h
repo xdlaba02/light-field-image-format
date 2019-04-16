@@ -56,6 +56,8 @@ constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
   size_t dims[D] {};
   std::fill(dims, dims + D, BSIN);
   getBlock<BSOUT, D>(inputF, 0, dims, outputF);
+
+  return output;
 }
 
 template <size_t BSIN, size_t D, size_t BSOUT>
@@ -98,7 +100,7 @@ constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
   idct<BSOUT, D>(iinputF, ioutputF);
 
   for (size_t i = 0; i < constpow(BSOUT, D); i++) {
-    output[i] = output_coefs[i];
+    output[i] = std::round(output_coefs[i]);
   }
 
   return output;
@@ -162,11 +164,11 @@ QuantTable<BS, DOUT> averageDiagonalTable(const QuantTable<BS, DIN> &input) {
       diagonal += (i % constpow(BS, j + 1)) / constpow(BS, j);
     }
 
-    if (diagonal > DIN - 1) {
-      diagonal = DIN - 1;
+    if (diagonal >= DIN * (BS - 1) + 1) {
+      diagonal = DIN * (BS - 1) + 1 - 1;
     }
 
-    output[i] = diagonals_sum[diagonal] / diagonals_cnt[diagonal];
+    output[i] = std::round(diagonals_sum[diagonal] / diagonals_cnt[diagonal]);
   }
 
   return output;

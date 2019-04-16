@@ -55,7 +55,7 @@ struct zigzagCore {
     }
 
     for (size_t i = 0; i < constpow(BS, depth); i++) {
-      rotate<D>(&table[i * constpow(BS, D)]);
+      rotate<BS, D>(&table[i * constpow(BS, D)]);
     }
   }
 };
