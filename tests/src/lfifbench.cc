@@ -39,7 +39,7 @@ double PSNR(double mse, size_t max) {
 }
 
 template <size_t D>
-int doTest(LfifEncoder<BS, D> encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output, const char *tmp_filename) {
+int doTest(LfifEncoder<BS, D> &encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output, const char *tmp_filename) {
   LfifDecoder<BS, D> decoder   {};
 
   size_t image_pixels          {};
@@ -164,6 +164,10 @@ int main(int argc, char *argv[]) {
   ofstream outputs[3] {};
 
   vector<thread> threads {};
+  
+  LfifEncoder<BS, 2> encoder2D {};
+  LfifEncoder<BS, 3> encoder3D {};
+  LfifEncoder<BS, 4> encoder4D {};
 
   char opt {};
   while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:na")) >= 0) {
@@ -298,12 +302,10 @@ int main(int argc, char *argv[]) {
   }
 
   if (output_file_2D) {
-    LfifEncoder<BS, 2> encoder {};
-
-    encoder.max_rgb_value = color_depth;
-    encoder.img_dims[0] = width;
-    encoder.img_dims[1] = height;
-    encoder.img_dims[2] = image_count;
+    encoder2D.max_rgb_value = color_depth;
+    encoder2D.img_dims[0] = width;
+    encoder2D.img_dims[1] = height;
+    encoder2D.img_dims[2] = image_count;
 
     size_t last_slash_pos = string(output_file_2D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -321,22 +323,20 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder, rgb_data, quality_interval, outputs[0], "/tmp/lfifbench.lf2d");
+        doTest(encoder2D, rgb_data, quality_interval, outputs[0], "/tmp/lfifbench.lf2d");
       }
       else {
-        threads.emplace_back(doTest<2>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[0]), "/tmp/lfifbench.lf2d");
+        threads.emplace_back(doTest<2>, ref(encoder2D), ref(rgb_data), ref(quality_interval), ref(outputs[0]), "/tmp/lfifbench.lf2d");
       }
     }
   }
 
   if (output_file_3D) {
-    LfifEncoder<BS, 3> encoder {};
-
-    encoder.max_rgb_value = color_depth;
-    encoder.img_dims[0] = width;
-    encoder.img_dims[1] = height;
-    encoder.img_dims[2] = sqrt(image_count);
-    encoder.img_dims[3] = sqrt(image_count);
+    encoder3D.max_rgb_value = color_depth;
+    encoder3D.img_dims[0] = width;
+    encoder3D.img_dims[1] = height;
+    encoder3D.img_dims[2] = sqrt(image_count);
+    encoder3D.img_dims[3] = sqrt(image_count);
 
     size_t last_slash_pos = string(output_file_3D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -354,23 +354,21 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder, rgb_data, quality_interval, outputs[1], "/tmp/lfifbench.lf3d");
+        doTest(encoder3D, rgb_data, quality_interval, outputs[1], "/tmp/lfifbench.lf3d");
       }
       else {
-        threads.emplace_back(doTest<3>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[1]), "/tmp/lfifbench.lf3d");
+        threads.emplace_back(doTest<3>, ref(encoder3D), ref(rgb_data), ref(quality_interval), ref(outputs[1]), "/tmp/lfifbench.lf3d");
       }
     }
   }
 
   if (output_file_4D) {
-    LfifEncoder<BS, 4> encoder {};
-
-    encoder.max_rgb_value = color_depth;
-    encoder.img_dims[0] = width;
-    encoder.img_dims[1] = height;
-    encoder.img_dims[2] = sqrt(image_count);
-    encoder.img_dims[3] = sqrt(image_count);
-    encoder.img_dims[4] = 1;
+    encoder4D.max_rgb_value = color_depth;
+    encoder4D.img_dims[0] = width;
+    encoder4D.img_dims[1] = height;
+    encoder4D.img_dims[2] = sqrt(image_count);
+    encoder4D.img_dims[3] = sqrt(image_count);
+    encoder4D.img_dims[4] = 1;
 
     size_t last_slash_pos = string(output_file_4D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -388,10 +386,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder, rgb_data, quality_interval, outputs[2], "/tmp/lfifbench.lf4d");
+        doTest(encoder4D, rgb_data, quality_interval, outputs[2], "/tmp/lfifbench.lf4d");
       }
       else {
-        threads.emplace_back(doTest<4>, encoder, ref(rgb_data), ref(quality_interval), ref(outputs[2]), "/tmp/lfifbench.lf4d");
+        threads.emplace_back(doTest<4>, ref(encoder4D), ref(rgb_data), ref(quality_interval), ref(outputs[2]), "/tmp/lfifbench.lf4d");
       }
     }
   }
