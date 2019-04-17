@@ -35,7 +35,7 @@ void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &output_block,
 template <size_t BS, size_t D>
 void quantize(const Block<DCTDATAUNIT, BS, D> &transformed_block, Block<QDATAUNIT, BS, D> &quantized_block, const QuantTable<BS, D> &quant_table) {
   for (size_t i = 0; i < constpow(BS, D); i++) {
-    quantized_block[i] = transformed_block[i] / quant_table[i];
+    quantized_block[i] = std::round(transformed_block[i] / quant_table[i]);
   }
 }
 
