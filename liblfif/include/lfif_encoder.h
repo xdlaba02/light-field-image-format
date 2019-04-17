@@ -113,19 +113,18 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
   if (table_type == "DEFAULT" || table_type == "DCTDIAG" || table_type == "FILLDIAG" || table_type == "DCTCOPY" || table_type == "FILLCOPY") {
     enc.quant_table[0] = extend_table(scale_table(base_luma));
     enc.quant_table[1] = extend_table(scale_table(base_chroma));
-
-    for (size_t i = 0; i < 2; i++) {
-      enc.quant_table[i] = clampTable<BS, D>(applyQuality<BS, D>(enc.quant_table[i], quality), 1, 255);
-    }
   }
   else if (table_type == "UNIFORM") {
-    QTABLEUNIT uniform_coef = 256 - quality * 255;
     for (size_t i = 0; i < 2; i++) {
-      enc.quant_table[i] = clampTable<BS, D>(uniformTable<BS, D>(uniform_coef), 1, 255);
+      enc.quant_table[i] = uniformTable<BS, D>(50);
     }
   }
   else {
     return -1;
+  }
+
+  for (size_t i = 0; i < 2; i++) {
+    enc.quant_table[i] = clampTable<BS, D>(applyQuality<BS, D>(enc.quant_table[i], quality), 1, 255);
   }
 
   return 0;

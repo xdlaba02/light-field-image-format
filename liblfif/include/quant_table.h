@@ -109,7 +109,7 @@ constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
 template <size_t BS, size_t D>
 QuantTable<BS, D> applyQualityCoefficient(QuantTable<BS, D> table, float scale_coef) {
   for (size_t i = 0; i < constpow(BS, D); i++) {
-    table[i] *= scale_coef;
+    table[i] = std::round(table[i] * scale_coef);
   }
   return table;
 }
