@@ -20,12 +20,9 @@ libppm:
 tools:
 	$(MAKE) -C tools
 
-tests:
-	$(MAKE) -C tests
-
-
 clean:
 	$(MAKE) clean -C liblfif
 	$(MAKE) clean -C libppm
 	$(MAKE) clean -C tools
-	$(MAKE) clean -C tests
+
+bins:
