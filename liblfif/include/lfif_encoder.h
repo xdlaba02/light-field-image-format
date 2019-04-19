@@ -93,7 +93,6 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
 template<size_t BS, size_t D>
 int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &table_type, float quality) {
   auto scale_table = [&](const auto &table) {
-    if (table_type == "DEFAULT")  return scaleByDCT<8, 2, BS>(table);
     if (table_type == "DCTDIAG")  return scaleByDCT<8, 2, BS>(table);
     if (table_type == "DCTCOPY")  return scaleByDCT<8, 2, BS>(table);
     if (table_type == "FILLDIAG") return scaleFillNear<8, 2, BS>(table);
@@ -102,7 +101,6 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
   };
 
   auto extend_table = [&](const auto &table) {
-    if (table_type == "DEFAULT")  return averageDiagonalTable<BS, 2, D>(table);
     if (table_type == "DCTDIAG")  return averageDiagonalTable<BS, 2, D>(table);
     if (table_type == "DCTCOPY")  return copyTable<BS, 2, D>(table);
     if (table_type == "FILLDIAG") return averageDiagonalTable<BS, 2, D>(table);
@@ -110,11 +108,11 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
     return QuantTable<BS, D>();
   };
 
-  if (table_type == "DEFAULT" || table_type == "DCTDIAG" || table_type == "FILLDIAG" || table_type == "DCTCOPY" || table_type == "FILLCOPY") {
+  if (table_type == "DCTDIAG" || table_type == "FILLDIAG" || table_type == "DCTCOPY" || table_type == "FILLCOPY") {
     enc.quant_table[0] = extend_table(scale_table(base_luma));
     enc.quant_table[1] = extend_table(scale_table(base_chroma));
   }
-  else if (table_type == "UNIFORM") {
+  else if (table_type == "DEFAULT" || table_type == "UNIFORM") {
     for (size_t i = 0; i < 2; i++) {
       enc.quant_table[i] = uniformTable<BS, D>(50);
     }

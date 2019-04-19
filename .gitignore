@@ -8,3 +8,4 @@ callgrind*
 *.a
 .dep
 samples
+bins

@@ -22,7 +22,7 @@ using namespace std;
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-f <fist-bitrate>] [-l <last-bitrate>] [-a] [-n]" << endl;
+  cerr << argv0 << " -i <input-file-mask> -o <output-file-name> [-f <fist-bitrate>] [-l <last-bitrate>] [-a] [-I]" << endl;
 }
 
 void encode(AVCodecContext *context, AVFrame *frame, AVPacket *pkt, const function<void(AVPacket *)> &callback) {
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   bool intra_only {};
 
   char opt {};
-  while ((opt = getopt(argc, argv, "i:o:f:l:an")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:f:l:aI")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
         }
       break;
 
-      case 'n':
+      case 'I':
         if (!intra_only) {
           intra_only = true;
           continue;
