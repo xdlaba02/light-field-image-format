@@ -12,7 +12,7 @@ BINDIR = bin
 BS			 = 8
 CC 			 = g++
 INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/
-CFLAGS   = $(INC) -O3 -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
+CFLAGS   = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
@@ -20,18 +20,31 @@ SRCS = $(wildcard $(SRCDIR)/*.cc)
 PLENO = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
 LFIF  = $(PLENO) ../liblfif/bin/liblfif.a
 
+.PHONY: all clean tools benchmarks
+
 all: tools benchmarks
 tools: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
 benchmarks: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
-lfif: $(BINDIR) $(OBJDIR) $(DEPDIR) tools $(BINDIR)/lfifbench
 
-$(BINDIR)/%_decompress: $(OBJDIR)/%_decompress.o $(OBJDIR)/decompress.o $(LFIF)
+$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/%_compress: $(OBJDIR)/%_compress.o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(LFIF)
+$(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench$(BS).o $(LFIF)
 	$(CC) -lm -pthread $^ -o $@
 
 $(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(PLENO)
@@ -55,6 +68,10 @@ $(BINDIR)/xvcbench: $(OBJDIR)/xvcbench.o $(PLENO)
 ../liblfif/bin/liblfif.a:
 		$(MAKE) -C ../liblfif/
 
+$(OBJDIR)/%$(BS).o: $(SRCDIR)/%.cc
+	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
+	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
+
 $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
 	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
@@ -67,8 +84,6 @@ $(BINDIR):
 	mkdir -p $(BINDIR)
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
-
-.PHONY: clean tools benchmarks lfif
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)
