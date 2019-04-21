@@ -22,7 +22,7 @@ LFIF  = $(PLENO) ../liblfif/bin/liblfif.a
 
 .PHONY: all clean tools benchmarks
 
-all: tools benchmarks
+all: tools
 tools: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress
 benchmarks: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
 
