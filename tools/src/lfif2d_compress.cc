@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   uint64_t width               {};
   uint64_t height              {};
   uint64_t image_count         {};
-  uint16_t max_rgb_value         {};
+  uint32_t max_rgb_value         {};
 
   LfifEncoder<BS, 2> encoder   {};
   ofstream           output    {};
