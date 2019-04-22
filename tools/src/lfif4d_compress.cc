@@ -32,13 +32,13 @@ int main(int argc, char *argv[]) {
   uint64_t width               {};
   uint64_t height              {};
   uint64_t image_count         {};
-  uint32_t color_depth         {};
+  uint16_t max_rgb_value         {};
 
   LfifEncoder<BS, 4> encoder   {};
   ofstream           output    {};
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
-    if (color_depth < 256) {
+    if (max_rgb_value < 256) {
       return reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel];
     }
     else {
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     RGBUNIT G = inputF0(1, index);
     RGBUNIT B = inputF0(2, index);
 
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (color_depth + 1) / 2;
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (max_rgb_value + 1) / 2;
     INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
     INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
 
@@ -62,12 +62,12 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
+  if (!checkPPMheaders(input_file_mask, width, height, max_rgb_value, image_count)) {
     return 2;
   }
 
   size_t input_size = width * height * image_count * 3;
-  input_size *= (color_depth > 255) ? 2 : 1;
+  input_size *= (max_rgb_value > 255) ? 2 : 1;
   rgb_data.resize(input_size);
 
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   encoder.img_dims[2] = sqrt(image_count);
   encoder.img_dims[3] = sqrt(image_count);
   encoder.img_dims[4] = 1;
-  encoder.max_rgb_value = color_depth;
+  encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
   initEncoder(encoder);
   constructQuantizationTables(encoder, "DEFAULT", quality);

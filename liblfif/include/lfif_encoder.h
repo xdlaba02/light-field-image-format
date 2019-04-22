@@ -15,7 +15,7 @@
 
 template<size_t BS, size_t D>
 struct LfifEncoder {
-  uint16_t max_rgb_value;
+  uint8_t color_depth;
   uint64_t img_dims[D+1];
 
   QuantTable<BS, D>      quant_table     [2];
@@ -33,7 +33,6 @@ struct LfifEncoder {
   size_t blocks_cnt;
   size_t pixels_cnt;
 
-  size_t input_bits;
   size_t amp_bits;
   size_t zeroes_bits;
   size_t class_bits;
@@ -76,11 +75,10 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
     enc.pixels_cnt *= enc.img_dims[i];
   }
 
-  enc.input_bits = ceil(log2(enc.max_rgb_value));
-  enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.input_bits - D - (D/2) + 1;
+  enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.color_depth - D - (D/2) + 1;
   enc.class_bits = RunLengthPair::classBits(enc.amp_bits);
   enc.zeroes_bits = RunLengthPair::zeroesBits(enc.class_bits);
-  enc.max_zeroes = constpow(2, enc.zeroes_bits);
+  enc.max_zeroes = constpow(2, enc.zeroes_bits) - 1;
 
   for (size_t y = 0; y < 2; y++) {
     enc.reference_block[y].fill(0);
@@ -250,7 +248,7 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
   output << "LFIF-" << D << "D\n";
   output << BS << "\n";
 
-  writeValueToStream<uint16_t>(enc.max_rgb_value, output);
+  writeValueToStream<uint8_t>(enc.color_depth, output);
 
   for (size_t i = 0; i < D + 1; i++) {
     writeValueToStream<uint64_t>(enc.img_dims[i], output);

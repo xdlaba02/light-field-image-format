@@ -15,7 +15,7 @@
 
 template<size_t BS, size_t D>
 struct LfifDecoder {
-  uint16_t max_rgb_value;
+  uint8_t color_depth;
   uint64_t img_dims[D+1];
 
   QuantTable<BS, D>       quant_table         [2];
@@ -29,7 +29,6 @@ struct LfifDecoder {
   size_t blocks_cnt;
   size_t pixels_cnt;
 
-  size_t input_bits;
   size_t amp_bits;
   size_t class_bits;
 
@@ -64,7 +63,7 @@ int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
     return -2;
   }
 
-  dec.max_rgb_value = readValueFromStream<uint16_t>(input);
+  dec.color_depth = readValueFromStream<uint8_t>(input);
 
   for (size_t i = 0; i < D + 1; i++) {
     dec.img_dims[i] = readValueFromStream<uint64_t>(input);
@@ -111,8 +110,7 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
     dec.pixels_cnt *= dec.img_dims[i];
   }
 
-  dec.input_bits = ceil(log2(dec.max_rgb_value));
-  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.input_bits - D - (D/2) + 1;
+  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.color_depth - D - (D/2) + 1;
   dec.class_bits = RunLengthPair::classBits(dec.amp_bits);
 }
 

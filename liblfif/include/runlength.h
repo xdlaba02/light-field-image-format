@@ -39,7 +39,7 @@ public:
   }
 
   static size_t classBits(size_t amp_bits) {
-    return ceil(log2(amp_bits));
+    return ceil(log2(amp_bits + 1));
   }
 
 private:

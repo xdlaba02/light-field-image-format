@@ -82,9 +82,9 @@ void runLengthEncode(const Block<QDATAUNIT, BS, D> &traversed_block, Block<RunLe
       zeroes++;
     }
     else {
-      while (zeroes >= max_zeroes) {
-        push_pair({max_zeroes - 1, 0});
-        zeroes -= max_zeroes;
+      while (zeroes > max_zeroes) {
+        push_pair({max_zeroes, 0});
+        zeroes -= max_zeroes + 1;
       }
       push_pair({zeroes, traversed_block[i]});
       zeroes = 0;

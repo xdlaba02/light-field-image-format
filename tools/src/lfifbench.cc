@@ -59,10 +59,12 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
   ofstream output {};
   ifstream input  {};
 
-  image_pixels = original.size() / ((encoder->max_rgb_value > 255) ? 6 : 3);
+  uint16_t max_rgb_value = pow(2, encoder->color_depth) - 1;
+
+  image_pixels = original.size() / ((encoder->color_depth > 8) ? 6 : 3);
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
-    if (encoder->max_rgb_value > 255) {
+    if (encoder->color_depth > 8) {
       return reinterpret_cast<const uint16_t *>(original.data())[index * 3 + channel];
     }
     else {
@@ -75,7 +77,7 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     RGBUNIT G = inputF0(1, index);
     RGBUNIT B = inputF0(2, index);
 
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - ((encoder->max_rgb_value + 1) / 2);
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - ((max_rgb_value + 1) / 2);
     INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
     INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
 
@@ -83,13 +85,13 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
   };
 
   auto outputF = [&](size_t index, const INPUTTRIPLET &triplet) {
-    INPUTUNIT  Y = triplet[0] + ((decoder->max_rgb_value + 1) / 2);
+    INPUTUNIT  Y = triplet[0] + ((max_rgb_value + 1) / 2);
     INPUTUNIT Cb = triplet[1];
     INPUTUNIT Cr = triplet[2];
 
-    RGBUNIT R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, decoder->max_rgb_value);
-    RGBUNIT G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, decoder->max_rgb_value);
-    RGBUNIT B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, decoder->max_rgb_value);
+    RGBUNIT R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, max_rgb_value);
+    RGBUNIT G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, max_rgb_value);
+    RGBUNIT B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, max_rgb_value);
 
     mse += (inputF0(0, index) - R) * (inputF0(0, index) - R);
     mse += (inputF0(1, index) - G) * (inputF0(1, index) - G);
@@ -141,7 +143,7 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
 
     input.close();
 
-    double psnr = PSNR(mse / (image_pixels * 3), encoder->max_rgb_value);
+    double psnr = PSNR(mse / (image_pixels * 3), max_rgb_value);
     double bpp = compressed_image_size * 8.0 / image_pixels;
 
     data_output << quality  << " " << psnr << " " << bpp << endl;
@@ -292,7 +294,7 @@ int main(int argc, char *argv[]) {
 
   uint64_t width       {};
   uint64_t height      {};
-  uint32_t color_depth {};
+  uint32_t max_rgb_value {};
   uint64_t image_count {};
 
   ofstream outputs[3] {};
@@ -305,12 +307,12 @@ int main(int argc, char *argv[]) {
 
   parse_args(argc, argv);
 
-  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
+  if (!checkPPMheaders(input_file_mask, width, height, max_rgb_value, image_count)) {
     return 2;
   }
 
   size_t input_size = width * height * image_count * 3;
-  input_size *= (color_depth > 255) ? 2 : 1;
+  input_size *= (max_rgb_value > 255) ? 2 : 1;
   rgb_data.resize(input_size);
 
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
@@ -324,7 +326,7 @@ int main(int argc, char *argv[]) {
 
   if (output_file_2D) {
     encoder2D = new LfifEncoder<BS, 2> {};
-    encoder2D->max_rgb_value = color_depth;
+    encoder2D->color_depth = ceil(log2(max_rgb_value + 1));
     encoder2D->img_dims[0] = width;
     encoder2D->img_dims[1] = height;
     encoder2D->img_dims[2] = image_count;
@@ -355,7 +357,7 @@ int main(int argc, char *argv[]) {
 
   if (output_file_3D) {
     encoder3D = new LfifEncoder<BS, 3> {};
-    encoder3D->max_rgb_value = color_depth;
+    encoder3D->color_depth = ceil(log2(max_rgb_value + 1));;
     encoder3D->img_dims[0] = width;
     encoder3D->img_dims[1] = height;
     encoder3D->img_dims[2] = sqrt(image_count);
@@ -387,7 +389,7 @@ int main(int argc, char *argv[]) {
 
   if (output_file_4D) {
     encoder4D = new LfifEncoder<BS, 4> {};
-    encoder4D->max_rgb_value = color_depth;
+    encoder4D->color_depth = ceil(log2(max_rgb_value + 1));;
     encoder4D->img_dims[0] = width;
     encoder4D->img_dims[1] = height;
     encoder4D->img_dims[2] = sqrt(image_count);
