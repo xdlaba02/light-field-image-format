@@ -7,6 +7,7 @@
 
 extern "C" {
   #include <libavcodec/avcodec.h>
+  #include <libavutil/opt.h>
   #include <libswscale/swscale.h>
 }
 
@@ -255,6 +256,9 @@ int main(int argc, char *argv[]) {
   in_context->framerate = {int(image_count), 1};
 
   in_context->pix_fmt = AV_PIX_FMT_YUV444P;
+
+  av_opt_set(in_context->priv_data, "tune", "psnr", 0);
+  av_opt_set(in_context->priv_data, "preset", "placebo", 0);
 
   in_convert_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24, width, height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
   if (!in_convert_ctx) {
