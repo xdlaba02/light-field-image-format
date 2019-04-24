@@ -126,48 +126,42 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
   return 0;
 }
 
-template<size_t BS, size_t D>
-struct performScan {
-  template<typename INPUTF, typename PERFF>
-  performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
-    auto outputF = [&](size_t index, const auto &value) {
-      enc.current_block[index] = value;
+template<size_t BS, size_t D, typename INPUTF, typename PERFF>
+void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
+  auto outputF = [&](size_t index, const auto &value) {
+    enc.current_block[index] = value;
+  };
+
+  for (size_t img = 0; img < enc.img_dims[D]; img++) {
+    auto inputF = [&](size_t index) {
+      return input(img * enc.pixels_cnt + index);
     };
 
-    for (size_t img = 0; img < enc.img_dims[D]; img++) {
-      auto inputF = [&](size_t index) {
-        return input(img * enc.pixels_cnt + index);
-      };
-
-      for (size_t block = 0; block < enc.blocks_cnt; block++) {
-        getBlock<BS, D>(inputF, block, enc.img_dims, outputF);
+    for (size_t block = 0; block < enc.blocks_cnt; block++) {
+      getBlock<BS, D>(inputF, block, enc.img_dims, outputF);
 
 
-        for (size_t channel = 0; channel < 3; channel++) {
-          for (size_t i = 0; i < constpow(BS, D); i++) {
-            enc.input_block[i] = enc.current_block[i][channel];
-          }
-
-          func(channel);
+      for (size_t channel = 0; channel < 3; channel++) {
+        for (size_t i = 0; i < constpow(BS, D); i++) {
+          enc.input_block[i] = enc.current_block[i][channel];
         }
+
+        func(channel);
       }
     }
   }
-};
+}
 
-template<size_t BS, size_t D>
-struct referenceScan {
-  template<typename F>
-  referenceScan(LfifEncoder<BS, D> &enc, F &&input) {
-    auto perform = [&](size_t channel) {
-      forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
-                            quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
-                 addToReferenceBlock<BS, D>(enc.quantized_block, *enc.reference_blocks[channel]);
-    };
+template<size_t BS, size_t D, typename F>
+void referenceScan(LfifEncoder<BS, D> &enc, F &&input) {
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
+               addToReferenceBlock<BS, D>(enc.quantized_block, *enc.reference_blocks[channel]);
+  };
 
-    performScan(enc, input, perform);
-  }
-};
+  performScan(enc, input, perform);
+}
 
 template<size_t BS, size_t D>
 int constructTraversalTables(LfifEncoder<BS, D> &enc, const std::string &table_type) {
@@ -214,24 +208,21 @@ int constructTraversalTables(LfifEncoder<BS, D> &enc, const std::string &table_t
   return 0;
 }
 
-template<size_t BS, size_t D>
-struct huffmanScan {
-  template<typename F>
-  huffmanScan(LfifEncoder<BS, D> &enc, F &&input) {
-    QDATAUNIT previous_DC [3] {};
+template<size_t BS, size_t D, typename F>
+void huffmanScan(LfifEncoder<BS, D> &enc, F &&input) {
+  QDATAUNIT previous_DC [3] {};
 
-    auto perform = [&](size_t channel) {
-      forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
-                            quantize<BS, D>(enc.dct_block,        enc.quantized_block,         *enc.quant_tables[channel]);
-                        diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
-                            traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                     runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                enc.max_zeroes);
-                   huffmanAddWeights<BS, D>(enc.runlength,        enc.huffman_weights[channel], enc.class_bits);
-    };
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block,         *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
+                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
+                   runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                enc.max_zeroes);
+                 huffmanAddWeights<BS, D>(enc.runlength,        enc.huffman_weights[channel], enc.class_bits);
+  };
 
-    performScan(enc, input, perform);
-  }
-};
+  performScan(enc, input, perform);
+}
 
 template<size_t BS, size_t D>
 void constructHuffmanTables(LfifEncoder<BS, D> &enc) {
@@ -271,28 +262,25 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
   }
 }
 
-template<size_t BS, size_t D>
-struct outputScan {
-  template<typename F>
-  outputScan(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
-    QDATAUNIT previous_DC [3] {};
-    OBitstream bitstream      {};
+template<size_t BS, size_t D, typename F>
+void outputScan(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+  QDATAUNIT previous_DC [3] {};
+  OBitstream bitstream      {};
 
-    bitstream.open(&output);
+  bitstream.open(&output);
 
-    auto perform = [&](size_t channel) {
-      forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
-                            quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
-                        diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
-                            traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                     runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
-                      encodeToStream<BS, D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
-    };
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
+                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
+                   runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
+                    encodeToStream<BS, D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
+  };
 
-    performScan(enc, input, perform);
+  performScan(enc, input, perform);
 
-    bitstream.flush();
-  }
-};
+  bitstream.flush();
+}
 
 #endif
