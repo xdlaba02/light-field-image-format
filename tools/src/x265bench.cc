@@ -225,6 +225,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+avcodec_register_all();
   decoder = avcodec_find_decoder(AV_CODEC_ID_H265);
   if (!decoder) {
     cerr << "decoder AV_CODEC_ID_H265 not found" << endl;
