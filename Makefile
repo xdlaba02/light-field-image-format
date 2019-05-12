@@ -24,5 +24,7 @@ clean:
 	$(MAKE) clean -C liblfif
 	$(MAKE) clean -C libppm
 	$(MAKE) clean -C tools
+	rm -r doc
+	rm -r binaries
 
 bins:

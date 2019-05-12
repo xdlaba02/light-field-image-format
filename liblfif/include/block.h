@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: block.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file block.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 12. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Functions for block extraction and insertion.
+*/
 
 #ifndef BLOCK_H
 #define BLOCK_H
@@ -10,8 +13,19 @@
 
 #include <cmath>
 
+/**
+* @brief Struct for block extraction which wraps static parameters for partial specialization.
+*/
 template<size_t BS, size_t D>
 struct getBlock {
+
+  /**
+   * @brief Function which extracts block.
+   * @param input  The input callback function with signature T input(size_t index), where T is type of extracted sample.
+   * @param block  Index of a wanted block in memory.
+   * @param dims   The dimensions of an extracted volume.
+   * @param output The output callback function with signature void output(size_t index, T value), where T is type of extracted sample.
+   */
   template <typename IF, typename OF>
   getBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
     size_t blocks_x = 1;
@@ -42,8 +56,15 @@ struct getBlock {
   }
 };
 
+/**
+ * @see getBlock<BS, D>
+ */
 template<size_t BS>
 struct getBlock<BS, 1> {
+
+  /**
+   * @see getBlock<BS, D>::getBlock
+   */
   template <typename IF, typename OF>
   getBlock(IF &&input, const size_t block, const size_t dims[1], OF &&output) {
     for (size_t pixel = 0; pixel < BS; pixel++) {
@@ -58,8 +79,19 @@ struct getBlock<BS, 1> {
   }
 };
 
+/**
+* @brief Struct for block insertion which wraps static parameters for partial specialization.
+*/
 template<size_t BS, size_t D>
 struct putBlock {
+
+  /**
+   * @brief Function which inserts block.
+   * @param input  The input callback function with signature T input(size_t index), where T is type of inserted sample.
+   * @param block  Index of a put block block in memory.
+   * @param dims   The dimensions of an inserted volume to which block will be inserted.
+   * @param output The output callback function with signature void output(size_t index, T value), where T is type of inserted sample.
+   */
   template <typename IF, typename OF>
   putBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
     size_t blocks_x = 1;
@@ -90,8 +122,15 @@ struct putBlock {
   }
 };
 
+/**
+ * @see putBlock<BS, D>
+ */
 template<size_t BS>
 struct putBlock<BS, 1> {
+
+  /**
+   * @see putBlock<BS, D>::getBlock
+   */
   template <typename IF, typename OF>
   putBlock(IF &&input, size_t block, const size_t dims[1], OF &&output) {
     for (size_t pixel = 0; pixel < BS; pixel++) {

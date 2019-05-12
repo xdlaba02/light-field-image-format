@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: huffman.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file huffman.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 12. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Functions for Huffman encoding and decoding.
+*/
 
 #ifndef HUFFMAN_H
 #define HUFFMAN_H

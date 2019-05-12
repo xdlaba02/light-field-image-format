@@ -9,3 +9,4 @@ callgrind*
 .dep
 samples
 binaries
+doc

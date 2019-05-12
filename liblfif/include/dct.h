@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: dct.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file dct.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 12. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Functions which performs FDCT and IDCT.
+*/
 
 #ifndef DCT_H
 #define DCT_H
@@ -11,8 +14,15 @@
 #include <cmath>
 #include <array>
 
+/**
+* @brief Type used for the DCT computations.
+*/
 using DCTDATAUNIT = float;
 
+/**
+* @brief  Function which initializes the DCT matrix.
+* @return The DCT matrix.
+*/
 template <size_t BS>
 constexpr Block<DCTDATAUNIT, BS, 2> init_coefs() {
   Block<DCTDATAUNIT, BS, 2> coefs {};
@@ -26,8 +36,17 @@ constexpr Block<DCTDATAUNIT, BS, 2> init_coefs() {
   return coefs;
 }
 
+/**
+* @brief Struct for the FDCT which wraps static parameters for partial specialization.
+*/
 template <size_t BS, size_t D>
 struct fdct {
+
+  /**
+  * @brief Function which performs the FDCT.
+  * @param input  callback function returning samples from a block. Signature is DCTDATAUNIT input(size_t index).
+  * @param output callback function for writing DCT coefficients. Signature is DCTDATAUNIT &output(size_t index).
+  */
   template <typename IF, typename OF>
   fdct(IF &&input, OF &&output) {
     Block<DCTDATAUNIT, BS, D> tmp {};
@@ -58,9 +77,15 @@ struct fdct {
   }
 };
 
-
+/**
+ * @see fdct<BS, D>
+ */
 template <size_t BS>
 struct fdct<BS, 1> {
+
+  /**
+   * @see fdct<BS, D>::fdct
+   */
   template <typename IF, typename OF>
   fdct(IF &&input, OF &&output) {
     static constexpr Block<DCTDATAUNIT, BS, 2> coefs = init_coefs<BS>();
@@ -73,8 +98,17 @@ struct fdct<BS, 1> {
   }
 };
 
+/**
+* @brief Struct for the IDCT which wraps static parameters for partial specialization.
+*/
 template <size_t BS, size_t D>
 struct idct {
+
+  /**
+  * @brief Function which performs the IDCT.
+  * @param input  callback function returning coefficients from decoded block. Signature is DCTDATAUNIT input(size_t index).
+  * @param output callback function for writing output samples. Signature is DCTDATAUNIT &output(size_t index).
+  */
   template <typename IF, typename OF>
   idct(IF &&input, OF &&output) {
     Block<DCTDATAUNIT, BS, D> tmp {};
@@ -105,8 +139,15 @@ struct idct {
   }
 };
 
+/**
+ * @see idct<BS, D>
+ */
 template <size_t BS>
 struct idct<BS, 1> {
+
+  /**
+   * @see idct<BS, D>::idct
+   */
   template <typename IF, typename OF>
   idct(IF &&input, OF &&output) {
     static constexpr Block<DCTDATAUNIT, BS, 2> coefs = init_coefs<BS>();
