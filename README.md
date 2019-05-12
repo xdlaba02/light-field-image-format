@@ -1,1 +1,1 @@
-# light-field-image-format
+# Light Field Image Format

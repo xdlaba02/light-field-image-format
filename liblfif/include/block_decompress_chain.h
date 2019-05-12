@@ -74,9 +74,9 @@ void detraverse(Block<QDATAUNIT, BS, D> &traversed_block, const TraversalTable<B
 }
 
 /**
- * @brief Function which detraverses the traversed block of coefficients.
- * @param traversed_block The input block of coefficients which are traversed in memory.
- * @param traversal_table The traversal matrix.
+ * @brief Function which performs inverse DPCM.
+ * @param diff_encoded_block The block which is DPCM encoded.
+ * @param previous_DC Reference to value of previous DC coefficient.
  */
 template <size_t BS, size_t D>
 void diffDecodeDC(Block<QDATAUNIT, BS, D> &diff_encoded_block, QDATAUNIT &previous_DC) {

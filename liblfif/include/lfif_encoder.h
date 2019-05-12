@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: lfif_encoder.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file lfif_encoder.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 12. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Functions for encoding an image.
+*/
 
 #ifndef LFIF_ENCODER_H
 #define LFIF_ENCODER_H
@@ -13,38 +16,45 @@
 #include <ostream>
 #include <sstream>
 
+/**
+* @brief Base structure for encoding an image.
+*/
 template<size_t BS, size_t D>
 struct LfifEncoder {
-  uint8_t color_depth;
-  uint64_t img_dims[D+1];
+  uint8_t color_depth;    /**< @brief Number of bits per sample used by each decoded channel.*/
+  uint64_t img_dims[D+1]; /**< @brief Dimensions of a decoded image + image count. The multiple of all values should be equal to number of pixels in encoded image.*/
 
-  QuantTable<BS, D>      quant_table     [2];
-  TraversalTable<BS, D>  traversal_table [2];
-  ReferenceBlock<BS, D>  reference_block [2];
-  HuffmanWeights         huffman_weight  [2][2];
-  HuffmanEncoder         huffman_encoder [2][2];
+  QuantTable<BS, D>      quant_table     [2];    /**< @brief Quantization matrices for luma and chroma.*/
+  TraversalTable<BS, D>  traversal_table [2];    /**< @brief Traversal matrices for luma and chroma.*/
+  ReferenceBlock<BS, D>  reference_block [2];    /**< @brief Reference blocks for luma and chroma to be used for traversal optimization.*/
+  HuffmanWeights         huffman_weight  [2][2]; /**< @brief Weigth maps for luma and chroma and also for the DC and AC coefficients to be used for optimal Huffman encoding.*/
+  HuffmanEncoder         huffman_encoder [2][2]; /**< @brief Huffman encoders for luma and chroma and also for the DC and AC coefficients.*/
 
-  QuantTable<BS, D>     *quant_tables    [3];
-  ReferenceBlock<BS, D> *reference_blocks[3];
-  TraversalTable<BS, D> *traversal_tables[3];
-  HuffmanWeights        *huffman_weights [3];
-  HuffmanEncoder        *huffman_encoders[3];
+  QuantTable<BS, D>     *quant_tables    [3]; /**< @brief Pointer to quantization matrix used by each channel.*/
+  ReferenceBlock<BS, D> *reference_blocks[3]; /**< @brief Pointer to reference block used by each channel.*/
+  TraversalTable<BS, D> *traversal_tables[3]; /**< @brief Pointer to traversal matrix used by each channel.*/
+  HuffmanWeights        *huffman_weights [3]; /**< @brief Pointer to weight maps used by each channel.*/
+  HuffmanEncoder        *huffman_encoders[3]; /**< @brief Pointer to Huffman encoders used by each channel.*/
 
-  size_t blocks_cnt;
-  size_t pixels_cnt;
+  size_t blocks_cnt; /**< @brief Number of blocks in the encoded image.*/
+  size_t pixels_cnt; /**< @brief Number of pixels in the encoded image.*/
 
-  size_t amp_bits;
-  size_t zeroes_bits;
-  size_t class_bits;
-  size_t max_zeroes;
+  size_t amp_bits;    /**< @brief Number of bits sufficient to contain maximum DCT coefficient.*/
+  size_t zeroes_bits; /**< @brief Number of bits sufficient to contain run-length of zero coefficients.*/
+  size_t class_bits;  /**< @brief Number of bits sufficient to contain number of bits of maximum DCT coefficient.*/
+  size_t max_zeroes;  /**< @brief Maximum length of zero coefficient run-length.*/
 
-  Block<INPUTTRIPLET,  BS, D> current_block;
-  Block<INPUTUNIT,     BS, D> input_block;
-  Block<DCTDATAUNIT,   BS, D> dct_block;
-  Block<QDATAUNIT,     BS, D> quantized_block;
-  Block<RunLengthPair, BS, D> runlength;
+  Block<INPUTTRIPLET,  BS, D> current_block;   /**< @brief Buffer for caching the block of pixels before encoding.*/
+  Block<INPUTUNIT,     BS, D> input_block;     /**< @brief Buffer for caching the block of input samples.*/
+  Block<DCTDATAUNIT,   BS, D> dct_block;       /**< @brief Buffer for caching the block of DCT coefficients.*/
+  Block<QDATAUNIT,     BS, D> quantized_block; /**< @brief Buffer for caching the block of quantized coefficients.*/
+  Block<RunLengthPair, BS, D> runlength;       /**< @brief Buffer for caching the block of run-length pairs.*/
 };
 
+/**
+* @brief Function which (re)initializes the encoder structure.
+* @param enc The encoder structure.
+*/
 template<size_t BS, size_t D>
 void initEncoder(LfifEncoder<BS, D> &enc) {
   enc.quant_tables[0]     = &enc.quant_table[0];
@@ -88,6 +98,13 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
   }
 }
 
+/**
+* @brief Function which initializes quantization matrices.
+* @param enc The encoder structure.
+* @param table_type Type of the tables to be initialized.
+* @param quality Encoding quality from 1 to 100.
+* @return Nonzero if requested unknown table type.
+*/
 template<size_t BS, size_t D>
 int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &table_type, float quality) {
   auto scale_table = [&](const auto &table) {
@@ -126,6 +143,12 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
   return 0;
 }
 
+/**
+* @brief Function which performs arbitrary scan of an image. This function prepares a block into the encoding structure buffers.
+* @param enc The encoder structure.
+* @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
+* @param func Callback function which performs action on every block with signature void func(size_t channel), where channel is channel from which the extracted block is.
+*/
 template<size_t BS, size_t D, typename INPUTF, typename PERFF>
 void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
   auto outputF = [&](size_t index, const auto &value) {
@@ -152,6 +175,11 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
   }
 }
 
+/**
+* @brief Function which performs scan for linearization optimization.
+* @param enc The encoder structure.
+* @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
+*/
 template<size_t BS, size_t D, typename F>
 void referenceScan(LfifEncoder<BS, D> &enc, F &&input) {
   auto perform = [&](size_t channel) {
@@ -163,6 +191,12 @@ void referenceScan(LfifEncoder<BS, D> &enc, F &&input) {
   performScan(enc, input, perform);
 }
 
+/**
+* @brief Function which initializes linearization matrices.
+* @param enc The encoder structure.
+* @param table_type Type of the tables to be initialized.
+* @return Nonzero if requested unknown table type.
+*/
 template<size_t BS, size_t D>
 int constructTraversalTables(LfifEncoder<BS, D> &enc, const std::string &table_type) {
   if (table_type == "DEFAULT" || table_type == "REFERENCE") {
@@ -208,6 +242,11 @@ int constructTraversalTables(LfifEncoder<BS, D> &enc, const std::string &table_t
   return 0;
 }
 
+/**
+* @brief Function which performs scan for huffman weights.
+* @param enc The encoder structure.
+* @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
+*/
 template<size_t BS, size_t D, typename F>
 void huffmanScan(LfifEncoder<BS, D> &enc, F &&input) {
   QDATAUNIT previous_DC [3] {};
@@ -224,6 +263,10 @@ void huffmanScan(LfifEncoder<BS, D> &enc, F &&input) {
   performScan(enc, input, perform);
 }
 
+/**
+* @brief Function which initializes Huffman encoder from weights.
+* @param enc The encoder structure.
+*/
 template<size_t BS, size_t D>
 void constructHuffmanTables(LfifEncoder<BS, D> &enc) {
   for (size_t y = 0; y < 2; y++) {
@@ -234,6 +277,11 @@ void constructHuffmanTables(LfifEncoder<BS, D> &enc) {
   }
 }
 
+/**
+* @brief Function which writes tables to stream.
+* @param enc The encoder structure.
+* @param output Stream to which data will be written.
+*/
 template<size_t BS, size_t D>
 void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
   output << "LFIF-" << D << "D\n";
@@ -262,6 +310,12 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
   }
 }
 
+/**
+* @brief Function which encodes the image to the stream.
+* @param enc The encoder structure.
+* @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
+* @param output Output stream to which the image shall be encoded.
+*/
 template<size_t BS, size_t D, typename F>
 void outputScan(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   QDATAUNIT previous_DC [3] {};

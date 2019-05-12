@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: lfif_decoder.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file lfif_decoder.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 12. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Functions for decoding an image.
+*/
 
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
@@ -13,32 +16,41 @@
 #include <istream>
 #include <sstream>
 
+/**
+* @brief Base structure for decoding an image.
+*/
 template<size_t BS, size_t D>
 struct LfifDecoder {
-  uint8_t color_depth;
-  uint64_t img_dims[D+1];
+  uint8_t color_depth;    /**< @brief Number of bits per sample used by each decoded channel.*/
+  uint64_t img_dims[D+1]; /**< @brief Dimensions of a decoded image + image count.*/
 
-  QuantTable<BS, D>       quant_table         [2];
-  TraversalTable<BS, D>   traversal_table     [2];
-  HuffmanDecoder          huffman_decoder     [2][2];
+  QuantTable<BS, D>       quant_table         [2];    /**< @brief Quantization matrices for luma and chroma.*/
+  TraversalTable<BS, D>   traversal_table     [2];    /**< @brief Traversal matrices for luma and chroma.*/
+  HuffmanDecoder          huffman_decoder     [2][2]; /**< @brief Huffman decoders for luma and chroma and also for the DC and AC coefficients.*/
 
-  HuffmanDecoder         *huffman_decoders_ptr[3];
-  TraversalTable<BS, D>  *traversal_table_ptr [3];
-  QuantTable<BS, D>      *quant_table_ptr     [3];
+  HuffmanDecoder         *huffman_decoders_ptr[3]; /**< @brief Pointer to Huffman decoders used by each channel.*/
+  TraversalTable<BS, D>  *traversal_table_ptr [3]; /**< @brief Pointer to traversal matrix used by each channel.*/
+  QuantTable<BS, D>      *quant_table_ptr     [3]; /**< @brief Pointer to quantization matrix used by each channel.*/
 
-  size_t blocks_cnt;
-  size_t pixels_cnt;
+  size_t blocks_cnt; /**< @brief Number of blocks in the decoded image.*/
+  size_t pixels_cnt; /**< @brief Number of pixels in the decoded image.*/
 
-  size_t amp_bits;
-  size_t class_bits;
+  size_t amp_bits;   /**< @brief Number of bits sufficient to contain maximum DCT coefficient.*/
+  size_t class_bits; /**< @brief Number of bits sufficient to contain number of bits of maximum DCT coefficient.*/
 
-  Block<INPUTTRIPLET,  BS, D> current_block;
-  Block<RunLengthPair, BS, D> runlength;
-  Block<QDATAUNIT,     BS, D> quantized_block;
-  Block<DCTDATAUNIT,   BS, D> dct_block;
-  Block<INPUTUNIT,     BS, D> output_block;
+  Block<INPUTTRIPLET,  BS, D> current_block;   /**< @brief Buffer for caching the block of pixels before returning to client.*/
+  Block<RunLengthPair, BS, D> runlength;       /**< @brief Buffer for caching the block of run-length pairs when decoding.*/
+  Block<QDATAUNIT,     BS, D> quantized_block; /**< @brief Buffer for caching the block of quantized coefficients.*/
+  Block<DCTDATAUNIT,   BS, D> dct_block;       /**< @brief Buffer for caching the block of DCT coefficients.*/
+  Block<INPUTUNIT,     BS, D> output_block;    /**< @brief Buffer for caching the block of samples.*/
 };
 
+/**
+* @brief Function which reads the image header from stream.
+* @param dec The decoder structure.
+* @param input The input stream.
+* @return Zero if the header was succesfully read, nonzero else.
+*/
 template<size_t BS, size_t D>
 int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
   std::string       magic_number     {};
@@ -88,6 +100,10 @@ int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
   return 0;
 }
 
+/**
+* @brief Function which (re)initializes the decoder structure.
+* @param dec The decoder structure.
+*/
 template<size_t BS, size_t D>
 void initDecoder(LfifDecoder<BS, D> &dec) {
   dec.huffman_decoders_ptr[0] = dec.huffman_decoder[0];
@@ -114,6 +130,12 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
   dec.class_bits = RunLengthPair::classBits(dec.amp_bits);
 }
 
+/**
+* @brief Function which decodes image from stream.
+* @param dec The decoder structure.
+* @param input Input stream from which the image will be decoded.
+* @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
+*/
 template<size_t BS, size_t D, typename F>
 void decodeScan(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   IBitstream bitstream       {};

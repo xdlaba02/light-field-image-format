@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: quant_table.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file quant_table.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 12. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Module for generating quantization matrices.
+*/
 
 #ifndef QUANT_TABLE_H
 #define QUANT_TABLE_H
@@ -14,11 +17,17 @@
 #include <istream>
 #include <ostream>
 
-using QTABLEUNIT = uint64_t;
+using QTABLEUNIT = uint64_t; /**< @brief Unit which is intended to containt quantization matrix value.*/
 
+/**
+ * @brief Quantization matrix type.
+ */
 template <size_t BS, size_t D>
 using QuantTable = Block<QTABLEUNIT, BS, D>;
 
+/**
+ * @brief Base luma matrix used in libjpeg implementation. Values corresponds to quality of 50.
+ */
 static constexpr QuantTable<8, 2> base_luma = {
   16,  11,  10,  16,  24,  40,  51,  61,
   12,  12,  14,  19,  26,  58,  60,  55,
@@ -30,6 +39,9 @@ static constexpr QuantTable<8, 2> base_luma = {
   72,  92,  95,  98, 112, 100, 103,  99
 };
 
+/**
+ * @brief Base chroma matrix used in libjpeg implementation. Values corresponds to quality of 50.
+ */
 static constexpr QuantTable<8, 2> base_chroma = {
   17, 18, 24, 47, 99, 99, 99, 99,
   18, 21, 26, 66, 99, 99, 99, 99,
@@ -41,6 +53,11 @@ static constexpr QuantTable<8, 2> base_chroma = {
   99, 99, 99, 99, 99, 99, 99, 99
 };
 
+/**
+ * @brief Function used to scale quantization matrix to specific size by filling values by the nearests.
+ * @param input The matrix to be scaled.
+ * @return Scaled matrix.
+ */
 template <size_t BSIN, size_t D, size_t BSOUT>
 constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
   QuantTable<BSOUT, D> output {};
@@ -60,6 +77,11 @@ constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
   return output;
 }
 
+/**
+ * @brief Function used to scale quantization matrix to specific size by the DCT.
+ * @param input The matrix to be scaled.
+ * @return Scaled matrix.
+ */
 template <size_t BSIN, size_t D, size_t BSOUT>
 constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
   Block<DCTDATAUNIT, BSIN, D>  input_coefs  {};
@@ -106,6 +128,12 @@ constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
   return output;
 }
 
+/**
+ * @brief Function which scales matrix values by a coefficient.
+ * @param table The matrix to be scaled.
+ * @param scale_coef The scaling coefficient.
+ * @return Scaled matrix.
+ */
 template <size_t BS, size_t D>
 QuantTable<BS, D> applyQualityCoefficient(QuantTable<BS, D> table, float scale_coef) {
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -114,12 +142,23 @@ QuantTable<BS, D> applyQualityCoefficient(QuantTable<BS, D> table, float scale_c
   return table;
 }
 
+/**
+ * @brief Function which applies quality coefficient to a matrix.
+ * @param input The matrix to be scaled.
+ * @param quality The desired quality between 1.0 and 100.0.
+ * @return Scaled matrix.
+ */
 template <size_t BS, size_t D>
 QuantTable<BS, D> applyQuality(const QuantTable<BS, D> &input, float quality) {
   float scale_coef = quality < 50 ? (50.0 / quality) : (200.0 - 2 * quality) / 100;
   return applyQualityCoefficient<BS, D>(input, scale_coef);
 }
 
+/**
+ * @brief Function which generates uniform matrix.
+ * @param value The uniform value.
+ * @return Uniform matrix.
+ */
 template <size_t BS, size_t D>
 QuantTable<BS, D> uniformTable(QTABLEUNIT value) {
   QuantTable<BS, D> output {};
@@ -127,6 +166,11 @@ QuantTable<BS, D> uniformTable(QTABLEUNIT value) {
   return output;
 }
 
+/**
+ * @brief Function which extends matrix to specified dimensions by copying.
+ * @param input The matrix to be extended.
+ * @return Extended matrix.
+ */
 template <size_t BS, size_t DIN, size_t DOUT>
 QuantTable<BS, DOUT> copyTable(const QuantTable<BS, DIN> &input) {
   QuantTable<BS, DOUT> output {};
@@ -142,6 +186,11 @@ QuantTable<BS, DOUT> copyTable(const QuantTable<BS, DIN> &input) {
   return output;
 }
 
+/**
+ * @brief Function which extends matrix to specified dimensions by diagonals.
+ * @param input The matrix to be extended.
+ * @return Extended matrix.
+ */
 template <size_t BS, size_t DIN, size_t DOUT>
 QuantTable<BS, DOUT> averageDiagonalTable(const QuantTable<BS, DIN> &input) {
   double diagonals_sum[DIN * (BS - 1) + 1]   {};
@@ -174,6 +223,13 @@ QuantTable<BS, DOUT> averageDiagonalTable(const QuantTable<BS, DIN> &input) {
   return output;
 }
 
+/**
+ * @brief Function which clamp matrix values to specific range.
+ * @param table The matrix to be clamped.
+ * @param min Minimum clamped value.
+ * @param max Maximum clamped value.
+ * @return Clamped matrix.
+ */
 template <size_t BS, size_t D>
 QuantTable<BS, D> clampTable(QuantTable<BS, D> table, float min, float max) {
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -182,6 +238,11 @@ QuantTable<BS, D> clampTable(QuantTable<BS, D> table, float min, float max) {
   return table;
 }
 
+/**
+ * @brief Function which writes matrix to stream.
+ * @param table The matrix to be written.
+ * @param stream The stream to which the matrix shall be written.
+ */
 template <size_t BS, size_t D>
 void writeToStream(const QuantTable<BS, D> &table, std::ostream &stream) {
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -189,6 +250,11 @@ void writeToStream(const QuantTable<BS, D> &table, std::ostream &stream) {
   }
 }
 
+/**
+ * @brief Function which reads the matrix from stream.
+ * @param stream The stream from which the matrix shall be read.
+ * @return The read matrix.
+ */
 template <size_t BS, size_t D>
 QuantTable<BS, D> readFromStream(std::istream &stream) {
   QuantTable<BS, D> output {};

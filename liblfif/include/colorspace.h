@@ -103,7 +103,6 @@ namespace YCoCg {
   /**
   * @brief  Function which converts RGB to Co.
   * @param  R Red sample.
-  * @param  G Green sample.
   * @param  B Blue sample.
   * @return Co sample.
   */

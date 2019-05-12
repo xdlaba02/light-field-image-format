@@ -4,12 +4,11 @@
 ################################################################################
 
 BS = 8
-
 export BS
 
-all: liblfif libppm tools tests
+all: liblfif libppm tools
 
-.PHONY: liblfif libppm tools tests clean
+.PHONY: liblfif libppm tools tests clean doc
 
 liblfif:
 	$(MAKE) -C liblfif
@@ -27,4 +26,5 @@ clean:
 	rm -r doc
 	rm -r binaries
 
-bins:
+doc:
+	doxygen Doxyfile
