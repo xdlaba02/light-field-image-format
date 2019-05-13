@@ -126,7 +126,7 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
     dec.pixels_cnt *= dec.img_dims[i];
   }
 
-  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.color_depth - D - (D/2) + 1;
+  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.color_depth - D - (D/2);
   dec.class_bits = RunLengthPair::classBits(dec.amp_bits);
 }
 

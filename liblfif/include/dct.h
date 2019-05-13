@@ -78,12 +78,14 @@ struct fdct {
 };
 
 /**
+ * @brief The parital specialization for putting one dimensional fdct.
  * @see fdct<BS, D>
  */
 template <size_t BS>
 struct fdct<BS, 1> {
 
   /**
+   * @brief The parital specialization for putting one dimensional fdct.
    * @see fdct<BS, D>::fdct
    */
   template <typename IF, typename OF>
@@ -140,12 +142,14 @@ struct idct {
 };
 
 /**
+ * @brief The parital specialization for putting one dimensional idct.
  * @see idct<BS, D>
  */
 template <size_t BS>
 struct idct<BS, 1> {
 
   /**
+   * @brief The parital specialization for putting one dimensional idct.
    * @see idct<BS, D>::idct
    */
   template <typename IF, typename OF>

@@ -1,7 +1,10 @@
-/******************************************************************************\
-* SOUBOR: traversal_table.h
-* AUTOR: Drahomir Dlabaja (xdlaba02)
-\******************************************************************************/
+/**
+* @file traversal_table.h
+* @author Drahomír Dlabaja (xdlaba02)
+* @date 13. 5. 2019
+* @copyright 2019 Drahomír Dlabaja
+* @brief Module for generating linearization matrices.
+*/
 
 #ifndef TRAVERSAL_TABLE_H
 #define TRAVERSAL_TABLE_H
@@ -12,25 +15,79 @@
 
 #include <iosfwd>
 
-using REFBLOCKUNIT = double;
-using TTABLEUNIT = size_t;
+using REFBLOCKUNIT = double; /**< @brief Type intended to be used in reference block.*/
+using TTABLEUNIT = size_t;   /**< @brief Type intended to be used in traversal matrix.*/
 
+/**
+ * @brief Reference block type.
+ */
 template<size_t BS, size_t D>
 using ReferenceBlock = Block<REFBLOCKUNIT, BS, D>;
 
+/**
+ * @brief Traversal table class.
+ */
 template <size_t BS, size_t D>
 class TraversalTable {
 public:
+
+  /**
+   * @brief Method which constructs traversal matrix by reference block.
+   * @param reference_block The block from which the matrix shall be constructed.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &constructByReference(const ReferenceBlock<BS, D> &reference_block);
+
+  /**
+   * @brief Method which constructs traversal matrix from quantization matrix.
+   * @param quant_table The quantization matrix from which the matrix shall be constructed.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &constructByQuantTable(const QuantTable<BS, D> &quant_table);
+
+  /**
+   * @brief Method which constructs traversal matrix by Eucleidian distance from the DC coefficient.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &constructByRadius();
+
+  /**
+   * @brief Method which constructs traversal matrix by manhattan distance from the DC coefficient.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &constructByDiagonals();
+
+  /**
+   * @brief Method which constructs traversal matrix by Eucleidian distance from the AC coefficient with highest frequency.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &constructByHyperboloid();
+
+  /**
+   * @brief Method which constructs zig-zag matrix.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &constructZigzag();
 
+  /**
+   * @brief Method which writes the matrix to stream.
+   * @param stream The stream to which the table shall be written.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &writeToStream(std::ostream &stream);
+
+  /**
+   * @brief Method which read the matrix from stream.
+   * @param stream The stream from which the table shall be read.
+   * @return Reference to itself.
+   */
   TraversalTable<BS, D> &readFromStream(std::istream &stream);
 
+  /**
+   * @brief Method used to index the internal matrix.
+   * @param index The index of a linearization index.
+   * @return Linearization index.
+   */
   TTABLEUNIT operator [](size_t index) const {
     return m_block[index];
   }

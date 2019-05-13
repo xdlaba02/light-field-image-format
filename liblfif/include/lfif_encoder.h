@@ -85,7 +85,7 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
     enc.pixels_cnt *= enc.img_dims[i];
   }
 
-  enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.color_depth - D - (D/2) + 1;
+  enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.color_depth - D - (D/2);
   enc.class_bits = RunLengthPair::classBits(enc.amp_bits);
   enc.zeroes_bits = RunLengthPair::zeroesBits(enc.class_bits);
   enc.max_zeroes = constpow(2, enc.zeroes_bits) - 1;

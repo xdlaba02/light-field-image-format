@@ -57,12 +57,14 @@ struct getBlock {
 };
 
 /**
+ * @brief The parital specialization for getting one dimensional block.
  * @see getBlock<BS, D>
  */
 template<size_t BS>
 struct getBlock<BS, 1> {
 
   /**
+   * @brief The parital specialization for getting one dimensional block.
    * @see getBlock<BS, D>::getBlock
    */
   template <typename IF, typename OF>
@@ -123,12 +125,14 @@ struct putBlock {
 };
 
 /**
+ * @brief The parital specialization for putting one dimensional block.
  * @see putBlock<BS, D>
  */
 template<size_t BS>
 struct putBlock<BS, 1> {
 
   /**
+   * @brief The parital specialization for putting one dimensional block.
    * @see putBlock<BS, D>::getBlock
    */
   template <typename IF, typename OF>
