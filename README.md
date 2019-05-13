@@ -12,7 +12,7 @@ in its root folder. To compile only part of the project, you can specify which p
 
     make <FOLDER>
 
-where ``<FOLDER>`` can be ``liblfif`` for LFIF library only, ``libppm`` for PPM library only. The ``tools`` specifier will compile the whole project because tools depend on it. To compile tools with specific block size, add a parameter ``BS=<NUMBER>`` to the make command. A ``<NUMBER>`` parameter specifies the size of a block. The default value is 8. Compilation outputs its binaries in ``bin`` folder of each subproject.
+where ``<FOLDER>`` can be ``liblfif`` for LFIF library only, ``libppm`` for PPM library only. The ``tools`` specifier will compile the whole project because tools depend on it. To compile tools with specific block size, add a parameter ``BS=<NUMBER>`` to the make command. A ``<NUMBER>`` specifies the size of a block. The default value is 8. Compilation outputs its binaries in ``bin`` subfolder of each folder.
 
 The documentation can be generated with ``Doxygen`` tool with the command
 
