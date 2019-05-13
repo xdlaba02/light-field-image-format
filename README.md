@@ -37,7 +37,7 @@ The decompression tool can decompress images compressed with corresponding compr
 The ``#`` characters will be expanded in a simmilar way as with compression tools.
 
 ## License
-See [LICENSE][link-license] for license and copyright information.
+See [LICENSE](LICENSE) for license and copyright information.
 
 ## References
 Barina, D.; Chlubna, T.; Solony, M.; aj.: Evaluation of 4D Light Field Compression Methods. In International Conference in Central Europe on Computer Graphics, Visualization and Computer Vision (WSCG), 2019.
