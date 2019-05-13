@@ -8,7 +8,7 @@ export BS
 
 all: liblfif libppm tools
 
-.PHONY: liblfif libppm tools tests clean doc
+.PHONY: liblfif libppm tools clean doc
 
 liblfif:
 	$(MAKE) -C liblfif
@@ -23,8 +23,7 @@ clean:
 	$(MAKE) clean -C liblfif
 	$(MAKE) clean -C libppm
 	$(MAKE) clean -C tools
-	rm -r doc
-	rm -r binaries
+	rm -rf doc
 
 doc:
 	doxygen Doxyfile
