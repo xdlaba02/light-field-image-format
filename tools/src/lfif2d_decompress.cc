@@ -28,13 +28,38 @@ int main(int argc, char *argv[]) {
 
   vector<uint8_t> rgb_data     {};
 
-  LfifDecoder<BS, 2> decoder   {};
-  ifstream           input     {};
+  LfifDecoder<BS, 2> *decoder  {};
+  ifstream            input    {};
 
   uint16_t max_rgb_value       {};
 
+  if (!parse_args(argc, argv, input_file_name, output_file_mask)) {
+    return 1;
+  }
+
+  input.open(input_file_name);
+  if (!input) {
+    cerr << "ERROR: CANNON OPEN " << input_file_name << " FOR READING\n";
+    return 1;
+  }
+
+  decoder = new LfifDecoder<BS, 2>;
+
+  if (readHeader(*decoder, input)) {
+    cerr << "ERROR: IMAGE HEADER INVALID\n";
+    return 2;
+  }
+
+  max_rgb_value = pow(2, decoder->color_depth) - 1;
+
+  initDecoder(*decoder);
+
+  size_t output_size = decoder->pixels_cnt * decoder->img_dims[2] * 3;
+  output_size *= (decoder->color_depth > 8) ? 2 : 1;
+  rgb_data.resize(output_size);
+
   auto outputF0 = [&](size_t channel, size_t index, RGBUNIT value) {
-    if (decoder.color_depth > 8) {
+    if (decoder->color_depth > 8) {
       reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = value;
     }
     else {
@@ -56,34 +81,13 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  if (!parse_args(argc, argv, input_file_name, output_file_mask)) {
-    return 1;
-  }
+  decodeScan(*decoder, input, outputF);
 
-  input.open(input_file_name);
-  if (!input) {
-    cerr << "ERROR: CANNON OPEN " << input_file_name << " FOR READING\n";
-    return 1;
-  }
-
-  if (readHeader(decoder, input)) {
-    cerr << "ERROR: IMAGE HEADER INVALID\n";
-    return 2;
-  }
-
-  max_rgb_value = pow(2, decoder.color_depth) - 1;
-
-  initDecoder(decoder);
-
-  size_t output_size = decoder.pixels_cnt * decoder.img_dims[2] * 3;
-  output_size *= (decoder.color_depth > 8) ? 2 : 1;
-  rgb_data.resize(output_size);
-
-  decodeScan(decoder, input, outputF);
-
-  if (!savePPMs(output_file_mask, rgb_data.data(), decoder.img_dims[0], decoder.img_dims[1], max_rgb_value, decoder.img_dims[2])) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2])) {
     return 3;
   }
+
+  delete decoder;
 
   return 0;
 }
