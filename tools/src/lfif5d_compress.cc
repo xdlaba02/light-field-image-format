@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
   cerr << "INFO: CHECKING FRAMES" << endl;
   for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@'); frame++) {
-    cerr << "INFO: CHECKING FRAME" << frame << endl;
+    cerr << "INFO: CHECKING FRAME " << frame << endl;
     size_t v_count {};
 
     for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
       cerr << "INFO: FRAME " << frame << " OK" << endl;
     }
     else {
-      cerr << "INFO: FRAME" << frame << " DO NOT EXIST, MOVING TO NEXT" << endl;
+      cerr << "INFO: FRAME " << frame << " DO NOT EXIST, MOVING TO NEXT" << endl;
     }
 
   }
@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
   encoder->img_dims[1] = height;
   encoder->img_dims[2] = sqrt(views_count);
   encoder->img_dims[3] = sqrt(views_count);
-  encoder->img_dims[4] = frames_count;
+  encoder->img_dims[4] = BLOCK_SIZE;
   encoder->img_dims[5] = 1;
   encoder->color_depth = ceil(log2(max_rgb_value + 1));
 
@@ -156,8 +156,6 @@ int main(int argc, char *argv[]) {
       ppm_row = allocPPMRow(width);
 
       for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@') && loaded_frames_count < BLOCK_SIZE; frame++) {
-        cerr << "INFO: TRYING FRAME" << frame << endl;
-
         size_t loaded_views_count {};
         for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
           ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
@@ -165,10 +163,13 @@ int main(int argc, char *argv[]) {
             continue;
           }
           else if (skipped_frames_count < indexed_fifth_dimension_block_index * BLOCK_SIZE) {
+            cerr << "INFO: SKIPPING FRAME" << frame << endl;
             fclose(ppm.file);
             skipped_frames_count++;
             break;
           }
+
+          cerr << "INFO: LOADING FRAME " << frame << ": " << get_name_from_mask(input_file_mask, '@', frame) << endl;
 
           readPPMHeader(&ppm);
 
