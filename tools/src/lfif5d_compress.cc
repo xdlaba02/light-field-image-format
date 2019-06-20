@@ -77,13 +77,13 @@ int main(int argc, char *argv[]) {
 
       if (width && height && max_rgb_value) {
         if ((ppm.width != width) || (ppm.height != height) || (ppm.color_depth != max_rgb_value)) {
-          cerr << "ERROR: PPMs DIMENSIONS MISMATCH" << endl;
+          cerr << "ERROR: PPM DIMENSIONS MISMATCH" << endl;
           return 1;
         }
       }
 
-      width       = ppm.width;
-      height      = ppm.height;
+      width         = ppm.width;
+      height        = ppm.height;
       max_rgb_value = ppm.color_depth;
     }
 
@@ -98,10 +98,10 @@ int main(int argc, char *argv[]) {
 
       frames_count++;
 
-      cerr << "INFO: FRAME " << frame << " OK" << endl;
+      cerr << "INFO: FRAME " << frame << " IS OK" << endl;
     }
     else {
-      cerr << "INFO: FRAME " << frame << " DO NOT EXIST, MOVING TO NEXT" << endl;
+      cerr << "INFO: FRAME " << frame << " DOES NOT EXIST, MOVING TO NEXT" << endl;
     }
 
   }
@@ -157,6 +157,7 @@ int main(int argc, char *argv[]) {
 
       for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@') && loaded_frames_count < BLOCK_SIZE; frame++) {
         size_t loaded_views_count {};
+        cerr << "INFO: LOADING FRAME " << frame << ": " << get_name_from_mask(input_file_mask, '@', frame) << endl;
         for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
           ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
           if (!ppm.file) {
@@ -168,8 +169,6 @@ int main(int argc, char *argv[]) {
             skipped_frames_count++;
             break;
           }
-
-          cerr << "INFO: LOADING FRAME " << frame << ": " << get_name_from_mask(input_file_mask, '@', frame) << endl;
 
           readPPMHeader(&ppm);
 
@@ -202,7 +201,7 @@ int main(int argc, char *argv[]) {
 
         if (loaded_views_count == views_count) {
           loaded_frames_count++;
-          cerr << "INFO: FRAME" << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
+          cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
         }
         else if (loaded_views_count) {
           cerr << "ERROR: THIS SHOULD NEVER HAPPEN" << endl;
