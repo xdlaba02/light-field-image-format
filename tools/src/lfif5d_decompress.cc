@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
   auto flush_frames = [&](size_t first_frame_index) {
     cerr << "INFO: FLUSHING FRAMES " << first_frame_index << " - " << first_frame_index + BLOCK_SIZE - 1 << endl;
 
-    PPMFileStruct ppm {};
+    PPMFileStruct ppm            {};
     Pixel *ppm_row               {};
     size_t flushed_frames_count  {};
 
@@ -90,11 +90,13 @@ int main(int argc, char *argv[]) {
 
         ppm.file = fopen(filename.c_str(), "wb");
         if (!ppm.file) {
-          cerr << "ERROR: CANNOT OPEN " << filename << "FOR WRITING" << endl;
+          cerr << "ERROR: CANNOT OPEN " << filename << " FOR WRITING" << endl;
+          exit(1);
         }
 
         if (writePPMHeader(&ppm)) {
           cerr << "ERROR: CANNOT WRITE TO " << filename << endl;
+          exit(1);
         }
 
         for (size_t row = 0; row < decoder->img_dims[1]; row++) {
@@ -116,6 +118,7 @@ int main(int argc, char *argv[]) {
 
           if (writePPMRow(&ppm, ppm_row)) {
             cerr << "ERROR: CANNOT WRITE TO " << filename << endl;
+            exit(1);
           }
         }
 
