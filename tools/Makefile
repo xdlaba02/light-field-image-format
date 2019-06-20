@@ -23,7 +23,7 @@ LFIF  = $(PLENO) ../liblfif/bin/liblfif.a
 .PHONY: all clean tools benchmarks
 
 all: tools
-tools: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif5d_compress
+tools: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif5d_compress $(BINDIR)/lfif5d_decompress
 benchmarks: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
@@ -45,6 +45,9 @@ $(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress$(BS).o $(OBJDIR)/decomp
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/lfif5d_decompress: $(OBJDIR)/lfif5d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfifbench: $(OBJDIR)/lfifbench$(BS).o $(LFIF)
