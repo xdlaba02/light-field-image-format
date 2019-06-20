@@ -41,4 +41,7 @@ private:
   std::vector<size_t> m_mask_indexes;
 };
 
+size_t get_mask_names_count(const std::string &mask, char masking_char);
+std::string get_name_from_mask(const std::string &mask, char masking_char, size_t index);
+
 #endif
