@@ -55,12 +55,18 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  cerr << "INFO: CHECKING FRAMES" << endl;
   for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@'); frame++) {
+    cerr << "INFO: CHECKING FRAME" << frame << endl;
     size_t v_count {};
 
+    cerr << "INFO: CHECKING VIEW FILES" << endl;
     for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
+      cerr << "INFO: CHECKING VIEW FILE " << view << endl;
+
       ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
       if (!ppm.file) {
+        cerr << "INFO: VIEW FILE " << view << "DO NOT EXIST" << endl;
         continue;
       }
 
@@ -83,6 +89,8 @@ int main(int argc, char *argv[]) {
       width       = ppm.width;
       height      = ppm.height;
       max_rgb_value = ppm.color_depth;
+
+      cerr << "INFO: VIEW FILE " << view << "OK" << endl;
     }
 
     if (v_count) {
@@ -95,6 +103,11 @@ int main(int argc, char *argv[]) {
       }
 
       frames_count++;
+
+      cerr << "INFO: FRAME " << frame << "OK" << endl;
+    }
+    else {
+      cerr << "INFO: FRAME" << frame << "DO NOT EXIST" << endl;
     }
 
   }
@@ -140,7 +153,7 @@ int main(int argc, char *argv[]) {
     size_t indexed_fifth_dimension_block_index = index / (width * height * views_count * BLOCK_SIZE);
 
     if (static_cast<int64_t>(indexed_fifth_dimension_block_index) != loaded_fifth_dimension_block_index) {
-      cerr << "INFO: LOADING NEW FRAMES" << endl;
+      cerr << "INFO: LOADING " << BLOCK_SIZE <<" FRAMES" << endl;
 
       Pixel *ppm_row              {};
       size_t skipped_frames_count {};
@@ -149,9 +162,11 @@ int main(int argc, char *argv[]) {
       ppm_row = allocPPMRow(width);
 
       for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@') && loaded_frames_count < BLOCK_SIZE; frame++) {
+        cerr << "INFO: TRYING FRAME" << frame << endl;
 
         size_t loaded_views_count {};
         for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
+          cerr << "INFO: TRYING VIEW" << frame << endl;
           ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
           if (!ppm.file) {
             continue;
@@ -193,6 +208,7 @@ int main(int argc, char *argv[]) {
 
         if (loaded_views_count == views_count) {
           loaded_frames_count++;
+          cerr << "INFO: FRAME" << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
         }
         else if (loaded_views_count) {
           cerr << "ERROR: THIS SHOULD NEVER HAPPEN" << endl;
