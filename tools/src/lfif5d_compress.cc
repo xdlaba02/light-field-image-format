@@ -60,13 +60,9 @@ int main(int argc, char *argv[]) {
     cerr << "INFO: CHECKING FRAME" << frame << endl;
     size_t v_count {};
 
-    cerr << "INFO: CHECKING VIEW FILES" << endl;
     for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
-      cerr << "INFO: CHECKING VIEW FILE " << view << endl;
-
       ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
       if (!ppm.file) {
-        cerr << "INFO: VIEW FILE " << view << "DO NOT EXIST" << endl;
         continue;
       }
 
@@ -89,8 +85,6 @@ int main(int argc, char *argv[]) {
       width       = ppm.width;
       height      = ppm.height;
       max_rgb_value = ppm.color_depth;
-
-      cerr << "INFO: VIEW FILE " << view << "OK" << endl;
     }
 
     if (v_count) {
@@ -104,10 +98,10 @@ int main(int argc, char *argv[]) {
 
       frames_count++;
 
-      cerr << "INFO: FRAME " << frame << "OK" << endl;
+      cerr << "INFO: FRAME " << frame << " OK" << endl;
     }
     else {
-      cerr << "INFO: FRAME" << frame << "DO NOT EXIST" << endl;
+      cerr << "INFO: FRAME" << frame << " DO NOT EXIST, MOVING TO NEXT" << endl;
     }
 
   }
@@ -166,7 +160,6 @@ int main(int argc, char *argv[]) {
 
         size_t loaded_views_count {};
         for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
-          cerr << "INFO: TRYING VIEW" << frame << endl;
           ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
           if (!ppm.file) {
             continue;
