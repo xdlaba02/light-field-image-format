@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
         std::string filename = get_name_from_mask(get_name_from_mask(output_file_mask, '@', frame), '#', view);
 
         if (last_slash_pos != string::npos) {
-          string command("mkdir -p " + filename);
+          string command("mkdir -p " + filename.substr(0, last_slash_pos));
           system(command.c_str());
         }
 
