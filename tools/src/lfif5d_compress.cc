@@ -10,6 +10,8 @@
 #include <lfif_encoder.h>
 #include <ppm.h>
 
+#include <getopt.h>
+
 #include <cmath>
 
 #include <iostream>
@@ -33,10 +35,82 @@ bool is_square(uint64_t num) {
   return false;
 }
 
+bool parse_args_video(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, size_t &start_frame) {
+  const char *arg_quality     {};
+  const char *arg_start_frame {};
+
+  char opt;
+  while ((opt = getopt(argc, argv, "i:o:q:s:")) >= 0) {
+    switch (opt) {
+      case 'i':
+        if (!input_file_mask) {
+          input_file_mask = optarg;
+          continue;
+        }
+        break;
+
+      case 'o':
+        if (!output_file_name) {
+          output_file_name = optarg;
+          continue;
+        }
+        break;
+
+      case 'q':
+        if (!arg_quality) {
+          arg_quality = optarg;
+          continue;
+        }
+        break;
+
+      case 's':
+        if (!arg_start_frame) {
+          arg_start_frame = optarg;
+          continue;
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    print_usage(argv[0]);
+    return false;
+  }
+
+  if ((!input_file_mask) || (!output_file_name) || (!arg_quality)) {
+    print_usage(argv[0]);
+    return false;
+  }
+
+  float tmp_quality = atof(arg_quality);
+  if ((tmp_quality < 1.f) || (tmp_quality > 100.f)) {
+    print_usage(argv[0]);
+    return false;
+  }
+  quality = tmp_quality;
+
+  if (arg_start_frame) {
+    int tmp_start_frame = atoi(arg_start_frame);
+    if (tmp_start_frame < 0) {
+      print_usage(argv[0]);
+      return false;
+    }
+    start_frame = tmp_start_frame;
+  }
+  else {
+    start_frame = 0;
+  }
+
+  return true;
+}
+
+
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
   float quality                {};
+  size_t start_frame           {};
 
   vector<uint8_t> rgb_data     {};
 
@@ -51,12 +125,12 @@ int main(int argc, char *argv[]) {
 
   PPMFileStruct ppm {};
 
-  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
+  if (!parse_args_video(argc, argv, input_file_mask, output_file_name, quality, start_frame)) {
     return 1;
   }
 
   cerr << "INFO: CHECKING FRAMES" << endl;
-  for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@'); frame++) {
+  for (size_t frame = start_frame; frame < get_mask_names_count(input_file_mask, '@'); frame++) {
     cerr << "INFO: CHECKING FRAME " << frame << endl;
     size_t v_count {};
 
@@ -87,23 +161,19 @@ int main(int argc, char *argv[]) {
       max_rgb_value = ppm.color_depth;
     }
 
-    if (v_count) {
-      if (!views_count) {
-        views_count = v_count;
-      }
-      else if (v_count != views_count) {
-        cerr << "ERROR: VIEW COUNT MISMATCH" << endl;
-        return 1;
-      }
-
-      frames_count++;
-
-      cerr << "INFO: FRAME " << frame << " IS OK" << endl;
-    }
-    else {
-      cerr << "INFO: FRAME " << frame << " DOES NOT EXIST, MOVING TO NEXT" << endl;
+    if (!v_count) {
+      break;
     }
 
+    if (!views_count) {
+      views_count = v_count;
+    }
+    else if (v_count != views_count) {
+      cerr << "ERROR: VIEW COUNT MISMATCH" << endl;
+      return 1;
+    }
+
+    frames_count++;
   }
 
   if (!views_count || !frames_count) {
@@ -138,36 +208,31 @@ int main(int argc, char *argv[]) {
   encoder->img_dims[1] = height;
   encoder->img_dims[2] = sqrt(views_count);
   encoder->img_dims[3] = sqrt(views_count);
-  encoder->img_dims[4] = BLOCK_SIZE;
+  encoder->img_dims[4] = frames_count;
   encoder->img_dims[5] = 1;
   encoder->color_depth = ceil(log2(max_rgb_value + 1));
 
   int64_t loaded_fifth_dimension_block_index = -1;
+
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     size_t indexed_fifth_dimension_block_index = index / (width * height * views_count * BLOCK_SIZE);
 
     if (static_cast<int64_t>(indexed_fifth_dimension_block_index) != loaded_fifth_dimension_block_index) {
-      cerr << "INFO: LOADING " << BLOCK_SIZE <<" FRAMES" << endl;
+      cerr << "INFO: LOADING FRAMES " << start_frame + (indexed_fifth_dimension_block_index * BLOCK_SIZE) << " - " << start_frame + BLOCK_SIZE * (indexed_fifth_dimension_block_index + 1) << endl;
 
       Pixel *ppm_row              {};
-      size_t skipped_frames_count {};
       size_t loaded_frames_count  {};
 
       ppm_row = allocPPMRow(width);
 
-      for (size_t frame = 0; frame < get_mask_names_count(input_file_mask, '@') && loaded_frames_count < BLOCK_SIZE; frame++) {
-        size_t loaded_views_count {};
+      for (size_t frame = start_frame + (indexed_fifth_dimension_block_index * BLOCK_SIZE); (frame < (start_frame + frames_count)) && (frame < (start_frame + BLOCK_SIZE * (indexed_fifth_dimension_block_index + 1))); frame++) {
         cerr << "INFO: LOADING FRAME " << frame << ": " << get_name_from_mask(input_file_mask, '@', frame) << endl;
+        size_t loaded_views_count {};
+
         for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
           ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
           if (!ppm.file) {
             continue;
-          }
-          else if (skipped_frames_count < indexed_fifth_dimension_block_index * BLOCK_SIZE) {
-            cerr << "INFO: SKIPPING FRAME" << frame << endl;
-            fclose(ppm.file);
-            skipped_frames_count++;
-            break;
           }
 
           readPPMHeader(&ppm);
@@ -211,6 +276,8 @@ int main(int argc, char *argv[]) {
       freePPMRow(ppm_row);
 
       loaded_fifth_dimension_block_index = indexed_fifth_dimension_block_index;
+
+      cerr << "INFO: FRAMES " << start_frame + (indexed_fifth_dimension_block_index * BLOCK_SIZE) << " - " << start_frame + BLOCK_SIZE * (indexed_fifth_dimension_block_index + 1) << " WERE LOADED" << endl;
     }
 
     if (max_rgb_value < 256) {
@@ -235,12 +302,11 @@ int main(int argc, char *argv[]) {
 
   initEncoder(*encoder);
   constructQuantizationTables(*encoder, "DEFAULT", quality);
-  referenceScan(*encoder, inputF); //FIRST IMAGE SCAN
-  constructTraversalTables(*encoder, "DEFAULT");
-  huffmanScan(*encoder, inputF); //SECOND IMAGE SCAN
+  constructTraversalTables(*encoder, "ZIGZAG");
+  huffmanScan(*encoder, inputF);
   constructHuffmanTables(*encoder);
   writeHeader(*encoder, output);
-  outputScan(*encoder, inputF, output); //THIRD IMAGE SCAN
+  outputScan(*encoder, inputF, output);
 
   delete encoder;
 
