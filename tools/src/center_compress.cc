@@ -1,5 +1,5 @@
 /******************************************************************************\
-* SOUBOR: centerpredict_compress.cc
+* SOUBOR: center_compress.cc
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
@@ -119,6 +119,8 @@ int main(int argc, char *argv[]) {
   writeHeader(*encoder2D, output);
   outputScan(*encoder2D, inputF2D, output);
 
+  output.flush();
+
 
   cerr << "INFO: DECODING CENTER VIEW" << endl;
 
@@ -171,17 +173,17 @@ int main(int argc, char *argv[]) {
 
   auto inputF0 = [&](size_t channel, size_t index) -> INPUTUNIT {
     if (max_rgb_value < 256) {
-      return static_cast<INPUTUNIT>(reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel])   - reinterpret_cast<const uint8_t *>(prediction.data())[(index % (width * height)) * 3 + channel];
+      return static_cast<INPUTUNIT>(reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel])   - reinterpret_cast<const uint8_t *>(prediction.data())[(index % (width * height)) * 3 + channel] + max_rgb_value;
     }
     else {
-      return static_cast<INPUTUNIT>(reinterpret_cast<const uint16_t *>(rgb_data.data())[index * 3 + channel])  - reinterpret_cast<const uint16_t *>(prediction.data())[(index % (width * height)) * 3 + channel];;
+      return static_cast<INPUTUNIT>(reinterpret_cast<const uint16_t *>(rgb_data.data())[index * 3 + channel])  - reinterpret_cast<const uint16_t *>(prediction.data())[(index % (width * height)) * 3 + channel] + max_rgb_value;
     }
   };
 
   auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    INPUTUNIT R = inputF0(0, index) + max_rgb_value;
-    INPUTUNIT G = inputF0(1, index) + max_rgb_value;
-    INPUTUNIT B = inputF0(2, index) + max_rgb_value;
+    INPUTUNIT R = inputF0(0, index);
+    INPUTUNIT G = inputF0(1, index);
+    INPUTUNIT B = inputF0(2, index);
 
     INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - max_rgb_value + 1;
     INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
