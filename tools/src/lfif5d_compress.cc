@@ -269,16 +269,13 @@ int main(int argc, char *argv[]) {
       if (loaded_views_count == views_count) {
         loaded_frames_count++;
         cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
-
-        if (!savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), encoder->img_dims[0], encoder->img_dims[1], max_rgb_value, encoder->img_dims[2] * encoder->img_dims[3])) {
-          return;
-        }
-
       }
       else if (loaded_views_count) {
         cerr << "ERROR: THIS SHOULD NEVER HAPPEN" << endl;
       }
     }
+
+    savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), encoder->img_dims[0], encoder->img_dims[1], max_rgb_value, encoder->img_dims[2] * encoder->img_dims[3]);
 
     freePPMRow(ppm_row);
 
