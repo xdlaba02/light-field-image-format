@@ -79,6 +79,9 @@ int main(int argc, char *argv[]) {
     for (size_t frame = first_frame_index; (frame < decoder->img_dims[4]) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
       cerr << "INFO: FLUSHING FRAME " << frame << ": " << get_name_from_mask(output_file_mask, '@', frame) << endl;
 
+      cerr << rgb_data[0] << ", " << rgb_data[1] << ", " rgb_data[2] << endl;
+      cerr << rgb_data[3] << ", " << rgb_data[4] << ", " rgb_data[5] << endl;
+
       for (size_t view = 0; view < views_count; view++) {
 
         std::string filename = get_name_from_mask(get_name_from_mask(output_file_mask, '@', frame), '#', view);
@@ -99,19 +102,22 @@ int main(int argc, char *argv[]) {
           exit(1);
         }
 
-        for (size_t row = 0; row < decoder->img_dims[1]; row++) {
+        for (size_t row = 0; row < ppm.height; row++) {
+
           if (decoder->color_depth < 8) {
             for (size_t col = 0; col < ppm.width; col++) {
-              ppm_row[col].r = reinterpret_cast<const uint8_t *>(rgb_data.data())[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
-              ppm_row[col].g = reinterpret_cast<const uint8_t *>(rgb_data.data())[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
-              ppm_row[col].b = reinterpret_cast<const uint8_t *>(rgb_data.data())[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
+              uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(rgb_data.data());
+              ppm_row[col].r = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
+              ppm_row[col].g = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
+              ppm_row[col].b = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
             }
           }
           else {
             for (size_t col = 0; col < ppm.width; col++) {
-              ppm_row[col].r = reinterpret_cast<const uint16_t *>(rgb_data.data())[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
-              ppm_row[col].g = reinterpret_cast<const uint16_t *>(rgb_data.data())[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
-              ppm_row[col].b = reinterpret_cast<const uint16_t *>(rgb_data.data())[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
+              uint16_t *data_ptr = reinterpret_cast<const uint16_t *>(rgb_data.data());
+              ppm_row[col].r = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
+              ppm_row[col].g = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
+              ppm_row[col].b = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
             }
           }
 

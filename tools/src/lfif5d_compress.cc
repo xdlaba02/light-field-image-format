@@ -241,16 +241,20 @@ int main(int argc, char *argv[]) {
 
           if (ppm.color_depth < 256) {
             for (size_t col = 0; col < ppm.width; col++) {
-              reinterpret_cast<uint8_t *>(rgb_data.data())[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
-              reinterpret_cast<uint8_t *>(rgb_data.data())[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
-              reinterpret_cast<uint8_t *>(rgb_data.data())[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+              uint8_t *data_ptr = reinterpret_cast<uint8_t *>(rgb_data.data());
+
+              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
+              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
+              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
             }
           }
           else {
             for (size_t col = 0; col < ppm.width; col++) {
-              reinterpret_cast<uint16_t *>(rgb_data.data())[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
-              reinterpret_cast<uint16_t *>(rgb_data.data())[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
-              reinterpret_cast<uint16_t *>(rgb_data.data())[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+              uint16_t *data_ptr = reinterpret_cast<uint16_t *>(rgb_data.data());
+
+              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
+              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
+              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
             }
           }
 
@@ -263,6 +267,10 @@ int main(int argc, char *argv[]) {
       if (loaded_views_count == views_count) {
         loaded_frames_count++;
         cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
+
+        cerr << rgb_data[0] << ", " << rgb_data[1] << ", " rgb_data[2] << endl;
+        cerr << rgb_data[3] << ", " << rgb_data[4] << ", " rgb_data[5] << endl;
+
       }
       else if (loaded_views_count) {
         cerr << "ERROR: THIS SHOULD NEVER HAPPEN" << endl;
