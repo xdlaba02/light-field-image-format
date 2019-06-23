@@ -6,8 +6,6 @@
 #include "decompress.h"
 #include "file_mask.h"
 
-#include "plenoppm.h"
-
 #include <lfif_decoder.h>
 #include <colorspace.h>
 #include <ppm.h>
@@ -81,8 +79,6 @@ int main(int argc, char *argv[]) {
     for (size_t frame = first_frame_index; (frame < decoder->img_dims[4]) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
       cerr << "INFO: FLUSHING FRAME " << frame << ": " << get_name_from_mask(output_file_mask, '@', frame) << endl;
 
-      savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2] * decoder->img_dims[3]);
-
       for (size_t view = 0; view < views_count; view++) {
 
         std::string filename = get_name_from_mask(get_name_from_mask(output_file_mask, '@', frame), '#', view);
@@ -104,10 +100,9 @@ int main(int argc, char *argv[]) {
         }
 
         for (size_t row = 0; row < ppm.height; row++) {
-
-          if (decoder->color_depth < 8) {
+          if (decoder->color_depth > 8) {
             for (size_t col = 0; col < ppm.width; col++) {
-              const uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(rgb_data.data());
+              const uint16_t *data_ptr = reinterpret_cast<const uint16_t *>(rgb_data.data());
               ppm_row[col].r = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
               ppm_row[col].g = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
               ppm_row[col].b = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
@@ -115,7 +110,7 @@ int main(int argc, char *argv[]) {
           }
           else {
             for (size_t col = 0; col < ppm.width; col++) {
-              const uint16_t *data_ptr = reinterpret_cast<const uint16_t *>(rgb_data.data());
+              const uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(rgb_data.data());
               ppm_row[col].r = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
               ppm_row[col].g = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
               ppm_row[col].b = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
