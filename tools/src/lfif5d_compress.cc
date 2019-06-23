@@ -268,8 +268,9 @@ int main(int argc, char *argv[]) {
         loaded_frames_count++;
         cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
 
-        cerr << (int)rgb_data[122944 * 3 + 0] << ", " << (int)rgb_data[122944 * 3 + 1] << ", " << (int)rgb_data[122944 * 3 + 2] << endl;
-        cerr << (int)rgb_data[122944 * 3 + 3] << ", " << (int)rgb_data[122944 * 3 + 4] << ", " << (int)rgb_data[122944 * 3 + 5] << endl;
+        if (!savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2] * decoder->img_dims[3])) {
+          return 3;
+        }
 
       }
       else if (loaded_views_count) {
