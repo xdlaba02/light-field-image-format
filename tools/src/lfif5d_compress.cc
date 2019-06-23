@@ -6,6 +6,8 @@
 #include "compress.h"
 #include "file_mask.h"
 
+#include "plenoppm.h"//FIXME
+
 #include <colorspace.h>
 #include <lfif_encoder.h>
 #include <ppm.h>
@@ -268,8 +270,8 @@ int main(int argc, char *argv[]) {
         loaded_frames_count++;
         cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
 
-        if (!savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2] * decoder->img_dims[3])) {
-          return 3;
+        if (!savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), encoder->img_dims[0], encoder->img_dims[1], max_rgb_value, encoder->img_dims[2] * encoder->img_dims[3])) {
+          return;
         }
 
       }
