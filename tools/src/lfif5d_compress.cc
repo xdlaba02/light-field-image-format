@@ -268,8 +268,8 @@ int main(int argc, char *argv[]) {
         loaded_frames_count++;
         cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
 
-        cerr << rgb_data[0] << ", " << rgb_data[1] << ", " << rgb_data[2] << endl;
-        cerr << rgb_data[3] << ", " << rgb_data[4] << ", " << rgb_data[5] << endl;
+        cerr << (int)rgb_data[0] << ", " << (int)rgb_data[1] << ", " << (int)rgb_data[2] << endl;
+        cerr << (int)rgb_data[3] << ", " << (int)rgb_data[4] << ", " << (int)rgb_data[5] << endl;
 
       }
       else if (loaded_views_count) {
