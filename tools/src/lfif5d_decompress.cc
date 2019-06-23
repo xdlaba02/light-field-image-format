@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 
           if (decoder->color_depth < 8) {
             for (size_t col = 0; col < ppm.width; col++) {
-              uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(rgb_data.data());
+              const uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(rgb_data.data());
               ppm_row[col].r = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
               ppm_row[col].g = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 1];
               ppm_row[col].b = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 2];
