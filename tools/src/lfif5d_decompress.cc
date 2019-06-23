@@ -79,8 +79,8 @@ int main(int argc, char *argv[]) {
     for (size_t frame = first_frame_index; (frame < decoder->img_dims[4]) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
       cerr << "INFO: FLUSHING FRAME " << frame << ": " << get_name_from_mask(output_file_mask, '@', frame) << endl;
 
-      cerr << rgb_data[0] << ", " << rgb_data[1] << ", " rgb_data[2] << endl;
-      cerr << rgb_data[3] << ", " << rgb_data[4] << ", " rgb_data[5] << endl;
+      cerr << rgb_data[0] << ", " << rgb_data[1] << ", " << rgb_data[2] << endl;
+      cerr << rgb_data[3] << ", " << rgb_data[4] << ", " << rgb_data[5] << endl;
 
       for (size_t view = 0; view < views_count; view++) {
 
