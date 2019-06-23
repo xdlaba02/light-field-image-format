@@ -199,13 +199,13 @@ void referenceScan(LfifEncoder<BS, D> &enc, F &&input) {
 */
 template<size_t BS, size_t D>
 int constructTraversalTables(LfifEncoder<BS, D> &enc, const std::string &table_type) {
-  if (table_type == "DEFAULT" || table_type == "REFERENCE") {
+  if (table_type == "REFERENCE") {
     for (size_t i = 0; i < 2; i++) {
       enc.traversal_table[i]
       .constructByReference(enc.reference_block[i]);
     }
   }
-  else if (table_type == "ZIGZAG") {
+  else if (table_type == "DEFAULT" || table_type == "ZIGZAG") {
     for (size_t i = 0; i < 2; i++) {
       enc.traversal_table[i]
       .constructZigzag();
