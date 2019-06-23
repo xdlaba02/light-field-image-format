@@ -6,6 +6,8 @@
 #include "decompress.h"
 #include "file_mask.h"
 
+#include "plenoppm.h"
+
 #include <lfif_decoder.h>
 #include <colorspace.h>
 #include <ppm.h>
@@ -79,9 +81,7 @@ int main(int argc, char *argv[]) {
     for (size_t frame = first_frame_index; (frame < decoder->img_dims[4]) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
       cerr << "INFO: FLUSHING FRAME " << frame << ": " << get_name_from_mask(output_file_mask, '@', frame) << endl;
 
-      cerr << (int)rgb_data[122944 * 3 + 0] << ", " << (int)rgb_data[122944 * 3 + 1] << ", " << (int)rgb_data[122944 * 3 + 2] << endl;
-      cerr << (int)rgb_data[122944 * 3 + 3] << ", " << (int)rgb_data[122944 * 3 + 4] << ", " << (int)rgb_data[122944 * 3 + 5] << endl;
-
+      savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2] * decoder->img_dims[3]);
 
       for (size_t view = 0; view < views_count; view++) {
 

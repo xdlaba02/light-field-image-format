@@ -6,8 +6,6 @@
 #include "compress.h"
 #include "file_mask.h"
 
-#include "plenoppm.h"//FIXME
-
 #include <colorspace.h>
 #include <lfif_encoder.h>
 #include <ppm.h>
@@ -274,8 +272,6 @@ int main(int argc, char *argv[]) {
         cerr << "ERROR: THIS SHOULD NEVER HAPPEN" << endl;
       }
     }
-
-    savePPMs("/tmp/outputtest/###.ppm", rgb_data.data(), encoder->img_dims[0], encoder->img_dims[1], max_rgb_value, encoder->img_dims[2] * encoder->img_dims[3]);
 
     freePPMRow(ppm_row);
 
