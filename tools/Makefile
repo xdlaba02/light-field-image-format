@@ -17,14 +17,31 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
 
-PLENO = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
-LFIF  = $(PLENO) ../liblfif/bin/liblfif.a
+FOLDERS = $(BINDIR) $(OBJDIR) $(DEPDIR)
+PLENO   = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
+LFIF    = $(PLENO) ../liblfif/bin/liblfif.a
 
 .PHONY: all clean tools benchmarks
 
 all: tools
-tools: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfif2d_compress $(BINDIR)/lfif2d_decompress $(BINDIR)/lfif3d_compress $(BINDIR)/lfif3d_decompress $(BINDIR)/lfif4d_compress $(BINDIR)/lfif4d_decompress $(BINDIR)/lfif5d_compress $(BINDIR)/lfif5d_decompress $(BINDIR)/center_compress $(BINDIR)/center_decompress
-benchmarks: $(BINDIR) $(OBJDIR) $(DEPDIR) $(BINDIR)/lfifbench $(BINDIR)/mozbench $(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
+
+tools: $(FOLDERS) \
+			 $(BINDIR)/lfif2d_compress \
+			 $(BINDIR)/lfif2d_decompress \
+			 $(BINDIR)/lfif3d_compress \
+			 $(BINDIR)/lfif3d_decompress \
+			 $(BINDIR)/lfif4d_compress \
+			 $(BINDIR)/lfif4d_decompress \
+			 $(BINDIR)/lfif5d_compress \
+			 $(BINDIR)/lfif5d_decompress \
+			 $(BINDIR)/center_compress \
+			 $(BINDIR)/center_decompress \
+			 $(BINDIR)/lf_psnr
+
+benchmarks: $(FOLDERS) \
+						$(BINDIR)/lfifbench \
+						$(BINDIR)/mozbench \
+						$(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
@@ -54,6 +71,10 @@ $(BINDIR)/lfif5d_decompress: $(OBJDIR)/lfif5d_decompress$(BS).o $(OBJDIR)/decomp
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/center_decompress: $(OBJDIR)/center_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+
+$(BINDIR)/lf_psnr: $(OBJDIR)/lf_psnr$(BS).o $(PLENO)
 	$(CC) -lm $^ -o $@
 
 
