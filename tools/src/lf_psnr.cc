@@ -239,7 +239,7 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
 
   mse_spatial_zigzag /= view_count - 1;
   psnr_spatial_zigzag = psnr(mse_spatial_zigzag, max_rgb_value);
-  cout << "PSNR spatial zigzag: " << psnr_spatial_zigzag << endl;
+  cout << "PSNR spatial zigzag:             " << psnr_spatial_zigzag << endl;
 
   for (size_t y = 0; y < height; y++) {
     auto inputF1 = [&](size_t index) {
@@ -277,7 +277,7 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
 
   mse_angular_zigzag /= pixel_count - 1;
   psnr_angular_zigzag = psnr(mse_angular_zigzag, max_rgb_value);
-  cout << "PSNR angular zigzag: " << psnr_angular_zigzag << endl;
+  cout << "PSNR angular zigzag:             " << psnr_angular_zigzag << endl;
 }
 
 int main(int argc, char *argv[]) {
