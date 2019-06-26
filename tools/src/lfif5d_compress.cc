@@ -282,6 +282,7 @@ int main(int argc, char *argv[]) {
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     size_t indexed_fifth_dimension_block_index = index / (width * height * views_count * BLOCK_SIZE);
+    size_t indexed_sample                      = index % (width * height * views_count * BLOCK_SIZE);
 
     if (static_cast<int64_t>(indexed_fifth_dimension_block_index) != loaded_fifth_dimension_block_index) {
       load_frames(start_frame + (indexed_fifth_dimension_block_index * BLOCK_SIZE));
@@ -289,10 +290,10 @@ int main(int argc, char *argv[]) {
     }
 
     if (max_rgb_value < 256) {
-      return reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel];
+      return reinterpret_cast<const uint8_t *>(rgb_data.data())[indexed_sample * 3 + channel];
     }
     else {
-      return reinterpret_cast<const uint16_t *>(rgb_data.data())[index * 3 + channel];
+      return reinterpret_cast<const uint16_t *>(rgb_data.data())[indexed_sample * 3 + channel];
     }
   };
 
