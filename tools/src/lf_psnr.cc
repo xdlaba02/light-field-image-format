@@ -12,6 +12,7 @@
 #include <cmath>
 
 #include <iostream>
+#include <iomanip>
 #include <vector>
 
 using namespace std;
@@ -80,6 +81,17 @@ double mse(F1 &&inputF1, F2 &&inputF2, size_t size) {
   return mse / size;
 }
 
+template <typename F1, typename F2>
+double mae(F1 &&inputF1, F2 &&inputF2, size_t size) {
+  double mae { 0 };
+  for (size_t i = 0; i < size; i++) {
+    auto v1 = inputF1(i);
+    auto v2 = inputF2(i);
+    mae += abs(v1 - v2);
+  }
+  return mae / size;
+}
+
 double psnr(double mse, size_t max) {
   if (mse) {
     return 10 * log10((max * max) / mse);
@@ -91,28 +103,31 @@ double psnr(double mse, size_t max) {
 template <typename T>
 void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, size_t max_rgb_value) {
   double mse_spatial_horizontal  { 0 };
-  double psnr_spatial_horizontal { 0 };
+  double mae_spatial_horizontal  { 0 };
 
   double mse_spatial_vertical    { 0 };
-  double psnr_spatial_vertical   { 0 };
+  double mae_spatial_vertical    { 0 };
 
   double mse_angular_horizontal  { 0 };
-  double psnr_angular_horizontal { 0 };
+  double mae_angular_horizontal  { 0 };
 
   double mse_angular_vertical    { 0 };
-  double psnr_angular_vertical   { 0 };
+  double mae_angular_vertical    { 0 };
 
   double mse_spatial_horizontal_wrapped  { 0 };
+  double mae_spatial_horizontal_wrapped  { 0 };
+
   double mse_angular_horizontal_wrapped  { 0 };
+  double mae_angular_horizontal_wrapped  { 0 };
 
   double mse_spatial_zigzag  { 0 };
-  double psnr_spatial_zigzag { 0 };
+  double mae_spatial_zigzag  { 0 };
 
   vector<size_t> zigzag_table_spatial          {};
   vector<size_t> zigzag_table_spatial_inverted {};
 
   double mse_angular_zigzag  { 0 };
-  double psnr_angular_zigzag { 0 };
+  double mae_angular_zigzag  { 0 };
 
   vector<size_t> zigzag_table_angular          {};
   vector<size_t> zigzag_table_angular_inverted {};
@@ -123,7 +138,6 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
   cout << "Spatial dimensions: " << grid_size << "x" << grid_size << endl;
   cout << "Angular dimensions: " << width     << "x" << height << endl;
   cout << "Color depth:        " << ceil(log2(max_rgb_value + 1)) << " bits per sample" << endl;
-  cout << "------------------------------" << endl;
 
   for (size_t vy = 0; vy < grid_size; vy++) {
     for (size_t vx = 0; vx < grid_size - 1; vx++) {
@@ -137,12 +151,12 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
       };
 
       mse_spatial_horizontal += mse(inputF1, inputF2, pixel_count * 3);
+      mae_spatial_horizontal += mae(inputF1, inputF2, pixel_count * 3);
     }
   }
 
   mse_spatial_horizontal /= view_count - grid_size;
-  psnr_spatial_horizontal = psnr(mse_spatial_horizontal, max_rgb_value);
-  cout << "PSNR spatial horizontal: " << psnr_spatial_horizontal << endl;
+  mae_spatial_horizontal /= view_count - grid_size;
 
   for (size_t vy = 0; vy < grid_size - 1; vy++) {
     for (size_t vx = 0; vx < grid_size; vx++) {
@@ -156,12 +170,12 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
       };
 
       mse_spatial_vertical += mse(inputF1, inputF2, pixel_count * 3);
+      mae_spatial_vertical += mae(inputF1, inputF2, pixel_count * 3);
     }
   }
 
   mse_spatial_vertical /= view_count - grid_size;
-  psnr_spatial_vertical = psnr(mse_spatial_vertical, max_rgb_value);
-  cout << "PSNR spatial vertical:   " << psnr_spatial_vertical << endl;
+  mae_spatial_vertical /= view_count - grid_size;
 
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width - 1; x++) {
@@ -175,12 +189,12 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
       };
 
       mse_angular_horizontal += mse(inputF1, inputF2, view_count * 3);
+      mae_angular_horizontal += mae(inputF1, inputF2, view_count * 3);
     }
   }
 
   mse_angular_horizontal /= pixel_count - height;
-  psnr_angular_horizontal = psnr(mse_angular_horizontal, max_rgb_value);
-  cout << "PSNR angular horizontal: " << psnr_angular_horizontal << endl;
+  mae_angular_horizontal /= pixel_count - height;
 
   for (size_t y = 0; y < height - 1; y++) {
     for (size_t x = 0; x < width; x++) {
@@ -194,14 +208,20 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
       };
 
       mse_angular_vertical += mse(inputF1, inputF2, view_count * 3);
+      mae_angular_vertical += mae(inputF1, inputF2, view_count * 3);
     }
   }
 
   mse_angular_vertical /= pixel_count - width;
-  psnr_angular_vertical = psnr(mse_angular_vertical, max_rgb_value);
-  cout << "PSNR angular vertical:   " << psnr_angular_vertical << endl;
+  mae_angular_vertical /= pixel_count - width;
 
-  cout << "------------------------------" << endl;
+  cout << "                           | PSNR | MAE |" << fixed << setfill(' ') << endl;
+  cout << "-----------------------------------------" << endl;
+  cout << "|spatial horizontal        |" << setprecision(2) << setw(6) << psnr(mse_spatial_horizontal, max_rgb_value) << "|" << setw(4) << mae_spatial_horizontal * 100 / max_rgb_value << "%|" << endl;
+  cout << "|spatial vertical          |" << setprecision(2) << setw(6) << psnr(mse_spatial_vertical, max_rgb_value)   << "|" << setw(4) << mae_spatial_vertical   * 100 / max_rgb_value << "%|" << endl;
+  cout << "|angular horizontal        |" << setprecision(2) << setw(6) << psnr(mse_angular_horizontal, max_rgb_value) << "|" << setw(4) << mae_angular_horizontal * 100 / max_rgb_value << "%|" << endl;
+  cout << "|angular vertical          |" << setprecision(2) << setw(6) << psnr(mse_angular_vertical, max_rgb_value)   << "|" << setw(4) << mae_angular_vertical   * 100 / max_rgb_value << "%|" << endl;
+  cout << "-----------------------------------------" << endl;
 
   for (size_t vy = 0; vy < grid_size - 1; vy++) {
     auto inputF1 = [&](size_t index) {
@@ -213,10 +233,11 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
     };
 
     mse_spatial_horizontal_wrapped += mse(inputF1, inputF2, pixel_count * 3);
+    mae_spatial_horizontal_wrapped += mae(inputF1, inputF2, pixel_count * 3);
   }
 
   mse_spatial_horizontal_wrapped = (mse_spatial_horizontal_wrapped + mse_spatial_horizontal * (view_count - grid_size)) / (view_count - 1);
-  cout << "PSNR spatial horizontal wrapped: " << psnr(mse_spatial_horizontal_wrapped, max_rgb_value) << endl;
+  mae_spatial_horizontal_wrapped = (mae_spatial_horizontal_wrapped + mae_spatial_horizontal * (view_count - grid_size)) / (view_count - 1);
 
   zigzag_table_spatial = generateZigzagTable(grid_size, grid_size);
   zigzag_table_spatial_inverted.resize(zigzag_table_spatial.size());
@@ -235,11 +256,11 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
     };
 
     mse_spatial_zigzag += mse(inputF1, inputF2, pixel_count * 3);
+    mae_spatial_zigzag += mae(inputF1, inputF2, pixel_count * 3);
   }
 
   mse_spatial_zigzag /= view_count - 1;
-  psnr_spatial_zigzag = psnr(mse_spatial_zigzag, max_rgb_value);
-  cout << "PSNR spatial zigzag:             " << psnr_spatial_zigzag << endl;
+  mae_spatial_zigzag /= view_count - 1;
 
   for (size_t y = 0; y < height; y++) {
     auto inputF1 = [&](size_t index) {
@@ -251,10 +272,11 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
     };
 
     mse_angular_horizontal_wrapped += mse(inputF1, inputF2, view_count * 3);
+    mae_angular_horizontal_wrapped += mae(inputF1, inputF2, view_count * 3);
   }
 
   mse_angular_horizontal_wrapped = (mse_angular_horizontal_wrapped + mse_angular_horizontal * (pixel_count - height)) / (pixel_count - 1);
-  cout << "PSNR angular horizontal wrapped: " << psnr(mse_angular_horizontal_wrapped, max_rgb_value) << endl;
+  mae_angular_horizontal_wrapped = (mae_angular_horizontal_wrapped + mae_angular_horizontal * (pixel_count - height)) / (pixel_count - 1);
 
   zigzag_table_angular = generateZigzagTable(width, height);
   zigzag_table_angular_inverted.resize(zigzag_table_angular.size());
@@ -273,11 +295,17 @@ void views_psnr(T *rgb_data, size_t width, size_t height, size_t view_count, siz
     };
 
     mse_angular_zigzag += mse(inputF1, inputF2, view_count * 3);
+    mae_angular_zigzag += mae(inputF1, inputF2, view_count * 3);
   }
 
   mse_angular_zigzag /= pixel_count - 1;
-  psnr_angular_zigzag = psnr(mse_angular_zigzag, max_rgb_value);
-  cout << "PSNR angular zigzag:             " << psnr_angular_zigzag << endl;
+  mae_angular_zigzag /= pixel_count - 1;
+
+  cout << "|spatial horizontal wrapped|" << setprecision(2) << setw(6) << psnr(mse_spatial_horizontal_wrapped, max_rgb_value) << "|" << setw(4) << mae_spatial_horizontal_wrapped * 100 / max_rgb_value << "%|" << endl;
+  cout << "|spatial zigzag            |" << setprecision(2) << setw(6) << psnr(mse_spatial_zigzag, max_rgb_value)             << "|" << setw(4) << mae_spatial_zigzag             * 100 / max_rgb_value << "%|" << endl;
+  cout << "|angular horizontal wrapped|" << setprecision(2) << setw(6) << psnr(mse_angular_horizontal_wrapped, max_rgb_value) << "|" << setw(4) << mae_angular_horizontal_wrapped * 100 / max_rgb_value << "%|" << endl;
+  cout << "|angular zigzag            |" << setprecision(2) << setw(6) << psnr(mse_angular_zigzag, max_rgb_value)             << "|" << setw(4) << mae_angular_zigzag             * 100 / max_rgb_value << "%|" << endl;
+  cout << "-----------------------------------------" << endl;
 }
 
 int main(int argc, char *argv[]) {
