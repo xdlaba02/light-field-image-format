@@ -89,8 +89,8 @@ int main(int argc, char *argv[]) {
       break;
 
       case 'o':
-        if (!output_file) {
-          output_file = optarg;
+        if (!output_file_name) {
+          output_file_name = optarg;
           continue;
         }
       break;
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (!input_file_mask || !output_file) {
+  if (!input_file_mask || !output_file_name) {
     print_usage(argv[0]);
     return 1;
   }
