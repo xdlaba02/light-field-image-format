@@ -56,7 +56,6 @@ int main(int argc, char *argv[]) {
 
   AVPacket *pkt                {};
   AVFrame *out_frame           {};
-  AVFrame *rgb_frame           {};
   AVCodec *decoder             {};
   AVCodecContext *out_context  {};
   AVCodecParserContext *parser {};
@@ -107,12 +106,6 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  rgb_frame = av_frame_alloc();
-  if (!rgb_frame) {
-    cerr << "Could not allocate video frame" << endl;
-    exit(1);
-  }
-
   avcodec_register_all();
   decoder = avcodec_find_decoder(AV_CODEC_ID_H265);
   if (!decoder) {
@@ -140,12 +133,24 @@ int main(int argc, char *argv[]) {
   size_t view_counter { 0 };
 
   auto saveFrame = [&](AVFrame *frame) {
-    PPMFileStruct ppm {};
-    Pixel *ppm_row    {};
+    AVFrame *rgb_frame {};
+    PPMFileStruct ppm  {};
+    Pixel *ppm_row     {};
+
+    rgb_frame = av_frame_alloc();
+    if (!rgb_frame) {
+      cerr << "Could not allocate video frame" << endl;
+      exit(1);
+    }
 
     rgb_frame->format = AV_PIX_FMT_YUV444P;
     rgb_frame->width  = frame->width;
     rgb_frame->height = frame->height;
+
+    if (av_frame_get_buffer(rgb_frame, 32) < 0) {
+      cerr << "Could not allocate the video frame data" << endl;
+      exit(1);
+    }
 
     out_convert_ctx = sws_getContext(frame->width, frame->height, AV_PIX_FMT_YUV444P, rgb_frame->width, rgb_frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
     if (!out_convert_ctx) {
@@ -153,7 +158,8 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, frame->height, rgb_frame->data, rgb_frame->linesize);
+    int outLinesize[1] = { static_cast<int>(3 * frame->width) };
+    sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, frame->height, rgb_frame->data, outLinesize);
 
     ppm.width = rgb_frame->width;
     ppm.height = rgb_frame->height;
@@ -199,6 +205,7 @@ int main(int argc, char *argv[]) {
 
     fclose(ppm.file);
     freePPMRow(ppm_row);
+    av_frame_free(&rgb_frame);
   };
 
   input.open(input_file_name);
@@ -237,7 +244,6 @@ int main(int argc, char *argv[]) {
   avcodec_free_context(&out_context);
   av_parser_close(parser);
   av_frame_free(&out_frame);
-  av_frame_free(&rgb_frame);
   av_packet_free(&pkt);
   free(out_convert_ctx);
 
