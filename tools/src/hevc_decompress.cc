@@ -3,6 +3,8 @@
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
+#include "file_mask.h"
+
 #include <ppm.h>
 
 extern "C" {
@@ -52,13 +54,6 @@ int main(int argc, char *argv[]) {
   const char *input_file_name  {};
   const char *output_file_mask {};
 
-  uint64_t width               {};
-  uint64_t height              {};
-  uint32_t color_depth         {};
-  uint64_t image_count         {};
-
-  size_t image_pixels          {};
-
   AVPacket *pkt                {};
   AVFrame *out_frame           {};
   AVFrame *rgb_frame           {};
@@ -67,8 +62,9 @@ int main(int argc, char *argv[]) {
   AVCodecParserContext *parser {};
   SwsContext *out_convert_ctx  {};
 
-  cost size_t INBUF_SIZE = 4096;
+  ifstream input               {};
 
+  const size_t INBUF_SIZE = 4096;
   uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 
   char opt {};
@@ -136,12 +132,6 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  out_convert_ctx = sws_getContext(width, height, AV_PIX_FMT_YUV444P, width, height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
-  if (!out_convert_ctx) {
-    cerr << "Could not get image conversion context" << endl;
-    exit(1);
-  }
-
   if (avcodec_open2(out_context, decoder, nullptr) < 0) {
     cerr << "Could not open decoder" << endl;
     exit(1);
@@ -156,6 +146,12 @@ int main(int argc, char *argv[]) {
     rgb_frame->format = AV_PIX_FMT_YUV444P;
     rgb_frame->width  = frame->width;
     rgb_frame->height = frame->height;
+
+    out_convert_ctx = sws_getContext(frame->width, frame->height, AV_PIX_FMT_YUV444P, rgb_frame->width, rgb_frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+    if (!out_convert_ctx) {
+      cerr << "Could not get image conversion context" << endl;
+      exit(1);
+    }
 
     int outLinesize[1] = { static_cast<int>(3 * frame->width) };
     sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, frame->height, rgb_frame->data, outLinesize);
@@ -206,15 +202,22 @@ int main(int argc, char *argv[]) {
     freePPMRow(ppm_row);
   };
 
+  input.open(input_file_name);
+  if (!input) {
+    cerr << "Could not open " << input_file_name << " for reading\n";
+    exit(1);
+  }
+
   while (input) {
-    size_t data_size = input.read(inbuf, INBUF_SIZE);
+    input.read(reinterpret_cast<char *>(inbuf), INBUF_SIZE);
+    size_t data_size = input.gcount();
     if (!data_size) {
       break;
     }
 
     uint8_t *ptr = inbuf;
     while (data_size > 0) {
-      size_t ret = av_parser_parse2(parser, out_context, &pkt->data, &pkt->size, ptr, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+      int64_t ret = av_parser_parse2(parser, out_context, &pkt->data, &pkt->size, ptr, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
       if (ret < 0) {
         cerr << "Error while parsing\n";
         exit(1);

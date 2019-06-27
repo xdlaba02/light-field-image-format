@@ -44,7 +44,8 @@ benchmarks: $(FOLDERS) \
 						$(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
 
 others: $(FOLDERS) \
-			  $(BINDIR)/hevc_compress
+			  $(BINDIR)/hevc_compress \
+				$(BINDIR)/hevc_decompress \
 
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
@@ -98,6 +99,9 @@ $(BINDIR)/xvcbench: $(OBJDIR)/xvcbench.o $(PLENO)
 	$(CC) -lm -lpthread $^ /usr/local/lib/libxvcenc.a /usr/local/lib/libxvcdec.a -o $@
 
 $(BINDIR)/hevc_compress: $(OBJDIR)/hevc_compress$(BS).o $(PLENO)
+	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
+
+$(BINDIR)/hevc_decompress: $(OBJDIR)/hevc_decompress$(BS).o $(PLENO)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 ../libppm/bin/libppm.a:
