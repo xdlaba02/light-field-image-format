@@ -3,7 +3,7 @@
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#include "plenoppm.h"
+#include <ppm.h>
 
 extern "C" {
   #include <libavcodec/avcodec.h>
@@ -60,11 +60,16 @@ int main(int argc, char *argv[]) {
   size_t image_pixels          {};
 
   AVPacket *pkt                {};
-  AVCodec *decoder             {};
   AVFrame *out_frame           {};
-  AVCodecContext *out_context  {};
-  SwsContext *out_convert_ctx  {};
   AVFrame *rgb_frame           {};
+  AVCodec *decoder             {};
+  AVCodecContext *out_context  {};
+  AVCodecParserContext *parser {};
+  SwsContext *out_convert_ctx  {};
+
+  cost size_t INBUF_SIZE = 4096;
+
+  uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 
   char opt {};
   while ((opt = getopt(argc, argv, "i:o:")) >= 0) {
@@ -115,7 +120,13 @@ int main(int argc, char *argv[]) {
   avcodec_register_all();
   decoder = avcodec_find_decoder(AV_CODEC_ID_H265);
   if (!decoder) {
-    cerr << "decoder AV_CODEC_ID_H265 not found" << endl;
+    cerr << "Decoder AV_CODEC_ID_H265 not found" << endl;
+    exit(1);
+  }
+
+  parser = av_parser_init(decoder->id);
+  if (!parser) {
+    cerr << "Parser not found!" << endl;
     exit(1);
   }
 
@@ -131,63 +142,98 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  vector<uint8_t> out_rgb_data {};
-  size_t compressed_size = 0;
-
-  in_context->bit_rate = bpp * image_pixels;
-
-  if (avcodec_open2(in_context, coder, nullptr) < 0) {
-    cerr << "Could not open coder" << endl;
-    exit(1);
-  }
-
   if (avcodec_open2(out_context, decoder, nullptr) < 0) {
     cerr << "Could not open decoder" << endl;
     exit(1);
   }
 
-  double mse = 0;
-  size_t input_iterator = 0;
+  size_t view_counter { 0 };
 
   auto saveFrame = [&](AVFrame *frame) {
-    int outLinesize[1] = { static_cast<int>(3 * width) };
-    sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, height, rgb_frame->data, outLinesize);
+    PPMFileStruct ppm {};
+    Pixel *ppm_row    {};
 
-    for (int pix = 0; pix < rgb_frame->width * rgb_frame->height * 3; pix++) {
-      double tmp = rgb_data[input_iterator] - rgb_frame->data[0][pix];
-      mse += tmp * tmp;
-      input_iterator++;
+    rgb_frame->format = AV_PIX_FMT_YUV444P;
+    rgb_frame->width  = frame->width;
+    rgb_frame->height = frame->height;
+
+    int outLinesize[1] = { static_cast<int>(3 * frame->width) };
+    sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, frame->height, rgb_frame->data, outLinesize);
+
+    ppm.width = rgb_frame->width;
+    ppm.height = rgb_frame->height;
+    ppm.color_depth = 255;
+
+    ppm_row = allocPPMRow(ppm.width);
+
+    size_t last_slash_pos = string(output_file_mask).find_last_of('/');
+
+    std::string filename = get_name_from_mask(output_file_mask, '#', view_counter);
+
+    view_counter++;
+
+    if (last_slash_pos != string::npos) {
+      string command("mkdir -p " + filename.substr(0, last_slash_pos));
+      system(command.c_str());
     }
+
+    ppm.file = fopen(filename.c_str(), "wb");
+    if (!ppm.file) {
+      cerr << "ERROR: CANNOT OPEN " << filename << " FOR WRITING" << endl;
+      exit(1);
+    }
+
+    if (writePPMHeader(&ppm)) {
+      cerr << "ERROR: CANNOT WRITE TO " << filename << endl;
+      exit(1);
+    }
+
+    for (size_t row = 0; row < ppm.height; row++) {
+      for (size_t col = 0; col < ppm.width; col++) {
+        ppm_row[col].r = rgb_frame->data[0][(row * ppm.width + col) * 3 + 0];
+        ppm_row[col].g = rgb_frame->data[0][(row * ppm.width + col) * 3 + 1];
+        ppm_row[col].b = rgb_frame->data[0][(row * ppm.width + col) * 3 + 2];
+      }
+
+
+      if (writePPMRow(&ppm, ppm_row)) {
+        cerr << "ERROR: CANNOT WRITE TO " << filename << endl;
+        exit(1);
+      }
+    }
+
+    fclose(ppm.file);
+    freePPMRow(ppm_row);
   };
 
-  auto decodePkt = [&](AVPacket *pkt) {
-    if (pkt) {
-      compressed_size += pkt->size;
-    }
-    decode(out_context, out_frame, pkt, saveFrame);
-  };
-
-  for (size_t image = 0; image < image_count; image++) {
-    uint8_t *inData[1] = { &rgb_data[image * width * height * 3] };
-    int inLinesize[1] = { static_cast<int>(3 * width) };
-    sws_scale(in_convert_ctx, inData, inLinesize, 0, height, in_frame->data, in_frame->linesize);
-
-    if (intra_only) {
-      in_frame->pict_type = AV_PICTURE_TYPE_I;
+  while (input) {
+    size_t data_size = input.read(inbuf, INBUF_SIZE);
+    if (!data_size) {
+      break;
     }
 
-    in_frame->pts = image;
+    uint8_t *ptr = inbuf;
+    while (data_size > 0) {
+      size_t ret = av_parser_parse2(parser, out_context, &pkt->data, &pkt->size, ptr, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+      if (ret < 0) {
+        cerr << "Error while parsing\n";
+        exit(1);
+      }
 
-    encode(in_context, in_frame, pkt, decodePkt);
+      ptr       += ret;
+      data_size -= ret;
+
+      if (pkt->size) {
+        decode(out_context, out_frame, pkt, saveFrame);
+      }
+    }
   }
 
-  encode(in_context, nullptr, pkt, decodePkt);
-
-  decodePkt(nullptr);
+  decode(out_context, out_frame, NULL, saveFrame);
 
   avcodec_close(out_context);
-
   avcodec_free_context(&out_context);
+  av_parser_close(parser);
   av_frame_free(&out_frame);
   av_frame_free(&rgb_frame);
   av_packet_free(&pkt);
