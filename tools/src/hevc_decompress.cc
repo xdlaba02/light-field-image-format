@@ -246,7 +246,6 @@ int main(int argc, char *argv[]) {
   av_parser_close(parser);
   av_frame_free(&out_frame);
   av_packet_free(&pkt);
-  free(out_convert_ctx);
 
   return 0;
 }

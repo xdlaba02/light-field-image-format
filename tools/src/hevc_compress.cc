@@ -51,32 +51,32 @@ void encode(AVCodecContext *context, AVFrame *frame, AVPacket *pkt, F &&callback
 }
 
 int main(int argc, char *argv[]) {
-  const char *input_file_mask {};
-  const char *output_file_name{};
-  const char *s_bitrate       {};
+  const char *input_file_mask  {};
+  const char *output_file_name {};
+  const char *s_bitrate        {};
 
-  vector<uint8_t> rgb_data    {};
+  vector<uint8_t> rgb_data     {};
 
-  uint64_t width              {};
-  uint64_t height             {};
-  uint32_t color_depth        {};
-  uint64_t image_count        {};
+  uint64_t width               {};
+  uint64_t height              {};
+  uint32_t color_depth         {};
+  uint64_t image_count         {};
 
-  size_t image_pixels         {};
+  size_t image_pixels          {};
 
-  double bitrate              {};
-  bool intra_only             {};
+  double bitrate               {};
+  bool intra_only              {};
 
-  AVPacket *pkt               {};
+  AVPacket *pkt                {};
+  AVFrame  *in_frame           {};
+  AVFrame  *rgb_frame          {};
 
-  AVCodec *coder              {};
-  AVFrame *in_frame           {};
-  AVCodecContext *in_context  {};
-  SwsContext *in_convert_ctx  {};
+  AVCodec *coder               {};
+  AVCodecContext *in_context   {};
+  SwsContext *in_convert_ctx   {};
 
-  AVFrame *rgb_frame          {};
+  ofstream output              {};
 
-  ofstream output             {};
 
   char opt {};
   while ((opt = getopt(argc, argv, "i:o:b:I")) >= 0) {
@@ -101,6 +101,7 @@ int main(int argc, char *argv[]) {
           continue;
         }
       break;
+
       case 'I':
         if (!intra_only) {
           intra_only = true;
@@ -231,7 +232,6 @@ int main(int argc, char *argv[]) {
   };
 
   for (size_t image = 0; image < image_count; image++) {
-
     uint8_t *inData[1] = { &rgb_data[image * width * height * 3] };
     int inLinesize[1] = { static_cast<int>(3 * width) };
 
@@ -254,7 +254,6 @@ int main(int argc, char *argv[]) {
   av_frame_free(&in_frame);
   av_frame_free(&rgb_frame);
   av_packet_free(&pkt);
-  free(in_convert_ctx);
 
   return 0;
 }

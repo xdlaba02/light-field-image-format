@@ -12,7 +12,7 @@ BINDIR = bin
 BS			 = 8
 CC 			 = g++
 INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../../xvc/src/
-CFLAGS   = $(INC) -Og -g -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
+CFLAGS   = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)

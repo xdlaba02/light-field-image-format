@@ -33,7 +33,7 @@ const char *output_file_4D  {};
 const char *quality_step    {};
 const char *quality_first   {};
 const char *quality_last    {};
-const char *qtabletype = "DEFAULT";
+const char *qtabletype  = "DEFAULT";
 const char *zztabletype = "DEFAULT";
 
 bool nothreads              {};
