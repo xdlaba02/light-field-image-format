@@ -4,6 +4,9 @@
 \******************************************************************************/
 
 #include "plenoppm.h"
+#include "file_mask.h"
+
+#include <ppm.h> 
 
 extern "C" {
   #include <libavcodec/avcodec.h>
@@ -126,7 +129,38 @@ int main(int argc, char *argv[]) {
     bitrate = stod(s_bitrate);
   }
 
-  if (!checkPPMheaders(input_file_mask, width, height, color_depth, image_count)) {
+  PPMFileStruct ppm {};
+  FileMask file_name(input_file_mask);
+
+  for (size_t image = 0; image < file_name.count(); image++) {
+    ppm.file = fopen(file_name[image].c_str(), "rb");
+    if (!ppm.file) {
+      continue;
+    }
+
+    image_count++;
+
+    if (readPPMHeader(&ppm)) {
+      cerr << "ERROR: BAD PPM HEADER" << endl;
+      return 2;
+    }
+
+    fclose(ppm.file);
+
+    if (width && height && color_depth) {
+      if ((ppm.width != width) || (ppm.height != height) || (ppm.color_depth != color_depth)) {
+        cerr << "ERROR: PPMs DIMENSIONS MISMATCH" << endl;
+        return 2;
+      }
+    }
+
+    width       = ppm.width;
+    height      = ppm.height;
+    color_depth = ppm.color_depth;
+  }
+
+  if (!image_count) {
+    cerr << "ERROR: NO IMAGE LOADED" << endl;
     return 2;
   }
 
