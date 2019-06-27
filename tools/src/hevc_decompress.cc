@@ -153,8 +153,7 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    int outLinesize[1] = { static_cast<int>(3 * frame->width) };
-    sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, frame->height, rgb_frame->data, outLinesize);
+    sws_scale(out_convert_ctx, frame->data, frame->linesize, 0, frame->height, rgb_frame->data, rgb_frame->linesize);
 
     ppm.width = rgb_frame->width;
     ppm.height = rgb_frame->height;
