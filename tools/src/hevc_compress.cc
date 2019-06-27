@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
   encode(in_context, nullptr, pkt, savePkt);
 
   avcodec_close(in_context);
-
+  sws_freeContext(in_convert_ctx);
   avcodec_free_context(&in_context);
   av_frame_free(&in_frame);
   av_frame_free(&rgb_frame);

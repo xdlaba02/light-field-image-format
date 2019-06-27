@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    rgb_frame->format = AV_PIX_FMT_YUV444P;
+    rgb_frame->format = AV_PIX_FMT_RGB24;
     rgb_frame->width  = frame->width;
     rgb_frame->height = frame->height;
 
@@ -206,6 +206,7 @@ int main(int argc, char *argv[]) {
     fclose(ppm.file);
     freePPMRow(ppm_row);
     av_frame_free(&rgb_frame);
+    sws_freeContext(out_convert_ctx);
   };
 
   input.open(input_file_name);
