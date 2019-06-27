@@ -52,7 +52,7 @@ void encode(AVCodecContext *context, AVFrame *frame, AVPacket *pkt, F &&callback
 
 int main(int argc, char *argv[]) {
   const char *input_file_mask {};
-  const char *output_file     {};
+  const char *output_file_name{};
   const char *s_bitrate       {};
 
   vector<uint8_t> rgb_data    {};
