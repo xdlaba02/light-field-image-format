@@ -43,6 +43,10 @@ benchmarks: $(FOLDERS) \
 						$(BINDIR)/mozbench \
 						$(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
 
+others: $(FOLDERS) \
+			  $(BINDIR)/hevc_compress
+
+
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
@@ -84,9 +88,6 @@ $(BINDIR)/lfifbench: $(OBJDIR)/lfifbench$(BS).o $(LFIF)
 $(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(PLENO)
 	$(CC) -lm $^ /opt/mozjpeg/lib64/libjpeg.a -o $@
 
-$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(PLENO)
-	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
-
 $(BINDIR)/openjpegbench: $(OBJDIR)/openjpegbench.o $(PLENO)
 	$(CC) -lm -lpthread $^ /usr/local/lib/libopenjp2.a -o $@
 
@@ -95,6 +96,9 @@ $(BINDIR)/av1bench: $(OBJDIR)/av1bench.o $(PLENO)
 
 $(BINDIR)/xvcbench: $(OBJDIR)/xvcbench.o $(PLENO)
 	$(CC) -lm -lpthread $^ /usr/local/lib/libxvcenc.a /usr/local/lib/libxvcdec.a -o $@
+
+$(BINDIR)/hevc_compress: $(OBJDIR)/hevc_compress$(BS).o $(PLENO)
+	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 ../libppm/bin/libppm.a:
 		$(MAKE) -C ../libppm/
