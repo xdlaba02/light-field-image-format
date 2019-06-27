@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  input.open(input_file_name);
+  input.open(input_file_name, ios::binary);
   if (!input) {
     cerr << "ERROR: CANNON OPEN " << input_file_name << " FOR READING\n";
     return 1;

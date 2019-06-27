@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
     system(command.c_str());
   }
 
-  output.open(output_file_name);
+  output.open(output_file_name, ios::binary);
   if (!output) {
     cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
     return 1;
@@ -314,7 +314,9 @@ int main(int argc, char *argv[]) {
   constructTraversalTables(*encoder, "ZIGZAG");
   huffmanScan(*encoder, inputF);
   constructHuffmanTables(*encoder);
+
   writeHeader(*encoder, output);
+
   outputScan(*encoder, inputF, output);
 
   delete encoder;

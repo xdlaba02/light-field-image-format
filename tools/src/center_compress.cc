@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
     system(command.c_str());
   }
 
-  output.open(output_file_name);
+  output.open(output_file_name, ios::binary);
   if (!output) {
     cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
     return 1;
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
 
   cerr << "INFO: DECODING CENTER VIEW" << endl;
 
-  input.open(output_file_name);
+  input.open(output_file_name, ios::binary);
   if (!input) {
     cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR READING\n";
     return 1;
