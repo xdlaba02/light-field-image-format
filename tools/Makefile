@@ -11,7 +11,7 @@ BINDIR = bin
 
 BS			 = 8
 CC 			 = g++
-INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/
+INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/xvc_enc_lib -I../xvc/src/xvc_dec_lib
 CFLAGS   = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
@@ -110,7 +110,7 @@ $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
 	$(CC) -lm -lpthread -lswscale $^ /usr/local/lib/libxvcenc.a -o $@
 
 $(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
-	$(CC) -lm -lpthread -lswscale $^ /usr/local/lib/libxvcdec.a -o $@
+	$(CC) -L../xvc/build/src/ -lm -lpthread -lswscale $^ /usr/local/lib/libxvcdec.a -o $@
 
 ../libppm/bin/libppm.a:
 		$(MAKE) -C ../libppm/
