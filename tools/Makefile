@@ -107,7 +107,7 @@ $(BINDIR)/hevc_decompress: $(OBJDIR)/hevc_decompress$(BS).o $(PLENO)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
-	$(CC) -lm -lpthread -lswscale $^ /usr/local/lib/libxvcenc.a -o $@
+	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ libxvcenc.a -o $@
 
 $(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
 	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ libxvcdec.a -o $@
