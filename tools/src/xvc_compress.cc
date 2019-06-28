@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  qp = 0.1;
+  qp = 30;
   if (s_qp) {
     stringstream(s_qp) >> qp;
   }
@@ -119,6 +119,7 @@ int main(int argc, char *argv[]) {
   }
 
   rgb_data.resize(width * height * image_count * 3);
+  yuv_frame.resize(width * height * 3 * 2);
 
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
     return 3;
@@ -138,8 +139,6 @@ int main(int argc, char *argv[]) {
   params->framerate         = 1;
   params->tune_mode         = 1;
   params->threads           = -1;
-
-  yuv_frame.resize(width * height * 3);
 
   xvc_enc_return_code ret = xvc_api->parameters_check(params);
   if (ret != XVC_ENC_OK) {
@@ -181,10 +180,10 @@ int main(int argc, char *argv[]) {
 
   for (size_t image = 0; image < image_count; image++) {
     uint8_t *inData[1]  = { &rgb_data[image * width * height * 3] };
-    uint8_t *outData[1] = { yuv_frame.data() };
-    int lineSize[1] = { static_cast<int>(3 * width) };
+    uint8_t *outData[1] = { &yuv_frame[0] };
+    int lineSize[1]     = { static_cast<int>(3 * width) };
 
-    sws_scale(in_convert_ctx, inData, lineSize, 0, height, outData, lineSize);
+    sws_scale(in_convert_ctx, inData, lineSize, 0, height, outData, lineSize); //FIXME, otestuj lineSize u HEVC
 
     encode(xvc_api, encoder, yuv_frame.data(), saveNal);
   }
