@@ -110,7 +110,7 @@ $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
 	$(CC) -lm -lpthread -lswscale $^ /usr/local/lib/libxvcenc.a -o $@
 
 $(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
-	$(CC) -L../xvc/build/src/ -lm -lpthread -lswscale $^ /usr/local/lib/libxvcdec.a -o $@
+	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ libxvcdec.a -o $@
 
 ../libppm/bin/libppm.a:
 		$(MAKE) -C ../libppm/
