@@ -180,10 +180,11 @@ int main(int argc, char *argv[]) {
 
   for (size_t image = 0; image < image_count; image++) {
     uint8_t *inData[1]  = { &rgb_data[image * width * height * 3] };
-    uint8_t *outData[1] = { &yuv_frame[0] };
-    int lineSize[1]     = { static_cast<int>(3 * width) };
+    uint8_t *outData[3] = { &yuv_frame[width * height * 0], &yuv_frame[width * height * 1], &yuv_frame[width * height * 2] };
+    int inLineSize[1]   = { static_cast<int>(3 * width) };
+    int outLineSize[3]  = { static_cast<int>(width), static_cast<int>(width), static_cast<int>(width) };
 
-    sws_scale(in_convert_ctx, inData, lineSize, 0, height, outData, lineSize); //FIXME, otestuj lineSize u HEVC
+    sws_scale(in_convert_ctx, inData, inLineSize, 0, height, outData, outLineSize);
 
     encode(xvc_api, encoder, yuv_frame.data(), saveNal);
   }

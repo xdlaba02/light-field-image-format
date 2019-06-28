@@ -6,7 +6,7 @@
 #include "plenoppm.h"
 #include "file_mask.h"
 
-#include <ppm.h> 
+#include <ppm.h>
 
 extern "C" {
   #include <libavcodec/avcodec.h>
