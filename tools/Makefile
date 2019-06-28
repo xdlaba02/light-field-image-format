@@ -107,10 +107,10 @@ $(BINDIR)/hevc_decompress: $(OBJDIR)/hevc_decompress$(BS).o $(PLENO)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
-	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ libxvcenc.a -o $@
+	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ -l:libxvcenc.a -o $@
 
 $(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
-	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ libxvcdec.a -o $@
+	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ -l:libxvcdec.a -o $@
 
 ../libppm/bin/libppm.a:
 		$(MAKE) -C ../libppm/
