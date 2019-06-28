@@ -3,7 +3,6 @@
 * AUTOR: Drahomir Dlabaja (xdlaba02)
 \******************************************************************************/
 
-#include "plenoppm.h"
 #include "file_mask.h"
 
 #include <ppm.h>
@@ -58,14 +57,13 @@ int main(int argc, char *argv[]) {
   const char *output_file_name {};
   const char *s_bitrate        {};
 
+  PPMFileStruct   ppm          {};
+  Pixel *ppm_row               {};
   vector<uint8_t> rgb_data     {};
 
   uint64_t width               {};
   uint64_t height              {};
   uint32_t color_depth         {};
-  uint64_t image_count         {};
-
-  size_t image_pixels          {};
 
   double bitrate               {};
   bool intra_only              {};
@@ -79,7 +77,6 @@ int main(int argc, char *argv[]) {
   SwsContext *in_convert_ctx   {};
 
   ofstream output              {};
-
 
   char opt {};
   while ((opt = getopt(argc, argv, "i:o:b:I")) >= 0) {
@@ -129,53 +126,36 @@ int main(int argc, char *argv[]) {
     bitrate = stod(s_bitrate);
   }
 
-  PPMFileStruct ppm {};
-  FileMask file_name(input_file_mask);
-
-  for (size_t image = 0; image < file_name.count(); image++) {
-    ppm.file = fopen(file_name[image].c_str(), "rb");
-    if (!ppm.file) {
-      continue;
+  for (size_t i = 0; i < get_mask_names_count(input_file_mask, '#'); i++) {
+    ppm.file = fopen(get_name_from_mask(input_file_mask, '#', 0).c_str(), "rb");
+    if (ppm.file) {
+      break;
     }
-
-    image_count++;
-
-    if (readPPMHeader(&ppm)) {
-      cerr << "ERROR: BAD PPM HEADER" << endl;
-      return 2;
-    }
-
-    fclose(ppm.file);
-
-    if (width && height && color_depth) {
-      if ((ppm.width != width) || (ppm.height != height) || (ppm.color_depth != color_depth)) {
-        cerr << "ERROR: PPMs DIMENSIONS MISMATCH" << endl;
-        return 2;
-      }
-    }
-
-    width       = ppm.width;
-    height      = ppm.height;
-    color_depth = ppm.color_depth;
   }
 
-  if (!image_count) {
+  if (!ppm.file) {
     cerr << "ERROR: NO IMAGE LOADED" << endl;
     return 2;
   }
+
+  if (readPPMHeader(&ppm)) {
+    cerr << "ERROR: BAD PPM HEADER" << endl;
+    return 2;
+  }
+
+  fclose(ppm.file);
+
+  width       = ppm.width;
+  height      = ppm.height;
+  color_depth = ppm.color_depth;
 
   if (color_depth != 255) {
     cerr << "Unsupported color depth!" << endl;
     return 2;
   }
 
-  rgb_data.resize(width * height * image_count * 3);
-
-  if (!loadPPMs(input_file_mask, rgb_data.data())) {
-    return 3;
-  }
-
-  image_pixels = width * height * image_count;
+  rgb_data.resize(width * height * 3);
+  ppm_row = allocPPMRow(width);
 
   pkt = av_packet_alloc();
   if (!pkt) {
@@ -228,10 +208,10 @@ int main(int argc, char *argv[]) {
   in_context->width = width;
   in_context->height = height;
 
-  in_context->time_base = {1, int(image_count)};
-  in_context->framerate = {int(image_count), 1};
+  in_context->time_base = {1, 1};
+  in_context->framerate = {1, 1};
 
-  in_context->bit_rate = bitrate * image_pixels;
+  in_context->bit_rate = bitrate;
 
   in_context->pix_fmt = AV_PIX_FMT_YUV444P;
 
@@ -265,9 +245,46 @@ int main(int argc, char *argv[]) {
     output.write(reinterpret_cast<const char *>(pkt->data), pkt->size);
   };
 
-  for (size_t image = 0; image < image_count; image++) {
-    uint8_t *inData[1] = { &rgb_data[image * width * height * 3] };
-    int inLinesize[1] = { static_cast<int>(3 * width) };
+  size_t view_index { 0 };
+  for (size_t image = 0; image < get_mask_names_count(input_file_mask, '#'); image++) {
+
+    for (size_t i = 0; i < get_mask_names_count(input_file_mask, '#'); i++) {
+      ppm.file = fopen(get_name_from_mask(input_file_mask, '#', view_index).c_str(), "rb");
+      view_index++;
+      if (ppm.file) {
+        break;
+      }
+    }
+
+    if (!ppm.file) {
+      break;
+    }
+
+    readPPMHeader(&ppm);
+
+    if ((ppm.width != width) || (ppm.height != height) || (ppm.color_depth != color_depth)) {
+      cerr << "ERROR: PPMs DIMENSIONS MISMATCH" << endl;
+      return 2;
+    }
+
+    for (size_t row = 0; row < ppm.height; row++) {
+      if (readPPMRow(&ppm, ppm_row)) {
+        cerr << "ERROR: BAD PPM" << endl;
+        fclose(ppm.file);
+        return 2;
+      }
+
+      for (size_t col = 0; col < ppm.width; col++) {
+        rgb_data[(row * ppm.width + col) * 3 + 0] = ppm_row[col].r;
+        rgb_data[(row * ppm.width + col) * 3 + 1] = ppm_row[col].g;
+        rgb_data[(row * ppm.width + col) * 3 + 2] = ppm_row[col].b;
+      }
+    }
+
+    fclose(ppm.file);
+
+    uint8_t *inData[1]     = { &rgb_data[0] };
+    int      inLinesize[1] = { static_cast<int>(3 * width) };
 
     sws_scale(in_convert_ctx, inData, inLinesize, 0, height, in_frame->data, in_frame->linesize);
 
@@ -282,6 +299,7 @@ int main(int argc, char *argv[]) {
 
   encode(in_context, nullptr, pkt, savePkt);
 
+  freePPMRow(ppm_row);
   avcodec_close(in_context);
   sws_freeContext(in_convert_ctx);
   avcodec_free_context(&in_context);
