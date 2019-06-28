@@ -46,7 +46,8 @@ benchmarks: $(FOLDERS) \
 others: $(FOLDERS) \
 			  $(BINDIR)/hevc_compress \
 				$(BINDIR)/hevc_decompress \
-				$(BINDIR)/xvc_compress
+				$(BINDIR)/xvc_compress \
+				$(BINDIR)/xvc_decompress \
 
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
@@ -107,6 +108,9 @@ $(BINDIR)/hevc_decompress: $(OBJDIR)/hevc_decompress$(BS).o $(PLENO)
 
 $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
 	$(CC) -lm -lpthread -lswscale $^ /usr/local/lib/libxvcenc.a -o $@
+
+$(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
+	$(CC) -lm -lpthread -lswscale $^ /usr/local/lib/libxvcdec.a -o $@
 
 ../libppm/bin/libppm.a:
 		$(MAKE) -C ../libppm/

@@ -35,18 +35,31 @@ void encode(const xvc_encoder_api  *xvc_api, xvc_encoder *encoder, const uint8_t
   xvc_enc_nal_unit *nal_units;
   int num_nal_units;
 
-  if (buffer) {
-    xvc_enc_return_code ret = xvc_api->encoder_encode(encoder, buffer, &nal_units, &num_nal_units, rec_pic_ptr);
-    assert(ret == XVC_ENC_OK || ret == XVC_ENC_NO_MORE_OUTPUT);
-  }
-  else {
-    xvc_enc_return_code ret = xvc_api->encoder_flush(encoder, &nal_units, &num_nal_units, rec_pic_ptr);
-    assert(ret == XVC_ENC_OK);
-  }
+  xvc_enc_return_code ret = xvc_api->encoder_encode(encoder, buffer, &nal_units, &num_nal_units, rec_pic_ptr);
+  assert(ret == XVC_ENC_OK);
 
   for (int i = 0; i < num_nal_units; i++) {
     callback(nal_units[i]);
   }
+}
+
+template <typename F>
+void flush(const xvc_encoder_api  *xvc_api, xvc_encoder *encoder, F &&callback) {
+  xvc_enc_pic_buffer *rec_pic_ptr { nullptr };
+  xvc_enc_nal_unit *nal_units;
+  int num_nal_units;
+
+  xvc_enc_return_code ret;
+
+  do {
+    ret = xvc_api->encoder_flush(encoder, &nal_units, &num_nal_units, rec_pic_ptr);
+    assert(ret == XVC_ENC_OK || ret == XVC_ENC_NO_MORE_OUTPUT);
+
+    for (int i = 0; i < num_nal_units; i++) {
+      callback(nal_units[i]);
+    }
+
+  } while (ret == XVC_ENC_OK);
 }
 
 int main(int argc, char *argv[]) {
@@ -73,7 +86,7 @@ int main(int argc, char *argv[]) {
   ofstream output                 {};
 
   char opt {};
-  while ((opt = getopt(argc, argv, "i:o:b:")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:q:")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -189,7 +202,7 @@ int main(int argc, char *argv[]) {
     encode(xvc_api, encoder, yuv_frame.data(), saveNal);
   }
 
-  encode(xvc_api, encoder, nullptr, saveNal);
+  flush(xvc_api, encoder, saveNal);
 
   sws_freeContext(in_convert_ctx);
 
