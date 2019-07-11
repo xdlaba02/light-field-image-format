@@ -11,6 +11,7 @@
 
 #include "lfiftypes.h"
 #include "huffman.h"
+#include "cabac.h"
 #include "runlength.h"
 #include "traversal_table.h"
 #include "quant_table.h"

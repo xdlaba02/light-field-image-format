@@ -14,6 +14,7 @@
 #include "quant_table.h"
 #include "traversal_table.h"
 #include "huffman.h"
+#include "cabac.h"
 #include "dct.h"
 #include "block.h"
 #include "runlength.h"
