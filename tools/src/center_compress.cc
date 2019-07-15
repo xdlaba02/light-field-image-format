@@ -28,6 +28,8 @@ int main(int argc, char *argv[]) {
   const char *output_file_name  {};
   float quality                 {};
 
+  bool use_huffman              {};
+
   vector<uint8_t> rgb_data      {};
   vector<uint8_t> prediction    {};
 
@@ -43,7 +45,7 @@ int main(int argc, char *argv[]) {
   LfifEncoder<BS, 4> *encoder4D {};
   ofstream            output    {};
 
-  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
+  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman)) {
     return 1;
   }
 
@@ -114,10 +116,10 @@ int main(int argc, char *argv[]) {
   initEncoder(*encoder2D);
   constructQuantizationTables(*encoder2D, "DEFAULT", quality);
   constructTraversalTables(*encoder2D, "DEFAULT");
-  huffmanScan(*encoder2D, inputF2D);
-  constructHuffmanTables(*encoder2D);
+  //huffmanScan(*encoder2D, inputF2D);
+  //constructHuffmanTables(*encoder2D);
   writeHeader(*encoder2D, output);
-  outputScan(*encoder2D, inputF2D, output);
+  outputScanCABAC(*encoder2D, inputF2D, output);
 
   output.flush();
 
@@ -160,7 +162,7 @@ int main(int argc, char *argv[]) {
     outputF02D(2, index, B);
   };
 
-  decodeScan(*decoder2D, input, outputF2D);
+  decodeScanCABAC(*decoder2D, input, outputF2D);
 
   cerr << "INFO: ENCODING RESIDUUM" << endl;
 
@@ -195,10 +197,10 @@ int main(int argc, char *argv[]) {
   initEncoder(*encoder4D);
   constructQuantizationTables(*encoder4D, "DEFAULT", quality);
   constructTraversalTables(*encoder4D, "DEFAULT");
-  huffmanScan(*encoder4D, inputF); //SECOND IMAGE SCAN
-  constructHuffmanTables(*encoder4D);
+  //huffmanScan(*encoder4D, inputF); //SECOND IMAGE SCAN
+  //constructHuffmanTables(*encoder4D);
   writeHeader(*encoder4D, output);
-  outputScan(*encoder4D, inputF, output); //THIRD IMAGE SCAN
+  outputScanCABAC(*encoder4D, inputF, output); //THIRD IMAGE SCAN
 
   delete encoder4D;
   delete decoder2D;

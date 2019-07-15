@@ -81,7 +81,12 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  decodeScan(*decoder, input, outputF);
+  if (decoder->use_huffman) {
+    decodeScanHuffman(*decoder, input, outputF);
+  }
+  else {
+    decodeScanCABAC(*decoder, input, outputF);
+  }
 
   if (!savePPMs(output_file_mask, rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2])) {
     return 3;

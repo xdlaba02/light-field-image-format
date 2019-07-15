@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     outputF02D(2, index, B);
   };
 
-  decodeScan(*decoder2D, input, outputF2D);
+  decodeScanCABAC(*decoder2D, input, outputF2D);
 
   if (readHeader(*decoder4D, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  decodeScan(*decoder4D, input, outputF);
+  decodeScanCABAC(*decoder4D, input, outputF);
 
   if (!savePPMs(output_file_mask, rgb_data.data(), decoder4D->img_dims[0], decoder4D->img_dims[1], max_rgb_value, decoder4D->img_dims[2] * decoder4D->img_dims[3] * decoder4D->img_dims[4])) {
     return 3;

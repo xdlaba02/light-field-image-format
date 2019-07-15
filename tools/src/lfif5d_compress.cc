@@ -312,12 +312,12 @@ int main(int argc, char *argv[]) {
   initEncoder(*encoder);
   constructQuantizationTables(*encoder, "DEFAULT", quality);
   constructTraversalTables(*encoder, "ZIGZAG");
-  huffmanScan(*encoder, inputF);
-  constructHuffmanTables(*encoder);
+  //huffmanScan(*encoder, inputF);
+  //constructHuffmanTables(*encoder);
 
   writeHeader(*encoder, output);
 
-  outputScan(*encoder, inputF, output);
+  outputScanCABAC(*encoder, inputF, output);
 
   delete encoder;
 

@@ -3,7 +3,7 @@
 * @author Drahomír Dlabaja (xdlaba02)
 * @date 11. 7. 2019
 * @copyright 2019 Drahomír Dlabaja
-* @brief Conxtext-Adaptive Binary Arithmetic Coding.
+* @brief Context-Adaptive Binary Arithmetic Coding.
 */
 
 #ifndef CABAC_H
@@ -11,16 +11,18 @@
 
 #include "bitstream.h"
 
+/**
+* @brief Base CABAC state class.
+*/
 class CABAC {
 public:
-  CABAC():
-  m_low         { 0 },
-  m_range       { static_cast<uint16_t>(HALF - 2) }
-  {}
 
-  struct contextModel {
-    uint8_t m_state : 6;
-    uint8_t m_mps   : 1;
+  /**
+  * @brief Structure which contains probabilitis of one binary decision.
+  */
+  struct ContextModel {
+    uint8_t m_state : 6;  /**< @brief State of the CABAC context model.*/
+    uint8_t m_mps   : 1;  /**< @brief Most probable symbol (0|1).*/
   };
 
 protected:
@@ -122,37 +124,77 @@ protected:
 
 class CABACEncoder: public CABAC {
 public:
-  CABACEncoder():
-  m_outstanding { 0 }
-  {}
 
-  void encodeBitToStream(contextModel &context, bool bit, OBitstream &stream);
-  void encodeBitToStreamBypass(bool bit, OBitstream &stream);
-  void terminate();
+  /**
+  * @brief Function which initializes the encoder.
+  * @param stream Bitstream to which the data will be written.
+  */
+  inline void init(OBitstream &stream);
+
+  /**
+  * @brief Function which encodes one bit.
+  * @param context Context specifiing probabilities of binary decision.
+  * @param bit Value that is encoded.
+  */
+  inline void encodeBit(ContextModel &context, bool bit);
+
+  /**
+  * @brief Function which encodes one bit with 50/50 probability.
+  * @param bit Value that is encoded.
+  */
+  inline void encodeBitBypass(bool bit);
+
+  /**
+  * @brief Function which terminates the encoding.
+  */
+  inline void terminate();
 
 private:
-  size_t m_outstanding;
+  OBitstream *m_stream;
+  size_t      m_outstanding;
 
-  void renormalize(OBitstream &stream);
-  void putCabacBit(bool bit, OBitstream &stream);
+  inline void putCabacBit(bool bit);
 };
 
 class CABACDecoder: public CABAC {
 public:
-  CABACDecoder():
-  m_value { 0 }
-  {}
+  /**
+  * @brief Function which initializes the encoder.
+  * @param stream Bitstream from which the data will be read.
+  */
+  inline void init(IBitstream &stream);
 
-  bool decodeBitFromStream(contextModel &context, IBitstream &stream);
-  bool decodeBitFromStreamBypass(IBitstream &stream);
+  /**
+  * @brief Function which decodes one bit.
+  * @param context Context specifiing probabilities of binary decision.
+  * @return Decoded binary value.
+  */
+  inline bool decodeBit(ContextModel &context);
+
+  /**
+  * @brief Function which decodes one bit which was encoded with 50/50 probability.
+  * @return Decoded binary value.
+  */
+  inline bool decodeBitBypass();
+
+  /**
+  * @brief Function which terminates the decoding.
+  */
+  inline void terminate();
 
 private:
-  size_t m_value;
-
-  void renormalize(IBitstream &stream);
+  IBitstream *m_stream;
+  size_t      m_value;
 };
 
-void CABACEncoder::encodeBitToStream(contextModel &context, bool bit, OBitstream &stream) {
+void CABACEncoder::init(OBitstream &stream) {
+  m_low         = 0;
+  m_range       = HALF - 2;
+  m_outstanding = 0;
+  m_stream      = &stream;
+}
+
+void CABACEncoder::encodeBit(ContextModel &context, bool bit) {
   uint8_t rLPS {};
 
   rLPS = rangeTabLPS[context.m_state][(m_range >> 6) & 3];
@@ -172,44 +214,13 @@ void CABACEncoder::encodeBitToStream(contextModel &context, bool bit, OBitstream
     context.m_state = transIdxMPS[context.m_state];
   }
 
-  renormalize(stream);
-}
-
-void CABACEncoder::encodeBitToStreamBypass(bool bit, OBitstream &stream) {
-  m_low <<= 1;
-  if (!bit) {
-    m_low += m_range;
-  }
-  if (m_low >= ONE) {
-    putCabacBit(1, stream);
-    m_low -= ONE;
-  }
-  else if (m_low < HALF) {
-    putCabacBit(0, stream);
-  }
-  else {
-    m_outstanding++;
-    m_low -= HALF;
-  }
-}
-
-void CABACEncoder::putCabacBit(bool bit, OBitstream &stream) {
-  stream.writeBit(bit);
-
-  while (m_outstanding) {
-    stream.writeBit(!bit);
-    m_outstanding--;
-  }
-}
-
-void CABACEncoder::renormalize(OBitstream &stream) {
   while (m_range < QUARTER) {
     if (m_low >= HALF) {
-      putCabacBit(1, stream);
+      putCabacBit(1);
       m_low -= HALF;
     }
     else if (m_low < QUARTER) {
-      putCabacBit(0, stream);
+      putCabacBit(0);
     }
     else {
       m_outstanding++;
@@ -221,7 +232,55 @@ void CABACEncoder::renormalize(OBitstream &stream) {
   }
 }
 
-bool CABACDecoder::decodeBitFromStream(contextModel &context, IBitstream &stream) {
+void CABACEncoder::encodeBitBypass(bool bit) {
+  m_low <<= 1;
+
+  if (bit) {
+    m_low += m_range;
+  }
+
+  if (m_low >= ONE) {
+    putCabacBit(1);
+    m_low -= ONE;
+  }
+  else if (m_low < HALF) {
+    putCabacBit(0);
+  }
+  else {
+    m_outstanding++;
+    m_low -= HALF;
+  }
+}
+
+void CABACEncoder::terminate() {
+  putCabacBit((m_low >> (BITS - 1)) & 1);
+  m_stream->writeBit((m_low >> (BITS - 2)) & 1);
+  m_stream->writeBit(1);
+  m_stream->flush();
+  m_stream = nullptr;
+}
+
+void CABACEncoder::putCabacBit(bool bit) {
+  m_stream->writeBit(bit);
+
+  while (m_outstanding) {
+    m_stream->writeBit(!bit);
+    m_outstanding--;
+  }
+}
+
+void CABACDecoder::init(IBitstream &stream) {
+  m_low    = 0;
+  m_range  = HALF - 2;
+  m_value  = 0;
+  m_stream = &stream;
+
+  for (size_t i = 0; i < BITS; i++) {
+    m_value = (m_value << 1) | m_stream->readBit();
+  }
+}
+
+bool CABACDecoder::decodeBit(ContextModel &context) {
   bool    bit  {};
   uint8_t rLPS {};
 
@@ -244,27 +303,27 @@ bool CABACDecoder::decodeBitFromStream(contextModel &context, IBitstream &stream
     context.m_state = transIdxLPS[context.m_state];
   }
 
-  renormalize(stream);
+  while (m_range < QUARTER) {
+    m_range <<= 1;
+    m_value = (m_value << 1) | m_stream->readBit();
+  }
 
   return bit;
 }
 
-bool CABACDecoder::decodeBitFromStreamBypass(IBitstream &stream) {
-  m_value = (m_value << 1) | stream.readBit();
+bool CABACDecoder::decodeBitBypass() {
+  m_value = (m_value << 1) | m_stream->readBit();
   if (m_value >= m_range) {
-    return 1;
     m_value -= m_range;
+    return 1;
   }
   else {
     return 0;
   }
 }
 
-void CABACDecoder::renormalize(IBitstream &stream) {
-  while (m_range < QUARTER) {
-    m_range = m_range << 1;
-    m_value = (m_value << 1) | stream.readBit();
-  }
+void CABACDecoder::terminate() {
+  m_stream = nullptr;
 }
 
 #endif

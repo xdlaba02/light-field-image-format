@@ -13,14 +13,14 @@ using namespace std;
 
 void print_usage(const char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <file-mask> -o <file> -q <quality>" << endl;
+  cerr << argv0 << " -i <file-mask> -o <file> -q <quality> {-h} {}" << endl;
 }
 
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality) {
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman) {
   const char *arg_quality {};
 
   char opt;
-  while ((opt = getopt(argc, argv, "i:o:q:")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:q:h")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -42,6 +42,10 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
           continue;
         }
         break;
+
+      case 'h':
+        huffman = true;
+        continue;
 
       default:
         break;

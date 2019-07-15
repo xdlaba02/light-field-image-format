@@ -24,6 +24,8 @@ struct LfifEncoder {
   uint8_t color_depth;    /**< @brief Number of bits per sample used by each decoded channel.*/
   uint64_t img_dims[D+1]; /**< @brief Dimensions of a decoded image + image count. The multiple of all values should be equal to number of pixels in encoded image.*/
 
+  bool use_huffman; /**< @brief Huffman encoding will be used when this is true.*/
+
   QuantTable<BS, D>      quant_table     [2];    /**< @brief Quantization matrices for luma and chroma.*/
   TraversalTable<BS, D>  traversal_table [2];    /**< @brief Traversal matrices for luma and chroma.*/
   ReferenceBlock<BS, D>  reference_block [2];    /**< @brief Reference blocks for luma and chroma to be used for traversal optimization.*/
@@ -302,10 +304,14 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
     . writeToStream(output);
   }
 
-  for (size_t y = 0; y < 2; y++) {
-    for (size_t x = 0; x < 2; x++) {
-      enc.huffman_encoder[y][x]
-      . writeToStream(output);
+  writeValueToStream<uint8_t>(enc.use_huffman, output);
+
+  if (enc.use_huffman) {
+    for (size_t y = 0; y < 2; y++) {
+      for (size_t x = 0; x < 2; x++) {
+        enc.huffman_encoder[y][x]
+        . writeToStream(output);
+      }
     }
   }
 }
@@ -317,7 +323,7 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
 * @param output Output stream to which the image shall be encoded.
 */
 template<size_t BS, size_t D, typename F>
-void outputScan(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   QDATAUNIT previous_DC [3] {};
   OBitstream bitstream      {};
 
@@ -329,11 +335,47 @@ void outputScan(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
                           traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
                    runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
-                    encodeToStream<BS, D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
+             encodeToStreamHuffman<BS, D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
   };
 
   performScan(enc, input, perform);
 
+  bitstream.flush();
+}
+
+/**
+* @brief Function which encodes the image to the stream with CABAC.
+* @param enc The encoder structure.
+* @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
+* @param output Output stream to which the image shall be encoded.
+*/
+template<size_t BS, size_t D, typename F>
+void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+  QDATAUNIT           previous_DC [3]            {};
+  OBitstream          bitstream                  {};
+  CABACEncoder        cabac                      {};
+  CABAC::ContextModel cabac_models[(8+8+14) * 4] {};
+  CABAC::ContextModel *cabac_models_ptr[3]       {};
+
+  cabac_models_ptr[0] = &cabac_models[0];
+  cabac_models_ptr[1] = &cabac_models[(8+8+14) * 2];
+  cabac_models_ptr[2] = &cabac_models[(8+8+14) * 2];
+
+  bitstream.open(&output);
+  cabac.init(bitstream);
+
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
+                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
+                   runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
+               encodeToStreamCABAC<BS, D>(enc.runlength,        cabac,                         cabac_models_ptr[channel], enc.class_bits);
+  };
+
+  performScan(enc, input, perform);
+
+  cabac.terminate();
   bitstream.flush();
 }
 

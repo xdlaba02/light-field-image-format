@@ -27,6 +27,8 @@ int main(int argc, char *argv[]) {
   const char *output_file_name {};
   float quality                {};
 
+  bool use_huffman             {};
+
   vector<uint8_t> rgb_data     {};
 
   uint64_t width               {};
@@ -37,7 +39,7 @@ int main(int argc, char *argv[]) {
   LfifEncoder<BS, 4> *encoder  {};
   ofstream            output   {};
 
-  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality)) {
+  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman)) {
     return 1;
   }
 
@@ -74,6 +76,8 @@ int main(int argc, char *argv[]) {
   encoder->img_dims[4] = 1;
   encoder->color_depth = ceil(log2(max_rgb_value + 1));
 
+  encoder->use_huffman = use_huffman;
+
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     if (max_rgb_value < 256) {
       return reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel];
@@ -97,12 +101,19 @@ int main(int argc, char *argv[]) {
 
   initEncoder(*encoder);
   constructQuantizationTables(*encoder, "DEFAULT", quality);
-  referenceScan(*encoder, inputF); //FIRST IMAGE SCAN
+  //referenceScan(*encoder, inputF);
   constructTraversalTables(*encoder, "DEFAULT");
-  huffmanScan(*encoder, inputF); //SECOND IMAGE SCAN
-  constructHuffmanTables(*encoder);
-  writeHeader(*encoder, output);
-  outputScan(*encoder, inputF, output); //THIRD IMAGE SCAN
+
+  if (use_huffman) {
+    huffmanScan(*encoder, inputF);
+    constructHuffmanTables(*encoder);
+    writeHeader(*encoder, output);
+    outputScanHuffman(*encoder, inputF, output);
+  }
+  else {
+    writeHeader(*encoder, output);
+    outputScanCABAC(*encoder, inputF, output);
+  }
 
   delete encoder;
 

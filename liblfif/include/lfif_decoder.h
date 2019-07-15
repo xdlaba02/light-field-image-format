@@ -24,6 +24,8 @@ struct LfifDecoder {
   uint8_t color_depth;    /**< @brief Number of bits per sample used by each decoded channel.*/
   uint64_t img_dims[D+1]; /**< @brief Dimensions of a decoded image + image count.*/
 
+  bool use_huffman; /**< @brief Huffman Encoding was used when this is true.*/
+
   QuantTable<BS, D>       quant_table         [2];    /**< @brief Quantization matrices for luma and chroma.*/
   TraversalTable<BS, D>   traversal_table     [2];    /**< @brief Traversal matrices for luma and chroma.*/
   HuffmanDecoder          huffman_decoder     [2][2]; /**< @brief Huffman decoders for luma and chroma and also for the DC and AC coefficients.*/
@@ -90,10 +92,14 @@ int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
     . readFromStream(input);
   }
 
-  for (size_t y = 0; y < 2; y++) {
-    for (size_t x = 0; x < 2; x++) {
-      dec.huffman_decoder[y][x]
-      . readFromStream(input);
+  dec.use_huffman = readValueFromStream<uint8_t>(input);
+
+  if (dec.use_huffman) {
+    for (size_t y = 0; y < 2; y++) {
+      for (size_t x = 0; x < 2; x++) {
+        dec.huffman_decoder[y][x]
+        . readFromStream(input);
+      }
     }
   }
 
@@ -131,13 +137,13 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
 }
 
 /**
-* @brief Function which decodes image from stream.
+* @brief Function which decodes Huffman encoded image from stream.
 * @param dec The decoder structure.
 * @param input Input stream from which the image will be decoded.
 * @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
 */
 template<size_t BS, size_t D, typename F>
-void decodeScan(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
+void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   IBitstream bitstream       {};
   QDATAUNIT  previous_DC [3] {};
 
@@ -154,7 +160,7 @@ void decodeScan(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
 
     for (size_t block = 0; block < dec.blocks_cnt; block++) {
       for (size_t channel = 0; channel < 3; channel++) {
-                      decodeFromStream<BS, D>(bitstream,            dec.runlength, dec.huffman_decoders_ptr[channel], dec.class_bits);
+               decodeFromStreamHuffman<BS, D>(bitstream,            dec.runlength, dec.huffman_decoders_ptr[channel], dec.class_bits);
                        runLengthDecode<BS, D>(dec.runlength,        dec.quantized_block);
                             detraverse<BS, D>(dec.quantized_block, *dec.traversal_table_ptr[channel]);
                           diffDecodeDC<BS, D>(dec.quantized_block,  previous_DC[channel]);
@@ -169,6 +175,57 @@ void decodeScan(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
       putBlock<BS, D>(inputF, block, dec.img_dims, outputF);
     }
   }
+}
+
+/**
+* @brief Function which decodes CABAC encoded image from stream.
+* @param dec The decoder structure.
+* @param input Input stream from which the image will be decoded.
+* @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
+*/
+template<size_t BS, size_t D, typename F>
+void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
+  IBitstream          bitstream                  {};
+  CABACDecoder        cabac                      {};
+  QDATAUNIT           previous_DC [3]            {};
+  CABAC::ContextModel cabac_models[(8+8+14) * 4] {};
+  CABAC::ContextModel *cabac_models_ptr[3]       {};
+
+  cabac_models_ptr[0] = &cabac_models[0];
+  cabac_models_ptr[1] = &cabac_models[(8+8+14) * 2];
+  cabac_models_ptr[2] = &cabac_models[(8+8+14) * 2];
+
+  bitstream.open(&input);
+  cabac.init(bitstream);
+
+  auto inputF = [&](size_t index) -> const auto & {
+    return dec.current_block[index];
+  };
+
+  for (size_t img = 0; img < dec.img_dims[D]; img++) {
+    auto outputF = [&](size_t index, const auto &value) {
+      output(img * dec.pixels_cnt + index, value);
+    };
+
+    for (size_t block = 0; block < dec.blocks_cnt; block++) {
+      for (size_t channel = 0; channel < 3; channel++) {
+                 decodeFromStreamCABAC<BS, D>(dec.runlength,        cabac, cabac_models_ptr[channel], dec.class_bits);
+                       runLengthDecode<BS, D>(dec.runlength,        dec.quantized_block);
+                            detraverse<BS, D>(dec.quantized_block, *dec.traversal_table_ptr[channel]);
+                          diffDecodeDC<BS, D>(dec.quantized_block,  previous_DC[channel]);
+                            dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
+        inverseDiscreteCosineTransform<BS, D>(dec.dct_block,        dec.output_block);
+
+        for (size_t i = 0; i < constpow(BS, D); i++) {
+          dec.current_block[i][channel] = dec.output_block[i];
+        }
+      }
+
+      putBlock<BS, D>(inputF, block, dec.img_dims, outputF);
+    }
+  }
+
+  cabac.terminate();
 }
 
 #endif

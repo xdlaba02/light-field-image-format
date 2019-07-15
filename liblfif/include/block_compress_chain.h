@@ -156,7 +156,7 @@ void huffmanAddWeights(const Block<RunLengthPair, BS, D> &runlength, HuffmanWeig
  * @param class_bits Number of bits for the second part of codeword.
  */
 template <size_t BS, size_t D>
-void encodeToStream(const Block<RunLengthPair, BS, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
+void encodeToStreamHuffman(const Block<RunLengthPair, BS, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
   auto pairs_it = std::begin(runlength);
 
   pairs_it->huffmanEncodeToStream(encoder[0], stream, class_bits);
@@ -166,4 +166,24 @@ void encodeToStream(const Block<RunLengthPair, BS, D> &runlength, const HuffmanE
     pairs_it->huffmanEncodeToStream(encoder[1], stream, class_bits);
   } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
+
+/**
+ * @brief Function encodes pairs to stream by CABAC encoder.
+ * @param runlength The input block of run-length pairs.
+ * @param encoder CABAC Encoder.
+ * @param models Contexts for every bit of run-length value, amplitude size and amplitude value.
+ * @param class_bits Number of bits for the second part of codeword.
+ */
+template <size_t BS, size_t D>
+void encodeToStreamCABAC(const Block<RunLengthPair, BS, D> &runlength, CABACEncoder &encoder, CABAC::ContextModel models[(8+8+14) * 2], size_t class_bits) {
+  auto pairs_it = std::begin(runlength);
+
+  pairs_it->CABACEncodeToStream(encoder, &models[0], class_bits);
+
+  do {
+    pairs_it++;
+    pairs_it->CABACEncodeToStream(encoder, &models[(8+8+14)], class_bits);
+  } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
+}
+
 #endif

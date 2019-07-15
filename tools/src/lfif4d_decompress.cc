@@ -45,6 +45,7 @@ int main(int argc, char *argv[]) {
 
   decoder = new LfifDecoder<BS, 4>;
 
+
   if (readHeader(*decoder, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
     return 2;
@@ -81,7 +82,12 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  decodeScan(*decoder, input, outputF);
+  if (decoder->use_huffman) {
+    decodeScanHuffman(*decoder, input, outputF);
+  }
+  else {
+    decodeScanCABAC(*decoder, input, outputF);
+  }
 
   if (!savePPMs(output_file_mask, rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2] * decoder->img_dims[3] * decoder->img_dims[4])) {
     return 3;

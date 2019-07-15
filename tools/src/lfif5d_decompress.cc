@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  decodeScan(*decoder, input, outputF);
+  decodeScanCABAC(*decoder, input, outputF);
 
   flush_frames(decoded_fifth_dimension_block_index * BLOCK_SIZE);
 

@@ -28,7 +28,7 @@
  * @param class_bits       Number of bits for the second part of codeword.
  */
 template <size_t BS, size_t D>
-void decodeFromStream(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
+void decodeFromStreamHuffman(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
   auto pairs_it = std::begin(runlength);
 
   pairs_it->huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
@@ -38,6 +38,27 @@ void decodeFromStream(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlen
     pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
   } while((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
 }
+
+/**
+ * @brief Function which decodes one block of run-length pairs from stream which is encoded with CABAC.
+ * @param bitstream  The input bitstream.
+ * @param runlength  The output block of run-length pairs.
+ * @param decoder    CABAC decoder.
+ * @param models     Contexts for every bit of run-length value, amplitude size and amplitude value.
+ * @param class_bits Number of bits for the second part of codeword.
+ */
+template <size_t BS, size_t D>
+void decodeFromStreamCABAC(Block<RunLengthPair, BS, D> &runlength, CABACDecoder &decoder, CABAC::ContextModel models[(8+8+14) * 2], size_t class_bits) {
+  auto pairs_it = std::begin(runlength);
+
+  pairs_it->CABACDecodeFromStream(decoder, &models[0], class_bits);
+
+  do {
+    pairs_it++;
+    pairs_it->CABACDecodeFromStream(decoder, &models[30], class_bits);
+  } while((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
+}
+
 
 /**
  * @brief Function which expands the run-length encoded block into the traversed block of coefficients.
