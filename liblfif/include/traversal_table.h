@@ -34,54 +34,46 @@ public:
   /**
    * @brief Method which constructs traversal matrix by reference block.
    * @param reference_block The block from which the matrix shall be constructed.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &constructByReference(const ReferenceBlock<BS, D> &reference_block);
+  void constructByReference(const ReferenceBlock<BS, D> &reference_block);
 
   /**
    * @brief Method which constructs traversal matrix from quantization matrix.
    * @param quant_table The quantization matrix from which the matrix shall be constructed.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &constructByQuantTable(const QuantTable<BS, D> &quant_table);
+  void constructByQuantTable(const QuantTable<BS, D> &quant_table);
 
   /**
    * @brief Method which constructs traversal matrix by Eucleidian distance from the DC coefficient.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &constructByRadius();
+  void constructByRadius();
 
   /**
    * @brief Method which constructs traversal matrix by manhattan distance from the DC coefficient.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &constructByDiagonals();
+  void constructByDiagonals();
 
   /**
    * @brief Method which constructs traversal matrix by Eucleidian distance from the AC coefficient with highest frequency.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &constructByHyperboloid();
+  void constructByHyperboloid();
 
   /**
    * @brief Method which constructs zig-zag matrix.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &constructZigzag();
+  void constructZigzag();
 
   /**
    * @brief Method which writes the matrix to stream.
    * @param stream The stream to which the table shall be written.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &writeToStream(std::ostream &stream);
+  void writeToStream(std::ostream &stream) const;
 
   /**
    * @brief Method which read the matrix from stream.
    * @param stream The stream from which the table shall be read.
-   * @return Reference to itself.
    */
-  TraversalTable<BS, D> &readFromStream(std::istream &stream);
+  void readFromStream(std::istream &stream);
 
   /**
    * @brief Method used to index the internal matrix.
@@ -97,7 +89,7 @@ private:
 };
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &TraversalTable<BS, D>::constructByReference(const ReferenceBlock<BS, D> &reference_block) {
+void TraversalTable<BS, D>::constructByReference(const ReferenceBlock<BS, D> &reference_block) {
   Block<std::pair<double, size_t>, BS, D> srt {};
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -113,13 +105,10 @@ TraversalTable<BS, D> &TraversalTable<BS, D>::constructByReference(const Referen
   for (size_t i = 0; i < constpow(BS, D); i++) {
     m_block[srt[i].second] = i;
   }
-
-  return *this;
 }
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::constructByQuantTable(const QuantTable<BS, D> &quant_table) {
+void TraversalTable<BS, D>::constructByQuantTable(const QuantTable<BS, D> &quant_table) {
   ReferenceBlock<BS, D> dummy {};
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -127,12 +116,11 @@ TraversalTable<BS, D>::constructByQuantTable(const QuantTable<BS, D> &quant_tabl
     dummy[i] *= -1;
   }
 
-  return constructByReference(dummy);
+  constructByReference(dummy);
 }
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::constructByRadius() {
+void TraversalTable<BS, D>::constructByRadius() {
   ReferenceBlock<BS, D> dummy {};
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -143,12 +131,11 @@ TraversalTable<BS, D>::constructByRadius() {
     dummy[i] *= -1;
   }
 
-  return constructByReference(dummy);
+  constructByReference(dummy);
 }
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::constructByDiagonals() {
+void TraversalTable<BS, D>::constructByDiagonals() {
   ReferenceBlock<BS, D> dummy {};
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -158,12 +145,11 @@ TraversalTable<BS, D>::constructByDiagonals() {
     dummy[i] *= -1;
   }
 
-  return constructByReference(dummy);
+  constructByReference(dummy);
 }
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::constructByHyperboloid() {
+void TraversalTable<BS, D>::constructByHyperboloid() {
   ReferenceBlock<BS, D> dummy {};
 
   dummy.fill(1);
@@ -176,20 +162,16 @@ TraversalTable<BS, D>::constructByHyperboloid() {
     dummy[i] *= -1;
   }
 
-  return constructByReference(dummy);
+  constructByReference(dummy);
 }
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::constructZigzag() {
+void TraversalTable<BS, D>::constructZigzag() {
   m_block = generateZigzagTable<BS, D>();
-
-  return *this;
 }
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::writeToStream(std::ostream &stream) {
+void TraversalTable<BS, D>::writeToStream(std::ostream &stream) const {
   size_t max_bits = ceil(log2(constpow(BS, D)));
 
   if (max_bits <= 8) {
@@ -212,14 +194,11 @@ TraversalTable<BS, D>::writeToStream(std::ostream &stream) {
       writeValueToStream<uint64_t>(m_block[i], stream);
     }
   }
-
-  return *this;
 }
 
 
 template <size_t BS, size_t D>
-TraversalTable<BS, D> &
-TraversalTable<BS, D>::readFromStream(std::istream &stream) {
+void TraversalTable<BS, D>::readFromStream(std::istream &stream) {
   size_t max_bits = ceil(log2(constpow(BS, D)));
 
   if (max_bits <= 8) {
@@ -242,8 +221,6 @@ TraversalTable<BS, D>::readFromStream(std::istream &stream) {
       m_block[i] = readValueFromStream<uint64_t>(stream);
     }
   }
-
-  return *this;
 }
 
 #endif

@@ -1,7 +1,7 @@
 #include "runlength.h"
 #include "bitstream.h"
 
-const RunLengthPair &RunLengthPair::huffmanEncodeToStream(const HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) const {
+void RunLengthPair::huffmanEncodeToStream(const HuffmanEncoder &encoder, OBitstream &stream, size_t class_bits) const {
   HuffmanClass amp_class {};
   RLAMPUNIT    amp       {};
 
@@ -17,11 +17,9 @@ const RunLengthPair &RunLengthPair::huffmanEncodeToStream(const HuffmanEncoder &
   for (int16_t i = amp_class - 1; i >= 0; i--) {
     stream.writeBit((amp & (1 << i)) >> i);
   }
-
-  return *this;
 }
 
-RunLengthPair &RunLengthPair::huffmanDecodeFromStream(const HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits) {
+void RunLengthPair::huffmanDecodeFromStream(const HuffmanDecoder &decoder, IBitstream &stream, size_t class_bits) {
   HuffmanClass  amp_class      {};
   HuffmanSymbol huffman_symbol {};
 
@@ -42,11 +40,9 @@ RunLengthPair &RunLengthPair::huffmanDecodeFromStream(const HuffmanDecoder &deco
       amplitude = -amplitude;
     }
   }
-
-  return *this;
 }
 
-const RunLengthPair &RunLengthPair::CABACEncodeToStream(CABACEncoder &encoder, CABAC::ContextModel models[8+8+14], size_t class_bits) const {
+void RunLengthPair::CABACEncodeToStream(CABACEncoder &encoder, CABAC::ContextModel models[8+8+14], size_t class_bits) const {
   HuffmanClass amp_class {};
   RLAMPUNIT    amp       {};
 
@@ -66,11 +62,9 @@ const RunLengthPair &RunLengthPair::CABACEncodeToStream(CABACEncoder &encoder, C
   for (size_t i = 0; i < amp_class; i++) {
     encoder.encodeBit(models[i < 13 ? 16 + i : 16 + 13], (amp >> i) & 1);
   }
-
-  return *this;
 }
 
-RunLengthPair &RunLengthPair::CABACDecodeFromStream(CABACDecoder &decoder, CABAC::ContextModel models[8+8+14], size_t class_bits) {
+void RunLengthPair::CABACDecodeFromStream(CABACDecoder &decoder, CABAC::ContextModel models[8+8+14], size_t class_bits) {
   HuffmanClass  amp_class      {};
   HuffmanSymbol huffman_symbol {};
 
@@ -93,6 +87,4 @@ RunLengthPair &RunLengthPair::CABACDecodeFromStream(CABACDecoder &decoder, CABAC
       amplitude = -amplitude;
     }
   }
-
-  return *this;
 }

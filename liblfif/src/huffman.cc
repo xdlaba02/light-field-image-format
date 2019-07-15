@@ -13,13 +13,12 @@
 
 using namespace std;
 
-HuffmanEncoder &HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffman_weights) {
+void HuffmanEncoder::generateFromWeights(const HuffmanWeights &huffman_weights) {
   generateHuffmanCodelengths(huffman_weights);
   generateHuffmanMap();
-  return *this;
 }
 
-const HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) const {
+void HuffmanEncoder::writeToStream(ostream &stream) const {
   HuffmanCodelength max_codelength = m_huffman_codelengths.back().first;
   writeValueToStream(max_codelength, stream);
 
@@ -36,16 +35,13 @@ const HuffmanEncoder &HuffmanEncoder::writeToStream(ostream &stream) const {
   for (auto &pair: m_huffman_codelengths) {
     writeValueToStream(pair.second, stream);
   }
-
-  return *this;
 }
 
-const HuffmanEncoder &HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) const {
+void HuffmanEncoder::encodeSymbolToStream(HuffmanSymbol symbol, OBitstream &stream) const {
   stream.write(m_huffman_map.at(symbol));
-  return *this;
 }
 
-HuffmanEncoder &HuffmanEncoder::generateHuffmanCodelengths(const HuffmanWeights &huffman_weights) {
+void HuffmanEncoder::generateHuffmanCodelengths(const HuffmanWeights &huffman_weights) {
   vector<pair<HuffmanWeight, HuffmanSymbol>> A {};
 
   A.reserve(huffman_weights.size());
@@ -111,11 +107,9 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanCodelengths(const HuffmanWeights 
   sort(A.begin(), A.end());
 
   m_huffman_codelengths = A;
-
-  return *this;
 }
 
-HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
+void HuffmanEncoder::generateHuffmanMap() {
   unordered_map<HuffmanSymbol, HuffmanCodeword> map {};
 
   // TODO PROVE ME
@@ -144,11 +138,9 @@ HuffmanEncoder &HuffmanEncoder::generateHuffmanMap() {
   }
 
   m_huffman_map = map;
-
-  return *this;
 }
 
-HuffmanDecoder &HuffmanDecoder::readFromStream(istream &stream) {
+void HuffmanDecoder::readFromStream(istream &stream) {
   size_t max_codelength = readValueFromStream<HuffmanCodelength>(stream);
   m_huffman_counts.resize(max_codelength + 1);
 
@@ -162,8 +154,6 @@ HuffmanDecoder &HuffmanDecoder::readFromStream(istream &stream) {
   for (size_t i = 0; i < symbols_cnt; i++) {
     m_huffman_symbols[i] = readValueFromStream<HuffmanSymbol>(stream);
   }
-
-  return *this;
 }
 
 HuffmanSymbol HuffmanDecoder::decodeSymbolFromStream(IBitstream &stream) const {
