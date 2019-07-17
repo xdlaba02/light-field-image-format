@@ -15,20 +15,20 @@ int main(void) {
   OBitstream output    {};
   CABACEncoder encoder {};
 
-  ifstream inputFile    {};
+  CABAC::ContextModel input_model {};
+
+  ifstream inputFile   {};
   IBitstream input     {};
   CABACDecoder decoder {};
 
-  uint64_t input_value  { 65535 };
-  uint64_t output_value {};
+  CABAC::ContextModel output_model {};
 
   outputFile.open("/tmp/cabac_test.tmp");
   output.open(&outputFile);
 
   encoder.init(output);
-  for (size_t i = 0; i < sizeof(input_value) * 8; i++) {
-    bool bit = (input_value >> i) & 1;
-    encoder.encodeBitBypass(bit);
+  for (size_t i = 0; i < 256; i++) {
+    encoder.encodeUEG0(input_model, i);
   }
   encoder.terminate();
 
@@ -39,10 +39,13 @@ int main(void) {
   input.open(&inputFile);
 
   decoder.init(input);
-  for (size_t i = 0; i < sizeof(input_value) * 8; i++) {
-    bool bit = decoder.decodeBitBypass();
-    output_value |= bit << i;
+  for (size_t i = 0; i < 256; i++) {
+    size_t val = decoder.decodeUEG0(output_model);
+    cerr << val << endl;
+    if (val != i) {
+      cerr << "POTATO\n";
+    }
   }
 
-  cerr << output_value << endl;
+  decoder.terminate();
 }

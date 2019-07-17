@@ -185,15 +185,10 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
 */
 template<size_t BS, size_t D, typename F>
 void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
-  IBitstream          bitstream                  {};
-  CABACDecoder        cabac                      {};
-  QDATAUNIT           previous_DC [3]            {};
-  CABAC::ContextModel cabac_models[(8+8+14) * 4] {};
-  CABAC::ContextModel *cabac_models_ptr[3]       {};
-
-  cabac_models_ptr[0] = &cabac_models[0];
-  cabac_models_ptr[1] = &cabac_models[(8+8+14) * 2];
-  cabac_models_ptr[2] = &cabac_models[(8+8+14) * 2];
+  IBitstream           bitstream       {};
+  QDATAUNIT            previous_DC [3] {};
+  CABACDecoder         cabac           {};
+  CABACContexts<BS, D> contexts[3]      {};
 
   bitstream.open(&input);
   cabac.init(bitstream);
@@ -209,8 +204,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
 
     for (size_t block = 0; block < dec.blocks_cnt; block++) {
       for (size_t channel = 0; channel < 3; channel++) {
-                 decodeFromStreamCABAC<BS, D>(dec.runlength,        cabac, cabac_models_ptr[channel], dec.class_bits);
-                       runLengthDecode<BS, D>(dec.runlength,        dec.quantized_block);
+                  decodeTraversedCABAC<BS, D>(dec.quantized_block,  cabac, contexts[channel]);
                             detraverse<BS, D>(dec.quantized_block, *dec.traversal_table_ptr[channel]);
                           diffDecodeDC<BS, D>(dec.quantized_block,  previous_DC[channel]);
                             dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);

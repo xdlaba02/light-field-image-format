@@ -10,6 +10,7 @@
 #define LFIF_ENCODER_H
 
 #include "block_compress_chain.h"
+#include "cabac_contexts.h"
 #include "bitstream.h"
 
 #include <cstdint>
@@ -351,15 +352,10 @@ void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output)
 */
 template<size_t BS, size_t D, typename F>
 void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
-  QDATAUNIT           previous_DC [3]            {};
-  OBitstream          bitstream                  {};
-  CABACEncoder        cabac                      {};
-  CABAC::ContextModel cabac_models[(8+8+14) * 4] {};
-  CABAC::ContextModel *cabac_models_ptr[3]       {};
-
-  cabac_models_ptr[0] = &cabac_models[0];
-  cabac_models_ptr[1] = &cabac_models[(8+8+14) * 2];
-  cabac_models_ptr[2] = &cabac_models[(8+8+14) * 2];
+  QDATAUNIT            previous_DC[3] {};
+  OBitstream           bitstream      {};
+  CABACEncoder         cabac          {};
+  CABACContexts<BS, D> contexts[3]    {};
 
   bitstream.open(&output);
   cabac.init(bitstream);
@@ -369,8 +365,7 @@ void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
                           traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                   runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
-               encodeToStreamCABAC<BS, D>(enc.runlength,        cabac,                         cabac_models_ptr[channel], enc.class_bits);
+              encodeTraversedCABAC<BS, D>(enc.quantized_block,  cabac,                         contexts[channel]);
   };
 
   performScan(enc, input, perform);

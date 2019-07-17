@@ -15,12 +15,15 @@
 #include "traversal_table.h"
 #include "huffman.h"
 #include "cabac.h"
+#include "cabac_contexts.h"
 #include "dct.h"
 #include "block.h"
 #include "runlength.h"
 
 #include <cstdlib>
 #include <cstdint>
+
+#include <algorithm>
 
 /**
  * @brief Function which performs the forward DCT to the block. Output coefficients are returned in second parameter.
@@ -90,6 +93,92 @@ void traverse(Block<QDATAUNIT, BS, D> &diff_encoded_block, const TraversalTable<
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
     diff_encoded_block[traversal_table[i]] = diff_encoded_copy[i];
+  }
+}
+
+/**
+ * @brief Function encodes traversed block to stream by CABAC encoder.
+ * @param traversed_block The input block of traversed coefficients.
+ * @param encoder CABAC Encoder.
+ * @param contexts Contexts for block encoding.
+ */
+template <size_t BS, size_t D>
+void encodeTraversedCABAC(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContexts<BS, D> &contexts) {
+  size_t coef_cnt {};
+
+  for (size_t i = 0; i < constpow(BS, D); i++) {
+    if (traversed_block[i]) {
+      coef_cnt++;
+    }
+  }
+
+  if (coef_cnt > 0) {
+    encoder.encodeBit(contexts.coded_block_flag_ctx, 1);
+
+    for (size_t i = 0; i < constpow(BS, D) - 1; i++) {
+      if (traversed_block[i] == 0) {
+        encoder.encodeBit(contexts.significant_coef_flag_ctx[i], 0);
+      }
+      else {
+        encoder.encodeBit(contexts.significant_coef_flag_ctx[i], 1);
+        coef_cnt--;
+
+        if (coef_cnt == 0) {
+          encoder.encodeBit(contexts.last_significant_coef_flag_ctx[i], 1);
+          break;
+        }
+        else {
+          encoder.encodeBit(contexts.last_significant_coef_flag_ctx[i], 0);
+        }
+      }
+    }
+
+    size_t numT1   {0};
+    size_t numLgt1 {0};
+
+    for (size_t i = 1; i <= constpow(BS, D); i++) {
+      size_t ii = constpow(BS, D) - i;
+
+      QDATAUNIT coef = traversed_block[ii];
+
+      if (coef != 0) {
+        bool sign {};
+
+        if (coef > 0) {
+          sign = 0;
+        }
+        else {
+          sign = 1;
+          coef = -coef;
+        }
+
+        bool greater_one {};
+
+        if (coef > 1) {
+          greater_one = true;
+        }
+        else {
+          greater_one = false;
+        }
+
+        encoder.encodeBit(contexts.coef_greater_one_ctx[std::min(numT1, contexts.NUM_GREATER_ONE_CTXS - 1)], greater_one);
+
+        if (greater_one) {
+          encoder.encodeUEG0(13, contexts.coef_abs_level_ctx[std::min(numLgt1, contexts.NUM_ABS_LEVEL_CTXS - 1)], coef - 2);
+
+          numT1 = contexts.NUM_GREATER_ONE_CTXS - 1;
+          numLgt1++;
+        }
+        else if (numT1 < contexts.NUM_GREATER_ONE_CTXS - 2) {
+          numT1++;
+        }
+
+        encoder.encodeBitBypass(sign);
+      }
+    }
+  }
+  else {
+    encoder.encodeBit(contexts.coded_block_flag_ctx, 0);
   }
 }
 

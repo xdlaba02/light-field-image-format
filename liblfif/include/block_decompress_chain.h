@@ -12,6 +12,7 @@
 #include "lfiftypes.h"
 #include "huffman.h"
 #include "cabac.h"
+#include "cabac_contexts.h"
 #include "runlength.h"
 #include "traversal_table.h"
 #include "quant_table.h"
@@ -79,6 +80,69 @@ void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUN
     block_it++;
     pairs_it++;
   } while ((pairs_it != std::end(runlength)) && (!pairs_it->eob()) && (block_it != std::end(traversed_block)));
+}
+
+/**
+ * @brief Function which decodes one block of traversed coefficients from stream which is encoded with CABAC.
+ * @param traversed_block The output block of traversed coefficients.
+ * @param decoder    CABAC decoder.
+ * @param contexts Contexts for block decoding.
+ */
+template <size_t BS, size_t D>
+void decodeTraversedCABAC(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &decoder, CABACContexts<BS, D> &contexts) {
+
+  traversed_block.fill(0);
+
+  if (decoder.decodeBit(contexts.coded_block_flag_ctx)) {
+    bool no_last_sig_coef_flag { true };
+
+    for (size_t i = 0; i < constpow(BS, D) - 1; i++) {
+      if (decoder.decodeBit(contexts.significant_coef_flag_ctx[i])) {
+        traversed_block[i] = 1;
+
+        if (decoder.decodeBit(contexts.last_significant_coef_flag_ctx[i])) {
+          no_last_sig_coef_flag = false;
+          break;
+        }
+      }
+      else {
+        traversed_block[i] = 0;
+      }
+    }
+
+    if (no_last_sig_coef_flag) {
+      traversed_block[constpow(BS, D) - 1] = 1;
+    }
+
+    size_t numT1   {0};
+    size_t numLgt1 {0};
+
+    for (size_t i = 1; i <= constpow(BS, D); i++) {
+      size_t ii = constpow(BS, D) - i;
+
+      QDATAUNIT coef = traversed_block[ii];
+
+      if (coef != 0) {
+        coef += decoder.decodeBit(contexts.coef_greater_one_ctx[std::min(numT1, contexts.NUM_GREATER_ONE_CTXS - 1)]);
+
+        if (coef == 2) {
+          coef += decoder.decodeUEG0(13, contexts.coef_abs_level_ctx[std::min(numLgt1, contexts.NUM_ABS_LEVEL_CTXS - 1)]);
+
+          numT1 = contexts.NUM_GREATER_ONE_CTXS - 1;
+          numLgt1++;
+        }
+        else if (numT1 < contexts.NUM_GREATER_ONE_CTXS - 2) {
+          numT1++;
+        }
+
+        if (decoder.decodeBitBypass()) {
+          coef = -coef;
+        }
+
+        traversed_block[ii] = coef;
+      }
+    }
+  }
 }
 
 /**
