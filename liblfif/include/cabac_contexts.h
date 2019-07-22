@@ -11,8 +11,8 @@
 
 template <size_t BS, size_t D>
 struct CABACContexts {
-  static const size_t NUM_GREATER_ONE_CTXS { 5 };
-  static const size_t NUM_ABS_LEVEL_CTXS   { 5 };
+  static const size_t NUM_GREATER_ONE_CTXS { 10 };
+  static const size_t NUM_ABS_LEVEL_CTXS   { 10 };
 
   CABAC::ContextModel               coded_block_flag_ctx;
   Block<CABAC::ContextModel, BS, D> significant_coef_flag_ctx;

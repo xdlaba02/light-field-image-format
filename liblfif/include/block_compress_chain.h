@@ -161,7 +161,7 @@ void encodeTraversedCABAC(const Block<QDATAUNIT, BS, D> &traversed_block, CABACE
           greater_one = false;
         }
 
-        encoder.encodeBit(contexts.coef_greater_one_ctx[std::min(numT1, contexts.NUM_GREATER_ONE_CTXS - 1)], greater_one);
+        encoder.encodeBit(contexts.coef_greater_one_ctx[numT1], greater_one);
 
         if (greater_one) {
           encoder.encodeUEG0(13, contexts.coef_abs_level_ctx[std::min(numLgt1, contexts.NUM_ABS_LEVEL_CTXS - 1)], coef - 2);
