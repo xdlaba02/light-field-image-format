@@ -11,14 +11,30 @@
 
 template <size_t BS, size_t D>
 struct CABACContexts {
-  static const size_t NUM_GREATER_ONE_CTXS { 10 };
-  static const size_t NUM_ABS_LEVEL_CTXS   { 10 };
+  CABACContexts(size_t amp_bits): DC_S_ctxs(5), DC_XM_ctxs(amp_bits), AC_XM_ctxs(amp_bits) {}
 
-  CABAC::ContextModel               coded_block_flag_ctx;
-  Block<CABAC::ContextModel, BS, D> significant_coef_flag_ctx;
-  Block<CABAC::ContextModel, BS, D> last_significant_coef_flag_ctx;
-  CABAC::ContextModel               coef_greater_one_ctx[NUM_GREATER_ONE_CTXS];
-  CABAC::ContextModel               coef_abs_level_ctx[NUM_ABS_LEVEL_CTXS];
+  struct XMCtx {
+    CABAC::ContextModel X;
+    CABAC::ContextModel M;
+  };
+
+  struct DCSCtxs {
+    CABAC::ContextModel S0;
+    CABAC::ContextModel SS;
+    CABAC::ContextModel SPN[2];
+  };
+
+  struct ACSCtx {
+    CABAC::ContextModel SE;
+    CABAC::ContextModel S0;
+    CABAC::ContextModel SNSPX1;
+  };
+
+  std::vector<DCSCtxs> DC_S_ctxs;
+  std::vector<XMCtx>   DC_XM_ctxs;
+
+  Block<ACSCtx, BS, D> AC_S_ctxs;
+  std::vector<XMCtx>   AC_XM_ctxs;
 };
 
 #endif

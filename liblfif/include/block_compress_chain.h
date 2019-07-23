@@ -104,81 +104,137 @@ void traverse(Block<QDATAUNIT, BS, D> &diff_encoded_block, const TraversalTable<
  */
 template <size_t BS, size_t D>
 void encodeTraversedCABAC(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContexts<BS, D> &contexts) {
-  size_t coef_cnt {};
+    QDATAUNIT coef {};
+    size_t DC_S_CTX = 0;
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    if (traversed_block[i]) {
-      coef_cnt++;
+    coef = traversed_block[0];
+
+    if (!coef) {
+      encoder.encodeBit(contexts.DC_S_ctxs[DC_S_CTX].S0, 0);
     }
-  }
+    else {
+      encoder.encodeBit(contexts.DC_S_ctxs[DC_S_CTX].S0, 1);
 
-  if (coef_cnt > 0) {
-    encoder.encodeBit(contexts.coded_block_flag_ctx, 1);
+      bool sign {};
 
-    for (size_t i = 0; i < constpow(BS, D) - 1; i++) {
-      if (traversed_block[i] == 0) {
-        encoder.encodeBit(contexts.significant_coef_flag_ctx[i], 0);
+      if (coef < 0) {
+        encoder.encodeBit(contexts.DC_S_ctxs[DC_S_CTX].SS, 1);
+        coef = -coef;
+        sign = 1;
       }
       else {
-        encoder.encodeBit(contexts.significant_coef_flag_ctx[i], 1);
+        encoder.encodeBit(contexts.DC_S_ctxs[DC_S_CTX].SS, 0);
+        sign = 0;
+      }
+
+      size_t M { 1 };
+      size_t S { 0 };
+
+      if (coef > M) {
+        encoder.encodeBit(contexts.DC_S_ctxs[DC_S_CTX].SPN[sign], 1);
+
+        M = 2;
+        while (coef > M) {
+          encoder.encodeBit(contexts.DC_XM_ctxs[S].M, 1);
+          M <<= 1;
+          S++;
+        }
+
+        encoder.encodeBit(contexts.DC_XM_ctxs[S].M, 0);
+      }
+      else {
+        encoder.encodeBit(contexts.DC_S_ctxs[DC_S_CTX].SPN[sign], 0);
+      }
+
+      M >>= 2;
+
+      while (M) {
+        if ((coef - 1) & M) {
+          encoder.encodeBit(contexts.DC_XM_ctxs[S].X, 1);
+        }
+        else {
+          encoder.encodeBit(contexts.DC_XM_ctxs[S].X, 0);
+        }
+
+        M >>= 1;
+      }
+    }
+
+    size_t coef_cnt { 0 };
+    for (size_t i = 1; i < constpow(BS, D); i++) {
+      if (traversed_block[i]) {
+        coef_cnt++;
+      }
+    }
+
+    for (size_t i = 1; i < constpow(BS, D); i++) {
+      if (coef_cnt == 0) {
+        encoder.encodeBit(contexts.last_significant_coef_flag_ctx[i], 1);
+        break;
+      }
+      else {
+        encoder.encodeBit(contexts.last_significant_coef_flag_ctx[i], 0);
+      }
+
+      coef = traversed_block[i];
+
+      if (coef) {
         coef_cnt--;
 
-        if (coef_cnt == 0) {
-          encoder.encodeBit(contexts.last_significant_coef_flag_ctx[i], 1);
-          break;
-        }
-        else {
-          encoder.encodeBit(contexts.last_significant_coef_flag_ctx[i], 0);
-        }
-      }
-    }
+        encoder.encodeBit(contexts.significant_coef_flag_AC_ctx[i], 1);
 
-    size_t numT1   {0};
-    size_t numLgt1 {0};
-
-    for (size_t i = 1; i <= constpow(BS, D); i++) {
-      size_t ii = constpow(BS, D) - i;
-
-      QDATAUNIT coef = traversed_block[ii];
-
-      if (coef != 0) {
-        bool sign {};
-
-        if (coef > 0) {
-          sign = 0;
-        }
-        else {
-          sign = 1;
+        if (coef < 0) {
+          encoder.encodeBitBypass(1);
           coef = -coef;
         }
+        else {
+          encoder.encodeBitBypass(0);
+        }
 
-        bool greater_one {};
+        size_t M { 1 };
+        size_t S { 0 };
 
-        if (coef > 1) {
-          greater_one = true;
+        if (coef > M) {
+          encoder.encodeBit(contexts.coef_greater_one_two_AC_ctx[i], 1);
+          M <<= 1;
+
+          if (coef > M) {
+            encoder.encodeBit(contexts.coef_greater_one_two_AC_ctx[i], 1);
+            M <<= 1;
+
+            while (coef > M) {
+              encoder.encodeBit(contexts.coef_greater_M_AC_ctx[S], 1);
+              M <<= 1;
+              S++;
+            }
+
+            encoder.encodeBit(contexts.coef_greater_M_AC_ctx[S], 0);
+          }
+          else {
+            encoder.encodeBit(contexts.coef_greater_one_two_AC_ctx[i], 0);
+          }
         }
         else {
-          greater_one = false;
+          encoder.encodeBit(contexts.coef_greater_one_two_AC_ctx[i], 0);
         }
 
-        encoder.encodeBit(contexts.coef_greater_one_ctx[numT1], greater_one);
+        M >>= 2;
 
-        if (greater_one) {
-          encoder.encodeUEG0(13, contexts.coef_abs_level_ctx[std::min(numLgt1, contexts.NUM_ABS_LEVEL_CTXS - 1)], coef - 2);
+        while (M) {
+          if ((coef - 1) & M) {
+            encoder.encodeBit(contexts.coef_Sz_bits_AC_ctx[S], 1);
+          }
+          else {
+            encoder.encodeBit(contexts.coef_Sz_bits_AC_ctx[S], 0);
+          }
 
-          numT1 = contexts.NUM_GREATER_ONE_CTXS - 1;
-          numLgt1++;
+          M >>= 1;
         }
-        else if (numT1 < contexts.NUM_GREATER_ONE_CTXS - 2) {
-          numT1++;
-        }
-
-        encoder.encodeBitBypass(sign);
+      }
+      else {
+        encoder.encodeBit(contexts.significant_coef_AC_ctx, 0);
       }
     }
-  }
-  else {
-    encoder.encodeBit(contexts.coded_block_flag_ctx, 0);
   }
 }
 
