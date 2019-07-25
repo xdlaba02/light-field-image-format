@@ -352,11 +352,10 @@ void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output)
 */
 template<size_t BS, size_t D, typename F>
 void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
-  CABACContexts<BS, D> contexts        [3] { enc.amp_bits, enc.amp_bits, enc.amp_bits };
-  QDATAUNIT            previous_DC     [3] {};
-  QDATAUNIT            previous_DC_diff[3] {};
-  OBitstream           bitstream           {};
-  CABACEncoder         cabac               {};
+  CABACContexts<BS, D> contexts    [3] {};
+  QDATAUNIT            previous_DC [3] {};
+  OBitstream           bitstream       {};
+  CABACEncoder         cabac           {};
 
   bitstream.open(&output);
   cabac.init(bitstream);
@@ -366,7 +365,7 @@ void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
                           traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
-              encodeTraversedCABAC<BS, D>(enc.quantized_block,  cabac,                         contexts[channel], previous_DC_diff[channel], enc.amp_bits);
+              encodeTraversedCABAC<BS, D>(enc.quantized_block,  cabac,                         contexts[channel]);
   };
 
   performScan(enc, input, perform);

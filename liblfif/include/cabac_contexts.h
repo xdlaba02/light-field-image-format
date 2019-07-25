@@ -10,15 +10,7 @@
 #define CABAC_CONTEXTS_H
 
 template <size_t BS, size_t D>
-struct CABACContextsJPEG {
-  CABACContexts(size_t amp_bits): DC_ctxs(5 * 4 + 2 * amp_bits - 1), AC_ctxs(3 * (constpow(BS, D) - 1) + 4 * (amp_bits - 1)) {}
-
-  std::vector<CABAC::ContextModel> DC_ctxs;
-  std::vector<CABAC::ContextModel> AC_ctxs;
-};
-
-template <size_t BS, size_t D>
-struct CABACContextsH264 {
+struct CABACContexts {
   static const size_t NUM_GREATER_ONE_CTXS { 10 };
   static const size_t NUM_ABS_LEVEL_CTXS   { 10 };
 
@@ -27,6 +19,14 @@ struct CABACContextsH264 {
   Block<CABAC::ContextModel, BS, D> last_significant_coef_flag_ctx;
   CABAC::ContextModel               coef_greater_one_ctx[NUM_GREATER_ONE_CTXS];
   CABAC::ContextModel               coef_abs_level_ctx[NUM_ABS_LEVEL_CTXS];
+};
+
+template <size_t BS, size_t D>
+struct CABACContextsJPEG {
+  CABACContextsJPEG(size_t amp_bits): DC_ctxs(5 * 4 + 2 * amp_bits - 1), AC_ctxs(3 * (constpow(BS, D) - 1) + 4 * (amp_bits - 1)) {}
+
+  std::vector<CABAC::ContextModel> DC_ctxs;
+  std::vector<CABAC::ContextModel> AC_ctxs;
 };
 
 #endif

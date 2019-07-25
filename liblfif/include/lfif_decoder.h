@@ -188,7 +188,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   IBitstream           bitstream       {};
   QDATAUNIT            previous_DC [3] {};
   CABACDecoder         cabac           {};
-  CABACContexts<BS, D> contexts[3]     { dec.amp_bits, dec.amp_bits, dec.amp_bits };
+  CABACContexts<BS, D> contexts[3]     {};
 
   bitstream.open(&input);
   cabac.init(bitstream);

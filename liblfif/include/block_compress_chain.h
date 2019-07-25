@@ -271,7 +271,7 @@ void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CA
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeTraversedCABACH264(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsH264<BS, D> &contexts) {
+void encodeTraversedCABAC(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContexts<BS, D> &contexts) {
   size_t coef_cnt {};
 
   for (size_t i = 0; i < constpow(BS, D); i++) {

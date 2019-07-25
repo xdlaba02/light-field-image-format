@@ -90,7 +90,6 @@ void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUN
  */
 template <size_t BS, size_t D>
 void decodeTraversedCABAC(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &decoder, CABACContexts<BS, D> &contexts) {
-  /*
   traversed_block.fill(0);
 
   if (decoder.decodeBit(contexts.coded_block_flag_ctx)) {
@@ -142,7 +141,7 @@ void decodeTraversedCABAC(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder
         traversed_block[ii] = coef;
       }
     }
-  }*/
+  }
 }
 
 /**
