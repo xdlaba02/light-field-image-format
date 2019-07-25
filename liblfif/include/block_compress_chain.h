@@ -103,7 +103,7 @@ void traverse(Block<QDATAUNIT, BS, D> &diff_encoded_block, const TraversalTable<
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContexts<BS, D> &contexts, QDATAUNIT &previous_DC_diff, size_t amp_bits) {
+void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsJPEG<BS, D> &contexts, QDATAUNIT &previous_DC_diff, size_t amp_bits) {
   QDATAUNIT coef     {};
   size_t    S        {};
   size_t    coef_cnt { 0 };
