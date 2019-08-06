@@ -149,8 +149,11 @@ public:
   */
   inline void terminate();
 
+  inline void encodeU(ContextModel &context, uint64_t value);
+  inline void encodeEG(uint64_t k, ContextModel &context, uint64_t value);
+  inline void encodeEGBypass(uint64_t k, uint64_t value);
   inline void encodeUEG0(uint64_t u_bits, ContextModel &context, uint64_t value);
-  inline void encodeEG(uint64_t k, uint64_t value);
+  inline void encodeRG(uint64_t &k, ContextModel &context, uint64_t value);
 
 private:
   OBitstream *m_stream;
@@ -285,20 +288,28 @@ void CABACEncoder::putCabacBit(bool bit) {
   }
 }
 
-void CABACEncoder::encodeUEG0(uint64_t u_bits, ContextModel &context, uint64_t value) {
-  for (size_t i = 0; i < (value < u_bits ? value : u_bits); i++) {
+void CABACEncoder::encodeU(ContextModel &context, uint64_t value) {
+  for (size_t i = 0; i < value; i++) {
     encodeBit(context, 1);
   }
+  encodeBit(context, 0);
+}
 
-  if (value < u_bits) {
-    encodeBit(context, 0);
+void CABACEncoder::encodeEG(uint64_t k, ContextModel &context, uint64_t value) {
+  while (value >= (uint64_t { 1 } << k)) {
+    encodeBit(context, 1);
+    value -= uint64_t { 1 } << k;
+    k++;
   }
-  else {
-    encodeEG(0, value - u_bits);
+
+  encodeBit(context, 0);
+
+  while (k--) {
+    encodeBitBypass((value >> k) & 1);
   }
 }
 
-void CABACEncoder::encodeEG(uint64_t k, uint64_t value) {
+void CABACEncoder::encodeEGBypass(uint64_t k, uint64_t value) {
   while (value >= (uint64_t { 1 } << k)) {
     encodeBitBypass(1);
     value -= uint64_t { 1 } << k;
@@ -309,6 +320,34 @@ void CABACEncoder::encodeEG(uint64_t k, uint64_t value) {
 
   while (k--) {
     encodeBitBypass((value >> k) & 1);
+  }
+}
+
+void CABACEncoder::encodeUEG0(uint64_t u_bits, ContextModel &context, uint64_t value) {
+  for (size_t i = 0; i < (value < u_bits ? value : u_bits); i++) {
+    encodeBit(context, 1);
+  }
+
+  if (value < u_bits) {
+    encodeBit(context, 0);
+  }
+  else {
+    encodeEGBypass(0, value - u_bits);
+  }
+}
+
+void CABACEncoder::encodeRG(uint64_t &k, ContextModel &context, uint64_t value) {
+  for (size_t i = 0; i < (value >> k); i++) {
+    encodeBit(context, 1);
+  }
+  encodeBit(context, 0);
+
+  for (size_t i = 1; i <= k; i++) {
+    encodeBitBypass((value >> (k - i)) & 1);
+  }
+
+  if ((value > (uint64_t { 3 } << k)) && k < 4) {
+    k++;
   }
 }
 

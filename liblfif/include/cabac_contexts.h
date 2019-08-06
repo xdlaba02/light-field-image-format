@@ -29,4 +29,15 @@ struct CABACContextsJPEG {
   std::vector<CABAC::ContextModel> AC_ctxs;
 };
 
+template <size_t BS, size_t D>
+struct CABACContextsDIAGONAL {
+  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coded_diag_flag_ctx;
+  std::array<CABAC::ContextModel, D * (BS - 1) + 1> last_coded_diag_flag_ctx;
+  std::array<CABAC::ContextModel, D + 1>            significant_coef_flag_high_ctx;
+  std::array<CABAC::ContextModel, D + 1>            significant_coef_flag_low_ctx;
+  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_one_ctx;
+  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_two_ctx;
+  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_abs_level_ctx;
+};
+
 #endif

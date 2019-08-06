@@ -352,10 +352,11 @@ void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output)
 */
 template<size_t BS, size_t D, typename F>
 void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
-  CABACContexts<BS, D> contexts    [3] {};
+  CABACContextsDIAGONAL<BS, D> contexts    [3] {};
   QDATAUNIT            previous_DC [3] {};
   OBitstream           bitstream       {};
   CABACEncoder         cabac           {};
+  size_t threshold { (D * (BS - 1) + 1) / 2 };
 
   bitstream.open(&output);
   cabac.init(bitstream);
@@ -364,14 +365,56 @@ void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
-                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
-              encodeTraversedCABAC<BS, D>(enc.quantized_block,  cabac,                         contexts[channel]);
+               encodeCABACDIAGONAL<BS, D>(enc.quantized_block,  cabac,                         contexts[channel], threshold);
   };
 
   performScan(enc, input, perform);
 
   cabac.terminate();
   bitstream.flush();
+}
+
+#include <iostream>
+#include <iomanip>
+#include <map>
+
+
+template<size_t BS, size_t D, typename F>
+void dummyScan(LfifEncoder<BS, D> &enc, F &&input) {
+  QDATAUNIT            previous_DC [3] {};
+
+  Block<int64_t, BS, D> sum {};
+  Block<uint64_t, BS, D> shifted_abs_sum {};
+  Block<double, BS, D>  variance {};
+
+  size_t cnt { 1 };
+
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
+
+    if (channel == 0) {
+      for (size_t i = 0; i < constpow(BS, D); i++) {
+        QDATAUNIT shifted_abs_value = std::abs(enc.quantized_block[i] - ((double)sum[i] / cnt));
+        variance[i] += constpow(shifted_abs_value - ((double)shifted_abs_sum[i] / cnt), 2);
+        shifted_abs_sum[i] += shifted_abs_value;
+
+        sum[i] += enc.quantized_block[i];
+      }
+      cnt++;
+    }
+
+  };
+
+  performScan(enc, input, perform);
+
+  for (size_t y = 0; y < BS; y++) {
+    for (size_t x = 0; x < BS; x++) {
+      std::cout << std::fixed << std::setprecision(3) << std::setw(5) << (uint64_t)(variance[y * BS + x] / enc.blocks_cnt) << " ";
+    }
+    std::cout << '\n';
+  }
 }
 
 #endif
