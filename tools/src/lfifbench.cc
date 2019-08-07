@@ -119,7 +119,6 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     constructQuantizationTables(*encoder, qtabletype, quality);
 
     if (huffman) {
-      cerr << "ENCODING HUFFMAN\n";
       if (std::string { zztabletype } == "REFERENCE") {
         referenceScan(*encoder, inputF);
       }
