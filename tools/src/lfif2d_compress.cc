@@ -102,9 +102,6 @@ int main(int argc, char *argv[]) {
   //referenceScan(*encoder, inputF);
   constructTraversalTables(*encoder, "DEFAULT");
 
-  //dummyScan(*encoder, inputF);
-  //exit(0);
-
   if (use_huffman) {
     huffmanScan(*encoder, inputF);
     constructHuffmanTables(*encoder);

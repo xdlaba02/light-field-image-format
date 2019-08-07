@@ -40,24 +40,79 @@ void decodeFromStreamHuffman(IBitstream &bitstream, Block<RunLengthPair, BS, D> 
   } while((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
 }
 
-/**
- * @brief Function which decodes one block of run-length pairs from stream which is encoded with CABAC.
- * @param bitstream  The input bitstream.
- * @param runlength  The output block of run-length pairs.
- * @param decoder    CABAC decoder.
- * @param models     Contexts for every bit of run-length value, amplitude size and amplitude value.
- * @param class_bits Number of bits for the second part of codeword.
- */
 template <size_t BS, size_t D>
-void decodeFromStreamCABAC(Block<RunLengthPair, BS, D> &runlength, CABACDecoder &decoder, CABAC::ContextModel models[(8+8+14) * 2], size_t class_bits) {
-  auto pairs_it = std::begin(runlength);
+void decodeCABACDIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
+  diff_encoded_block.fill(0);
 
-  pairs_it->CABACDecodeFromStream(decoder, &models[0], class_bits);
+  std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
 
-  do {
-    pairs_it++;
-    pairs_it->CABACDecodeFromStream(decoder, &models[30], class_bits);
-  } while((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
+  for (size_t diag = 0; diag < D * (BS - 1) + 1; diag++) {
+    nonzero_diags[diag] = decoder.decodeBit(contexts.coded_diag_flag_ctx[diag]);
+
+    if (nonzero_diags[diag]) {
+      if (decoder.decodeBit(contexts.last_coded_diag_flag_ctx[diag])) {
+        break;
+      }
+    }
+  }
+
+
+  for (size_t d = 0; d < D * (BS - 1) + 1; d++) {
+    size_t diag = (D * (BS - 1)) - d;
+    int64_t zero_coef_distr { 0 };
+
+    if (nonzero_diags[diag]) {
+      for (auto &i: scan_table[diag]) {
+        QDATAUNIT coef {};
+
+        size_t nonzero_neighbours_cnt { 0 };
+
+        for (size_t dim = 0; dim < D; dim++) {
+          size_t neighbour = i + constpow(BS, dim);
+          if ((i % constpow(BS, dim + 1)) < (neighbour % constpow(BS, dim + 1))) {
+            nonzero_neighbours_cnt += (diff_encoded_block[neighbour] != 0);
+          }
+        }
+
+        if (diag < threshold) {
+          coef = decoder.decodeBit(contexts.significant_coef_flag_high_ctx[nonzero_neighbours_cnt]);
+        }
+        else {
+          coef = decoder.decodeBit(contexts.significant_coef_flag_low_ctx[nonzero_neighbours_cnt]);
+        }
+
+        if (!coef) {
+          zero_coef_distr++;
+        }
+        else {
+          zero_coef_distr--;
+
+          coef += decoder.decodeBit(contexts.coef_greater_one_ctx[diag]);
+
+          if (coef > 1) {
+            coef += decoder.decodeBit(contexts.coef_greater_two_ctx[diag]);
+
+            if (coef > 2) {
+              coef += decoder.decodeU(contexts.coef_abs_level_ctx[diag]);
+            }
+          }
+
+          if (decoder.decodeBitBypass()) {
+            coef = -coef;
+          }
+        }
+
+        diff_encoded_block[i] = coef;
+      }
+    }
+
+    if ((zero_coef_distr > 0) && (threshold > diag)) {
+      threshold--;
+    }
+    else if ((zero_coef_distr < 0) && (threshold < diag)) {
+      threshold++;
+    }
+  }
 }
 
 

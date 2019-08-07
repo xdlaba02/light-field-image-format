@@ -185,10 +185,23 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
 */
 template<size_t BS, size_t D, typename F>
 void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
-  IBitstream           bitstream       {};
-  QDATAUNIT            previous_DC [3] {};
-  CABACDecoder         cabac           {};
-  CABACContexts<BS, D> contexts[3]     {};
+  std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
+  std::array<CABACContextsDIAGONAL<BS, D>, 3>                contexts    {};
+  std::array<QDATAUNIT,                    3>                previous_DC {};
+  IBitstream                                                 bitstream   {};
+  CABACDecoder                                               cabac       {};
+  size_t                                                     threshold   {};
+
+  threshold = (D * (BS - 1) + 1) / 2;
+
+  for (size_t i = 0; i < constpow(BS, D); i++) {
+    size_t diagonal { 0 };
+    for (size_t j = i; j; j /= BS) {
+      diagonal += j % BS;
+    }
+
+    scan_table[diagonal].push_back(i);
+  }
 
   bitstream.open(&input);
   cabac.init(bitstream);
@@ -204,8 +217,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
 
     for (size_t block = 0; block < dec.blocks_cnt; block++) {
       for (size_t channel = 0; channel < 3; channel++) {
-                  decodeTraversedCABAC<BS, D>(dec.quantized_block,  cabac, contexts[channel]);
-                            detraverse<BS, D>(dec.quantized_block, *dec.traversal_table_ptr[channel]);
+                   decodeCABACDIAGONAL<BS, D>(dec.quantized_block,  cabac, contexts[channel], threshold, scan_table);
                           diffDecodeDC<BS, D>(dec.quantized_block,  previous_DC[channel]);
                             dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
         inverseDiscreteCosineTransform<BS, D>(dec.dct_block,        dec.output_block);

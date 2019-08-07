@@ -350,6 +350,7 @@ void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CA
   }
 }
 
+
 /**
  * @brief Function encodes traversed block to stream by CABAC encoder.
  * @param traversed_block The input block of traversed coefficients.
@@ -357,24 +358,17 @@ void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CA
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeCABACDIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold) {
+void encodeCABACDIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
   std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
   size_t diags_cnt { 0 };
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    size_t diagonal { 0 };
-    for (size_t j = i; j; j /= BS) {
-      diagonal += j % BS;
-    }
-
-    if (diff_encoded_block[i]) {
-      nonzero_diags[diagonal] = true;
-    }
-  }
-
-  for (auto &nonzero: nonzero_diags) {
-    if (nonzero) {
-      diags_cnt++;
+  for (size_t diag = 0; diag < D * (BS - 1) + 1; diag++) {
+    for (auto &i: scan_table[diag]) {
+      if (diff_encoded_block[i]) {
+        nonzero_diags[diag] = true;
+        diags_cnt++;
+        break;
+      }
     }
   }
 
@@ -394,67 +388,57 @@ void encodeCABACDIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABA
     }
   }
 
-  int64_t zero_coef_distr { 0 };
-
   for (size_t d = 0; d < D * (BS - 1) + 1; d++) {
-
     size_t diag = (D * (BS - 1)) - d;
+    int64_t zero_coef_distr { 0 };
 
     if (nonzero_diags[diag]) {
-      for (size_t i = 0; i < constpow(BS, D); i++) {
-        size_t diagonal { 0 };
+      for (auto &i: scan_table[diag]) {
+        QDATAUNIT coef = diff_encoded_block[i];
 
-        for (size_t j = i; j; j /= BS) {
-          diagonal += j % BS;
+        size_t nonzero_neighbours_cnt { 0 };
+
+        for (size_t dim = 0; dim < D; dim++) {
+          size_t neighbour = i + constpow(BS, dim);
+          if ((i % constpow(BS, dim + 1)) < (neighbour % constpow(BS, dim + 1))) {
+            nonzero_neighbours_cnt += (diff_encoded_block[neighbour] != 0);
+          }
         }
 
-        if (diagonal == diag) {
-          QDATAUNIT coef = diff_encoded_block[i];
+        if (diag < threshold) {
+          encoder.encodeBit(contexts.significant_coef_flag_high_ctx[nonzero_neighbours_cnt], coef);
+        }
+        else {
+          encoder.encodeBit(contexts.significant_coef_flag_low_ctx[nonzero_neighbours_cnt], coef);
+        }
 
-          size_t nonzero_neighbours_cnt { 0 };
+        if (!coef) {
+          zero_coef_distr++;
+        }
+        else {
+          zero_coef_distr--;
 
-          for (size_t dim = 0; dim < D; dim++) {
-            size_t neighbour = i + constpow(BS, dim);
-            if (neighbour < constpow(BS, D)) {
-              nonzero_neighbours_cnt += (diff_encoded_block[neighbour] != 0);
-            }
-          }
+          bool sign {};
 
-          if (diag < threshold) {
-            encoder.encodeBit(contexts.significant_coef_flag_high_ctx[nonzero_neighbours_cnt], coef);
-          }
-          else {
-            encoder.encodeBit(contexts.significant_coef_flag_low_ctx[nonzero_neighbours_cnt], coef);
-          }
-
-          if (!coef) {
-            zero_coef_distr++;
+          if (coef > 0) {
+            sign = 0;
           }
           else {
-            zero_coef_distr--;
-
-            bool sign {};
-
-            if (coef > 0) {
-              sign = 0;
-            }
-            else {
-              sign = 1;
-              coef = -coef;
-            }
-
-            encoder.encodeBit(contexts.coef_greater_one_ctx[diag], coef > 1);
-
-            if (coef > 1) {
-              encoder.encodeBit(contexts.coef_greater_two_ctx[diag], coef > 2);
-
-              if (coef > 2) {
-                encoder.encodeU(contexts.coef_abs_level_ctx[diag], coef - 3);
-              }
-            }
-
-            encoder.encodeBitBypass(sign);
+            sign = 1;
+            coef = -coef;
           }
+
+          encoder.encodeBit(contexts.coef_greater_one_ctx[diag], coef > 1);
+
+          if (coef > 1) {
+            encoder.encodeBit(contexts.coef_greater_two_ctx[diag], coef > 2);
+
+            if (coef > 2) {
+              encoder.encodeU(contexts.coef_abs_level_ctx[diag], coef - 3);
+            }
+          }
+
+          encoder.encodeBitBypass(sign);
         }
       }
     }
@@ -465,8 +449,6 @@ void encodeCABACDIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABA
     else if ((zero_coef_distr < 0) && (threshold < diag)) {
       threshold++;
     }
-
-    zero_coef_distr = 0;
   }
 }
 

@@ -189,6 +189,7 @@ public:
   */
   inline void terminate();
 
+  inline uint64_t decodeU(ContextModel &context);
   inline uint64_t decodeUEG0(uint64_t u_bits, ContextModel &context);
   inline uint64_t decodeEG(uint64_t k);
 
@@ -246,7 +247,7 @@ void CABACEncoder::encodeBitBypass(bool bit) {
   }
 }
 
-void CABACEncoder::terminate() { //FIXME
+void CABACEncoder::terminate() {
   m_low += 2;
   m_range = 2;
 
@@ -406,6 +407,14 @@ bool CABACDecoder::decodeBitBypass() {
 
 void CABACDecoder::terminate() {
   m_stream = nullptr;
+}
+
+uint64_t CABACDecoder::decodeU(ContextModel &context) {
+  uint64_t value { 0 };
+  while (decodeBit(context)) {
+    value++;
+  }
+  return value;
 }
 
 uint64_t CABACDecoder::decodeUEG0(uint64_t u_bits, ContextModel &context) {
