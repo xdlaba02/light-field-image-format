@@ -38,6 +38,7 @@ const char *zztabletype = "DEFAULT";
 
 bool nothreads              {};
 bool append                 {};
+bool huffman                {};
 
 array<float, 3> quality_interval {};
 
@@ -116,13 +117,21 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
 
     initEncoder(*encoder);
     constructQuantizationTables(*encoder, qtabletype, quality);
-    //referenceScan(*encoder, inputF); //FIRST IMAGE SCAN
-    //constructTraversalTables(*encoder, zztabletype);
-    //huffmanScan(*encoder, inputF); //SECOND IMAGE SCAN
-    //constructHuffmanTables(*encoder);
-    writeHeader(*encoder, output);
-    outputScanCABAC(*encoder, inputF, output);
-    //outputScan(*encoder, inputF, output); //THIRD IMAGE SCAN
+
+    if (huffman) {
+      if (std::string { zztabletype } == "REFERENCE") {
+        referenceScan(*encoder, inputF);
+      }
+      constructTraversalTables(*encoder, zztabletype);
+      huffmanScan(*encoder, inputF);
+      constructHuffmanTables(*encoder);
+      writeHeader(*encoder, output);
+      outputScanHuffman(*encoder, inputF, output);
+    }
+    else {
+      writeHeader(*encoder, output);
+      outputScanCABAC(*encoder, inputF, output);
+    }
 
     compressed_image_size = output.tellp();
 
@@ -156,12 +165,12 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>]" << endl;
+  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h]" << endl;
 }
 
 void parse_args(int argc, char *argv[]) {
   char opt {};
-  while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:naQ:Z:")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:naQ:Z:h")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -236,6 +245,13 @@ void parse_args(int argc, char *argv[]) {
       case 'Z':
         if (string(zztabletype) == "DEFAULT") {
           zztabletype = optarg;
+          continue;
+        }
+      break;
+
+      case 'h':
+        if (!huffman) {
+          huffman = true;
           continue;
         }
       break;
