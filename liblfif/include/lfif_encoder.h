@@ -353,8 +353,8 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
 template<size_t BS, size_t D, typename F>
 void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
-  std::array<CABACContextsDIAGONAL<BS, D>, 3>                contexts    {};
-  std::array<QDATAUNIT                   , 3>                previous_DC {};
+  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts    {};
+  std::array<QDATAUNIT,                    3>                previous_DC {};
   OBitstream                                                 bitstream   {};
   CABACEncoder                                               cabac       {};
   size_t                                                     threshold   {};
@@ -377,7 +377,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block);
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block, previous_DC[channel]);
-              encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel], threshold, scan_table);
+              encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
   };
 
   performScan(enc, input, perform);

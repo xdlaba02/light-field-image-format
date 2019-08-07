@@ -186,7 +186,7 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
 template<size_t BS, size_t D, typename F>
 void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
-  std::array<CABACContextsDIAGONAL<BS, D>, 3>                contexts    {};
+  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts    {};
   std::array<QDATAUNIT,                    3>                previous_DC {};
   IBitstream                                                 bitstream   {};
   CABACDecoder                                               cabac       {};
@@ -217,7 +217,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
 
     for (size_t block = 0; block < dec.blocks_cnt; block++) {
       for (size_t channel = 0; channel < 3; channel++) {
-                   decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block,  cabac, contexts[channel], threshold, scan_table);
+                   decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
                           diffDecodeDC<BS, D>(dec.quantized_block,  previous_DC[channel]);
                             dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
         inverseDiscreteCosineTransform<BS, D>(dec.dct_block,        dec.output_block);
