@@ -126,11 +126,11 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
       huffmanScan(*encoder, inputF);
       constructHuffmanTables(*encoder);
       writeHeader(*encoder, output);
-      outputScanHuffman(*encoder, inputF, output);
+      outputScanHuffman_RUNLENGTH(*encoder, inputF, output);
     }
     else {
       writeHeader(*encoder, output);
-      outputScanCABAC(*encoder, inputF, output);
+      outputScanCABAC_DIAGONAL(*encoder, inputF, output);
     }
 
     compressed_image_size = output.tellp();
