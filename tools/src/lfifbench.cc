@@ -152,7 +152,6 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     initDecoder(*decoder);
 
     if (huffman) {
-      cerr << "DECODING HUFFMAN\n";
       decodeScanHuffman(*decoder, input, outputF);
     }
     else {
@@ -355,6 +354,7 @@ int main(int argc, char *argv[]) {
     encoder2D->img_dims[0] = width;
     encoder2D->img_dims[1] = height;
     encoder2D->img_dims[2] = image_count;
+    encoder2D->use_huffman = huffman;
 
     size_t last_slash_pos = string(output_file_2D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -387,6 +387,7 @@ int main(int argc, char *argv[]) {
     encoder3D->img_dims[1] = height;
     encoder3D->img_dims[2] = sqrt(image_count);
     encoder3D->img_dims[3] = sqrt(image_count);
+    encoder3D->use_huffman = huffman;
 
     size_t last_slash_pos = string(output_file_3D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -420,6 +421,7 @@ int main(int argc, char *argv[]) {
     encoder4D->img_dims[2] = sqrt(image_count);
     encoder4D->img_dims[3] = sqrt(image_count);
     encoder4D->img_dims[4] = 1;
+    encoder4D->use_huffman = huffman;
 
     size_t last_slash_pos = string(output_file_4D).find_last_of('/');
     if (last_slash_pos != string::npos) {
