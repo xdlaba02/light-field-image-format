@@ -116,12 +116,13 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
 
     initEncoder(*encoder);
     constructQuantizationTables(*encoder, qtabletype, quality);
-    referenceScan(*encoder, inputF); //FIRST IMAGE SCAN
-    constructTraversalTables(*encoder, zztabletype);
-    huffmanScan(*encoder, inputF); //SECOND IMAGE SCAN
-    constructHuffmanTables(*encoder);
+    //referenceScan(*encoder, inputF); //FIRST IMAGE SCAN
+    //constructTraversalTables(*encoder, zztabletype);
+    //huffmanScan(*encoder, inputF); //SECOND IMAGE SCAN
+    //constructHuffmanTables(*encoder);
     writeHeader(*encoder, output);
-    outputScan(*encoder, inputF, output); //THIRD IMAGE SCAN
+    outputScanCABAC(*encoder, inputF, output);
+    //outputScan(*encoder, inputF, output); //THIRD IMAGE SCAN
 
     compressed_image_size = output.tellp();
 
