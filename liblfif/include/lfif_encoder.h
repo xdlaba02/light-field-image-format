@@ -300,14 +300,14 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
     writeToStream<BS, D>(enc.quant_table[i], output);
   }
 
-  for (size_t i = 0; i < 2; i++) {
-    enc.traversal_table[i]
-    . writeToStream(output);
-  }
-
   writeValueToStream<uint8_t>(enc.use_huffman, output);
 
   if (enc.use_huffman) {
+    for (size_t i = 0; i < 2; i++) {
+      enc.traversal_table[i]
+      . writeToStream(output);
+    }
+    
     for (size_t y = 0; y < 2; y++) {
       for (size_t x = 0; x < 2; x++) {
         enc.huffman_encoder[y][x]

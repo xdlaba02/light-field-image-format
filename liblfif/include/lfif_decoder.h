@@ -87,14 +87,14 @@ int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
     dec.quant_table[i] = readFromStream<BS, D>(input);
   }
 
-  for (size_t i = 0; i < 2; i++) {
-    dec.traversal_table[i]
-    . readFromStream(input);
-  }
-
   dec.use_huffman = readValueFromStream<uint8_t>(input);
 
   if (dec.use_huffman) {
+    for (size_t i = 0; i < 2; i++) {
+      dec.traversal_table[i]
+      . readFromStream(input);
+    }
+
     for (size_t y = 0; y < 2; y++) {
       for (size_t x = 0; x < 2; x++) {
         dec.huffman_decoder[y][x]
