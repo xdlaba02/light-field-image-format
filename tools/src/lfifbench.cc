@@ -140,7 +140,7 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     }
 
     initDecoder(*decoder);
-    decodeScan(*decoder, input, outputF);
+    decodeScanCABAC(*decoder, input, outputF);
 
     input.close();
 

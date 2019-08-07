@@ -99,10 +99,10 @@ int main(int argc, char *argv[]) {
 
   initEncoder(*encoder);
   constructQuantizationTables(*encoder, "DEFAULT", quality);
-  //referenceScan(*encoder, inputF);
-  constructTraversalTables(*encoder, "DEFAULT");
 
   if (use_huffman) {
+    //referenceScan(*encoder, inputF);
+    constructTraversalTables(*encoder, "DEFAULT");
     huffmanScan(*encoder, inputF);
     constructHuffmanTables(*encoder);
     writeHeader(*encoder, output);
