@@ -149,7 +149,13 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     }
 
     initDecoder(*decoder);
-    decodeScanCABAC(*decoder, input, outputF);
+
+    if (huffman) {
+      decodeScanHuffman(*decoder, input, outputF);
+    }
+    else {
+      decodeScanCABAC(*decoder, input, outputF);
+    }
 
     input.close();
 
