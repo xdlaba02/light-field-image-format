@@ -103,7 +103,7 @@ void traverse(Block<QDATAUNIT, BS, D> &diff_encoded_block, const TraversalTable<
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeTraversedCABAC(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContexts<BS, D> &contexts) {
+void encodeCABAC_H264(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsH264<BS, D> &contexts) {
   size_t coef_cnt {};
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -189,7 +189,7 @@ void encodeTraversedCABAC(const Block<QDATAUNIT, BS, D> &traversed_block, CABACE
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsJPEG<BS, D> &contexts, QDATAUNIT &previous_DC_diff, size_t amp_bits) {
+void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsJPEG<BS, D> &contexts, QDATAUNIT &previous_DC_diff, size_t amp_bits) {
   QDATAUNIT coef     {};
   size_t    S        {};
   size_t    coef_cnt { 0 };
@@ -352,13 +352,13 @@ void encodeTraversedCABACJPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CA
 
 
 /**
- * @brief Function encodes traversed block to stream by CABAC encoder.
+ * @brief Function encodes block block to stream by CABAC encoder.
  * @param traversed_block The input block of traversed coefficients.
  * @param encoder CABAC Encoder.
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeCABACDIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
+void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
   std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
   size_t diags_cnt { 0 };
 
@@ -515,7 +515,7 @@ void huffmanAddWeights(const Block<RunLengthPair, BS, D> &runlength, HuffmanWeig
  * @param class_bits Number of bits for the second part of codeword.
  */
 template <size_t BS, size_t D>
-void encodeToStreamHuffman(const Block<RunLengthPair, BS, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
+void encodeHuffman_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
   auto pairs_it = std::begin(runlength);
 
   pairs_it->huffmanEncodeToStream(encoder[0], stream, class_bits);
@@ -534,14 +534,45 @@ void encodeToStreamHuffman(const Block<RunLengthPair, BS, D> &runlength, const H
  * @param class_bits Number of bits for the second part of codeword.
  */
 template <size_t BS, size_t D>
-void encodeToStreamCABAC(const Block<RunLengthPair, BS, D> &runlength, CABACEncoder &encoder, CABAC::ContextModel models[(8+8+14) * 2], size_t class_bits) {
-  auto pairs_it = std::begin(runlength);
+void encodeCABAC_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, CABACEncoder &encoder, CABACContextsRUNLENGTH<BS, D> &contexts, size_t class_bits) {
+  auto          pairs_it  { std::begin(runlength) };
+  size_t        i         {};
+  RLAMPUNIT     amp       {};
 
-  pairs_it->CABACEncodeToStream(encoder, &models[0], class_bits);
+
+  for (i = 0; i < pairs_it->huffmanSymbol(class_bits); i++) {
+    encoder.encodeBit(contexts.coef_DC_ctx[i], 1);
+  }
+  encoder.encodeBit(contexts.coef_DC_ctx[i], 0);
+
+  amp = pairs_it->amplitude;
+  if (amp < 0) {
+    amp = -amp;
+    amp = ~amp;
+  }
+
+  for (size_t i = 0; i < pairs_it->huffmanClass(); i++) {
+    encoder.encodeBitBypass((amp >> i) & 1);
+  }
 
   do {
     pairs_it++;
-    pairs_it->CABACEncodeToStream(encoder, &models[(8+8+14)], class_bits);
+
+    for (i = 0; i < pairs_it->huffmanSymbol(class_bits); i++) {
+      encoder.encodeBit(contexts.coef_AC_ctx[i], 1);
+    }
+    encoder.encodeBit(contexts.coef_AC_ctx[i], 0);
+
+    amp = pairs_it->amplitude;
+    if (amp < 0) {
+      amp = -amp;
+      amp = ~amp;
+    }
+
+    for (size_t i = 0; i < pairs_it->huffmanClass(); i++) {
+      encoder.encodeBitBypass((amp >> i) & 1);
+    }
+
   } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
 

@@ -116,10 +116,8 @@ int main(int argc, char *argv[]) {
   initEncoder(*encoder2D);
   constructQuantizationTables(*encoder2D, "DEFAULT", quality);
   constructTraversalTables(*encoder2D, "DEFAULT");
-  //huffmanScan(*encoder2D, inputF2D);
-  //constructHuffmanTables(*encoder2D);
   writeHeader(*encoder2D, output);
-  outputScanCABAC(*encoder2D, inputF2D, output);
+  outputScanCABAC_DIAGONAL(*encoder2D, inputF2D, output);
 
   output.flush();
 
@@ -197,10 +195,8 @@ int main(int argc, char *argv[]) {
   initEncoder(*encoder4D);
   constructQuantizationTables(*encoder4D, "DEFAULT", quality);
   constructTraversalTables(*encoder4D, "DEFAULT");
-  //huffmanScan(*encoder4D, inputF); //SECOND IMAGE SCAN
-  //constructHuffmanTables(*encoder4D);
   writeHeader(*encoder4D, output);
-  outputScanCABAC(*encoder4D, inputF, output); //THIRD IMAGE SCAN
+  outputScanCABAC_DIAGONAL(*encoder4D, inputF, output); //THIRD IMAGE SCAN
 
   delete encoder4D;
   delete decoder2D;

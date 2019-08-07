@@ -10,7 +10,7 @@
 #define CABAC_CONTEXTS_H
 
 template <size_t BS, size_t D>
-struct CABACContexts {
+struct CABACContextsH264 {
   static const size_t NUM_GREATER_ONE_CTXS { 10 };
   static const size_t NUM_ABS_LEVEL_CTXS   { 10 };
 
@@ -38,6 +38,12 @@ struct CABACContextsDIAGONAL {
   std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_one_ctx;
   std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_two_ctx;
   std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_abs_level_ctx;
+};
+
+template<size_t BS, size_t D>
+struct CABACContextsRUNLENGTH {
+  std::array<CABAC::ContextModel, constpow(2, 16)> coef_DC_ctx;
+  std::array<CABAC::ContextModel, constpow(2, 16)> coef_AC_ctx;
 };
 
 #endif

@@ -103,16 +103,15 @@ int main(int argc, char *argv[]) {
   constructQuantizationTables(*encoder, "DEFAULT", quality);
 
   if (use_huffman) {
-    //referenceScan(*encoder, inputF);
     constructTraversalTables(*encoder, "DEFAULT");
     huffmanScan(*encoder, inputF);
     constructHuffmanTables(*encoder);
     writeHeader(*encoder, output);
-    outputScanHuffman(*encoder, inputF, output);
+    outputScanHuffman_RUNLENGTH(*encoder, inputF, output);
   }
   else {
     writeHeader(*encoder, output);
-    outputScanCABAC(*encoder, inputF, output);
+    outputScanCABAC_DIAGONAL(*encoder, inputF, output);
   }
 
   delete encoder;

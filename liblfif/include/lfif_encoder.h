@@ -307,7 +307,7 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
       enc.traversal_table[i]
       . writeToStream(output);
     }
-    
+
     for (size_t y = 0; y < 2; y++) {
       for (size_t x = 0; x < 2; x++) {
         enc.huffman_encoder[y][x]
@@ -324,7 +324,7 @@ void writeHeader(LfifEncoder<BS, D> &enc, std::ostream &output) {
 * @param output Output stream to which the image shall be encoded.
 */
 template<size_t BS, size_t D, typename F>
-void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   QDATAUNIT previous_DC [3] {};
   OBitstream bitstream      {};
 
@@ -336,7 +336,7 @@ void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output)
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
                           traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
                    runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
-             encodeToStreamHuffman<BS, D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
+           encodeHuffman_RUNLENGTH<BS, D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
   };
 
   performScan(enc, input, perform);
@@ -351,7 +351,7 @@ void outputScanHuffman(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output)
 * @param output Output stream to which the image shall be encoded.
 */
 template<size_t BS, size_t D, typename F>
-void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
   std::array<CABACContextsDIAGONAL<BS, D>, 3>                contexts    {};
   std::array<QDATAUNIT                   , 3>                previous_DC {};
@@ -374,10 +374,84 @@ void outputScanCABAC(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   cabac.init(bitstream);
 
   auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block, previous_DC[channel]);
+              encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel], threshold, scan_table);
+  };
+
+  performScan(enc, input, perform);
+
+  cabac.terminate();
+  bitstream.flush();
+}
+
+template<size_t BS, size_t D, typename F>
+void outputScanCABAC_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+  std::array<CABACContextsRUNLENGTH<BS, D>, 3> contexts    {};
+  std::array<QDATAUNIT,                     3> previous_DC {};
+  OBitstream                                   bitstream   {};
+  CABACEncoder                                 cabac       {};
+
+  bitstream.open(&output);
+  cabac.init(bitstream);
+
+  auto perform = [&](size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
-                          quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
-               encodeCABACDIAGONAL<BS, D>(enc.quantized_block,  cabac,                         contexts[channel], threshold, scan_table);
+                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
+                   runLengthEncode<BS, D>(enc.quantized_block,  enc.runlength,        enc.max_zeroes);
+             encodeCABAC_RUNLENGTH<BS, D>(enc.runlength,        cabac,                contexts[channel], enc.class_bits);
+  };
+
+  performScan(enc, input, perform);
+
+  cabac.terminate();
+  bitstream.flush();
+}
+
+template<size_t BS, size_t D, typename F>
+void outputScanCABAC_JPEG(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+  std::array<CABACContextsJPEG<BS, D>, 3> contexts    { enc.amp_bits, enc.amp_bits, enc.amp_bits };
+  std::array<QDATAUNIT,                3> previous_DC {};
+  std::array<QDATAUNIT,                3> previous_DC_diff {};
+  OBitstream                              bitstream   {};
+  CABACEncoder                            cabac       {};
+
+  bitstream.open(&output);
+  cabac.init(bitstream);
+
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
+                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
+                  encodeCABAC_JPEG<BS, D>(enc.quantized_block,  cabac,                contexts[channel], previous_DC_diff[channel], enc.amp_bits);
+  };
+
+  performScan(enc, input, perform);
+
+  cabac.terminate();
+  bitstream.flush();
+}
+
+template<size_t BS, size_t D, typename F>
+void outputScanCABAC_H264(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+  std::array<CABACContextsH264<BS, D>, 3> contexts    {};
+  std::array<QDATAUNIT,                3> previous_DC {};
+  OBitstream                              bitstream   {};
+  CABACEncoder                            cabac       {};
+
+  bitstream.open(&output);
+  cabac.init(bitstream);
+
+  auto perform = [&](size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
+                          quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
+                      diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
+                          traverse<BS, D>(enc.quantized_block, *enc.traversal_tables[channel]);
+                  encodeCABAC_H264<BS, D>(enc.quantized_block,  cabac,                contexts[channel]);
   };
 
   performScan(enc, input, perform);

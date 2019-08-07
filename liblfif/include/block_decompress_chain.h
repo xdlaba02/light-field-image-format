@@ -29,7 +29,7 @@
  * @param class_bits       Number of bits for the second part of codeword.
  */
 template <size_t BS, size_t D>
-void decodeFromStreamHuffman(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
+void decodeHuffman_RUNLENGTH(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
   auto pairs_it = std::begin(runlength);
 
   pairs_it->huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
@@ -41,7 +41,7 @@ void decodeFromStreamHuffman(IBitstream &bitstream, Block<RunLengthPair, BS, D> 
 }
 
 template <size_t BS, size_t D>
-void decodeCABACDIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
+void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
   diff_encoded_block.fill(0);
 
   std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
@@ -144,7 +144,7 @@ void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUN
  * @param contexts Contexts for block decoding.
  */
 template <size_t BS, size_t D>
-void decodeTraversedCABAC(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &decoder, CABACContexts<BS, D> &contexts) {
+void decodeCABAC_H264(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &decoder, CABACContextsH264<BS, D> &contexts) {
   traversed_block.fill(0);
 
   if (decoder.decodeBit(contexts.coded_block_flag_ctx)) {
