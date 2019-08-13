@@ -18,6 +18,7 @@
 #include "quant_table.h"
 #include "block.h"
 #include "dct.h"
+#include "predict.h"
 
 #include <vector>
 
@@ -255,6 +256,18 @@ void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, 
   };
 
   idct<BS, D>(inputF, outputF);
+}
+
+template <size_t BS, size_t D>
+void depredict(Block<INPUTUNIT, BS, D> &input_block, const std::array<Block<INPUTUNIT, BS, D - 1> *, D> &predict_block_ptrs, size_t prediction_type) {
+  if (!predict_block_ptrs[prediction_type]) {
+    return;
+  }
+
+  Block<INPUTUNIT, BS, D> predicted_block = predict1D<BS, D>(*predict_block_ptrs[prediction_type], prediction_type);
+  for (size_t i = 0; i < constpow(BS, D); i++) {
+    input_block[i] = predicted_block[i];
+  }
 }
 
 #endif

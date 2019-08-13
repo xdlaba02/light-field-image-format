@@ -19,6 +19,7 @@
 #include "dct.h"
 #include "block.h"
 #include "runlength.h"
+#include "predict.h"
 
 #include <cstdlib>
 #include <cstdint>
@@ -574,6 +575,42 @@ void encodeCABAC_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, CABACEn
     }
 
   } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
+}
+
+#include <iostream>
+
+template <size_t BS, size_t D>
+void predict(Block<INPUTUNIT, BS, D> &input_block, const std::array<size_t, D> &block_dims, const std::vector<INPUTUNIT> &decoded, size_t offset, size_t &prediction_type) {
+  Block<INPUTUNIT, BS, D> predicted_block;
+  size_t smallest_sae_idx {};
+  INPUTUNIT sae[D] {};
+
+  for (size_t d = 0; d < D; d++) {
+    if ((offset % block_dims[d]) == 0) {
+      break;
+    }
+
+    predict1D<BS, D>(predicted_block, block_dims, &decoded[offset * constpow(BS, D) % decoded.size()], d);
+    for (size_t i = 0; i < constpow(BS, D); i++) {
+      sae[d] += std::abs(input_block[i] - predicted_block[i]);
+    }
+
+    if (sae[d] < sae[smallest_sae_idx]) {
+      smallest_sae_idx = d;
+    }
+  }
+
+  if ((offset % block_dims[smallest_sae_idx]) == 0) {
+    break;
+  }
+
+  predict1D<BS, D>(predicted_block, block_dims, &decoded[offset * constpow(BS, D) % decoded.size()]);
+
+  for (size_t i = 0; i < constpow(BS, D); i++) {
+    input_block[i] -= predicted_block[i];
+  }
+
+  prediction_type = smallest_sae_idx;
 }
 
 #endif

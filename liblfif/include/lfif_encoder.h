@@ -10,8 +10,10 @@
 #define LFIF_ENCODER_H
 
 #include "block_compress_chain.h"
+#include "block_decompress_chain.h"
 #include "cabac_contexts.h"
 #include "bitstream.h"
+#include "predict.h"
 
 #include <cstdint>
 #include <ostream>
@@ -23,7 +25,7 @@
 template<size_t BS, size_t D>
 struct LfifEncoder {
   uint8_t color_depth;    /**< @brief Number of bits per sample used by each decoded channel.*/
-  uint64_t img_dims[D+1]; /**< @brief Dimensions of a decoded image + image count. The multiple of all values should be equal to number of pixels in encoded image.*/
+  uint64_t img_dims[D+1]; /**< @brief Dimensions of a encoded image + image count. The multiple of all values should be equal to number of pixels in encoded image.*/
 
   bool use_huffman; /**< @brief Huffman encoding will be used when this is true.*/
 
@@ -39,8 +41,9 @@ struct LfifEncoder {
   HuffmanWeights        *huffman_weights [3]; /**< @brief Pointer to weight maps used by each channel.*/
   HuffmanEncoder        *huffman_encoders[3]; /**< @brief Pointer to Huffman encoders used by each channel.*/
 
-  size_t blocks_cnt; /**< @brief Number of blocks in the encoded image.*/
-  size_t pixels_cnt; /**< @brief Number of pixels in the encoded image.*/
+  size_t block_dims[D]; /**< @brief Dimensions of an encoded image in blocks. The multiple of all values should be equal to number of blocks in encoded image.*/
+  size_t blocks_cnt;    /**< @brief Number of blocks in the encoded image.*/
+  size_t pixels_cnt;    /**< @brief Number of pixels in the encoded image.*/
 
   size_t amp_bits;    /**< @brief Number of bits sufficient to contain maximum DCT coefficient.*/
   size_t zeroes_bits; /**< @brief Number of bits sufficient to contain run-length of zero coefficients.*/
@@ -84,7 +87,8 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
   enc.pixels_cnt = 1;
 
   for (size_t i = 0; i < D; i++) {
-    enc.blocks_cnt *= ceil(enc.img_dims[i] / static_cast<double>(BS));
+    block_dims[i]   = ceil(enc.img_dims[i] / static_cast<double>(BS));
+    enc.blocks_cnt *= block_dims[i];
     enc.pixels_cnt *= enc.img_dims[i];
   }
 
@@ -172,7 +176,7 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
           enc.input_block[i] = enc.current_block[i][channel];
         }
 
-        func(channel);
+        func(img, block, channel);
       }
     }
   }
@@ -185,7 +189,7 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
 */
 template<size_t BS, size_t D, typename F>
 void referenceScan(LfifEncoder<BS, D> &enc, F &&input) {
-  auto perform = [&](size_t channel) {
+  auto perform = [&](size_t, size_t, size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
                addToReferenceBlock<BS, D>(enc.quantized_block, *enc.reference_blocks[channel]);
@@ -254,7 +258,7 @@ template<size_t BS, size_t D, typename F>
 void huffmanScan(LfifEncoder<BS, D> &enc, F &&input) {
   QDATAUNIT previous_DC [3] {};
 
-  auto perform = [&](size_t channel) {
+  auto perform = [&](size_t, size_t, size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block,         *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
@@ -330,7 +334,7 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
 
   bitstream.open(&output);
 
-  auto perform = [&](size_t channel) {
+  auto perform = [&](size_t, size_t, size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
@@ -352,12 +356,12 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
 */
 template<size_t BS, size_t D, typename F>
 void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
-  std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
-  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts    {};
-  std::array<QDATAUNIT,                    3>                previous_DC {};
-  OBitstream                                                 bitstream   {};
-  CABACEncoder                                               cabac       {};
-  size_t                                                     threshold   {};
+  std::array<         std::vector<size_t>, D * (BS - 1) + 1> scan_table {};
+  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts   {};
+  std::array<      std::vector<INPUTUNIT>, 3>                decoded    {};
+  OBitstream                                                 bitstream  {};
+  CABACEncoder                                               cabac      {};
+  size_t                                                     threshold  {};
 
   threshold = (D * (BS - 1) + 1) / 2;
 
@@ -370,14 +374,30 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     scan_table[diagonal].push_back(i);
   }
 
+  for (size_t i = 0; i < 3; i++) {
+    decoded[i].resize(enc.blocks_cnt / enc.block_dims[D-1] * constpow(BS, D));
+  }
+
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  auto perform = [&](size_t channel) {
-    forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block);
-                          quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]);
-                      diffEncodeDC<BS, D>(enc.quantized_block, previous_DC[channel]);
+  auto perform = [&](size_t, size_t block, size_t channel) {
+    size_t offset {};
+    size_t prediction_type {};
+
+    offset = block % (enc.blocks_cnt / enc.block_dims[D-1]);
+
+                           predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
+                          quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
+                        dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
+    inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
+                         depredict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], offset, prediction_type    );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
+
+    for (size_t i = 0; i < D; i++) {
+      decoded[channel][block][i] = getSlice<BS, D>(enc.input_block, i, BS - 1);
+    }
   };
 
   performScan(enc, input, perform);
@@ -396,7 +416,7 @@ void outputScanCABAC_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostream 
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  auto perform = [&](size_t channel) {
+  auto perform = [&](size_t, size_t, size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
@@ -422,7 +442,7 @@ void outputScanCABAC_JPEG(LfifEncoder<BS, D> &enc, F &&input, std::ostream &outp
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  auto perform = [&](size_t channel) {
+  auto perform = [&](size_t, size_t, size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);
@@ -446,7 +466,7 @@ void outputScanCABAC_H264(LfifEncoder<BS, D> &enc, F &&input, std::ostream &outp
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  auto perform = [&](size_t channel) {
+  auto perform = [&](size_t, size_t, size_t channel) {
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,      enc.dct_block);
                           quantize<BS, D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
                       diffEncodeDC<BS, D>(enc.quantized_block,  previous_DC[channel]);

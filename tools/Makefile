@@ -48,7 +48,8 @@ others: $(FOLDERS) \
 				$(BINDIR)/hevc_decompress \
 				$(BINDIR)/xvc_compress \
 				$(BINDIR)/xvc_decompress \
-				$(BINDIR)/cabac_test
+				$(BINDIR)/cabac_test \
+				$(BINDIR)/predict_test \
 
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
@@ -114,6 +115,9 @@ $(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
 	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ -l:libxvcdec.a -o $@
 
 $(BINDIR)/cabac_test: $(OBJDIR)/cabac_test.o ../liblfif/bin/liblfif.a
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/predict_test: $(OBJDIR)/predict_test.o ../liblfif/bin/liblfif.a
 	$(CC) -lm $^ -o $@
 
 
