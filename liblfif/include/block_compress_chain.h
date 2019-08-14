@@ -584,8 +584,10 @@ template <size_t BS, size_t D>
 void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, int64_t &prediction_type) {
   Block<INPUTUNIT, BS, D> predicted_block {};
   int64_t smallest_sae_idx { -1 };
-  INPUTUNIT sae[D] {};
+  INPUTUNIT sae[D + 1] {};
   const INPUTUNIT *ptr {};
+
+  size_t num_neighbours { 0 };
 
 
   auto multDims = [&](size_t n) {
@@ -604,6 +606,7 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
 
   for (size_t d = 0; d < D; d++) {
     if ((offset % multDims(d + 1)) / multDims(d)) {
+      num_neighbours++;
 
       predict_perpendicular<BS, D>(predicted_block, block_dims, ptr, d);
 
@@ -626,7 +629,21 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
     return;
   }
 
-  predict_perpendicular<BS, D>(predicted_block, block_dims, ptr, smallest_sae_idx);
+  if (num_neighbours == D) {
+    predict_DC<BS, D>(predicted_block, block_dims, ptr);
+
+    for (size_t i = 0; i < constpow(BS, D); i++) {
+      sae[D] += std::abs(input_block[i] - predicted_block[i]);
+    }
+
+    if (sae[D] < sae[smallest_sae_idx]) {
+      smallest_sae_idx = D;
+    }
+  }
+
+  if (smallest_sae_idx < static_cast<int64_t>(D)) {
+    predict_perpendicular<BS, D>(predicted_block, block_dims, ptr, smallest_sae_idx);
+  }
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
     input_block[i] -= predicted_block[i];
