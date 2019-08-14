@@ -11,7 +11,7 @@ BINDIR = bin
 
 CC = g++
 INC = -Iinclude
-CFLAGS = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -fPIC
+CFLAGS = $(INC) -O3 -std=c++2a -Wall -Wextra -pedantic -Wfatal-errors -fPIC
 LDFLAGS = -shared
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 

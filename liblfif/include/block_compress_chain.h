@@ -578,33 +578,55 @@ void encodeCABAC_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, CABACEn
 }
 
 #include <iostream>
+#include <iomanip>
 
 template <size_t BS, size_t D>
-void predict(Block<INPUTUNIT, BS, D> &input_block, const std::array<size_t, D> &block_dims, const std::vector<INPUTUNIT> &decoded, size_t offset, size_t &prediction_type) {
-  Block<INPUTUNIT, BS, D> predicted_block;
-  size_t smallest_sae_idx {};
+void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, int64_t &prediction_type) {
+  Block<INPUTUNIT, BS, D> predicted_block {};
+  int64_t smallest_sae_idx { -1 };
   INPUTUNIT sae[D] {};
+  const INPUTUNIT *ptr {};
+
+
+  auto multDims = [&](size_t n) {
+    size_t product { 1 };
+    for (size_t i { 0 }; i < n; i++) {
+      product *= block_dims[i];
+    }
+    return product;
+  };
+
+
+  ptr = decoded.data();
+  for (size_t d = 0; d < D; d++) {
+    ptr += (offset % multDims(d + 1)) / multDims(d) * constpow(BS, d + 1) * multDims(d);
+  }
 
   for (size_t d = 0; d < D; d++) {
-    if ((offset % block_dims[d]) == 0) {
-      break;
-    }
+    if ((offset % multDims(d + 1)) / multDims(d)) {
 
-    predict1D<BS, D>(predicted_block, block_dims, &decoded[offset * constpow(BS, D) % decoded.size()], d);
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      sae[d] += std::abs(input_block[i] - predicted_block[i]);
-    }
+      predict_perpendicular<BS, D>(predicted_block, block_dims, ptr, d);
 
-    if (sae[d] < sae[smallest_sae_idx]) {
-      smallest_sae_idx = d;
+      for (size_t i = 0; i < constpow(BS, D); i++) {
+        sae[d] += std::abs(input_block[i] - predicted_block[i]);
+      }
+
+      if (smallest_sae_idx >= 0) {
+        if (sae[d] < sae[smallest_sae_idx]) {
+          smallest_sae_idx = d;
+        }
+      }
+      else {
+        smallest_sae_idx = d;
+      }
     }
   }
 
-  if ((offset % block_dims[smallest_sae_idx]) == 0) {
-    break;
+  if (smallest_sae_idx < 0) {
+    return;
   }
 
-  predict1D<BS, D>(predicted_block, block_dims, &decoded[offset * constpow(BS, D) % decoded.size()]);
+  predict_perpendicular<BS, D>(predicted_block, block_dims, ptr, smallest_sae_idx);
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
     input_block[i] -= predicted_block[i];

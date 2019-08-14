@@ -87,9 +87,9 @@ void initEncoder(LfifEncoder<BS, D> &enc) {
   enc.pixels_cnt = 1;
 
   for (size_t i = 0; i < D; i++) {
-    block_dims[i]   = ceil(enc.img_dims[i] / static_cast<double>(BS));
-    enc.blocks_cnt *= block_dims[i];
-    enc.pixels_cnt *= enc.img_dims[i];
+    enc.block_dims[i] = ceil(enc.img_dims[i] / static_cast<double>(BS));
+    enc.blocks_cnt   *= enc.block_dims[i];
+    enc.pixels_cnt   *= enc.img_dims[i];
   }
 
   enc.amp_bits = ceil(log2(constpow(BS, D))) + enc.color_depth - D - (D/2);
@@ -363,6 +363,12 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   CABACEncoder                                               cabac      {};
   size_t                                                     threshold  {};
 
+  size_t aligned_dims[D] {};
+
+  for (size_t d = 0; d < D; d++) {
+    aligned_dims[d] = ceil(enc.block_dims[d] * BS);
+  }
+
   threshold = (D * (BS - 1) + 1) / 2;
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -375,29 +381,32 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   }
 
   for (size_t i = 0; i < 3; i++) {
-    decoded[i].resize(enc.blocks_cnt / enc.block_dims[D-1] * constpow(BS, D));
+    decoded[i].resize(enc.blocks_cnt * constpow(BS, D));
   }
 
   bitstream.open(&output);
   cabac.init(bitstream);
 
   auto perform = [&](size_t, size_t block, size_t channel) {
-    size_t offset {};
-    size_t prediction_type {};
-
-    offset = block % (enc.blocks_cnt / enc.block_dims[D-1]);
+    int64_t prediction_type {};
 
                            predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
                         dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
     inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
-                         depredict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], offset, prediction_type    );
+                         depredict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type    );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
 
-    for (size_t i = 0; i < D; i++) {
-      decoded[channel][block][i] = getSlice<BS, D>(enc.input_block, i, BS - 1);
-    }
+    auto inputF = [&](size_t index) -> const auto & {
+      return enc.input_block[index];
+    };
+
+    auto outputF = [&](size_t index, const auto &value) {
+      decoded[channel][index] = value;
+    };
+
+    putBlock<BS, D>(inputF, block, aligned_dims, outputF);
   };
 
   performScan(enc, input, perform);

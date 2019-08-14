@@ -37,16 +37,38 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
 }
 
 template<size_t BS, size_t D>
-void predict1D(Block<INPUTUNIT, BS, D> &predicted, const std::array<size_t, D> &block_dims, const INPUTUNIT *decoded, size_t direction) {
+void predict_perpendicular(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded, size_t direction) {
   assert(direction < D);
+
+  auto multDims = [&](size_t n) {
+    size_t product { 1 };
+    for (size_t i { 0 }; i < n; i++) {
+      product *= block_dims[i] * BS;
+    }
+    return product;
+  };
+
   for (size_t j { 0 }; j < BS; j++) {
     for (size_t i { 0 }; i < constpow(BS, D - 1); i++) {
+      const INPUTUNIT *ptr { decoded };
+
+      size_t pow_val { 0 };
+      for (size_t d {0}; d < D; d++) {
+        if (d == direction) {
+          ptr -= multDims(d);
+        }
+        else {
+          ptr += multDims(d) * ((i % constpow(BS, pow_val + 1)) / constpow(BS, pow_val));
+          pow_val++;
+        }
+      }
+
       size_t dst_index = i % constpow(BS, direction) + i / constpow(BS, direction) * constpow(BS, direction + 1);
-      block[dst_index + j * constpow(BS, direction)] = decoded[i];
+      predicted[dst_index + j * constpow(BS, direction)] = *ptr;
     }
   }
 }
-
+/*
 dir = 0 2D
 i = 0 => src_idx = decoded                                                      - 1
 i = 1 => src_idx = decoded + (block_dims[0] * BS) * 1                           - 1
@@ -57,7 +79,8 @@ dir = 1 2D
 i = 0 => src_idx = decoded + 0                                                  - (block_dims[0] * BS);
 i = 1 => src_idx = decoded + 1                                                  - (block_dims[0] * BS);
 i = 2 => src_idx = decoded + 2                                                  - (block_dims[0] * BS);
-src_idx = decoded + i                                                           - (block_dims[0] * BS);
+src_idx = decoded + (i % 8) + (block_dims[0] * block_dims[1] * BS * BS) * (i / 8)
+                                                                                - (block_dims[0] * BS);
 
 
 dir = 0 3D
@@ -103,11 +126,24 @@ i = 2 => src_idx = decoded + 2                                                  
 ..
 i = 8 => src_idx = decoded + 0 + (block_dims[0] * block_dims[1] * BS * BS) * 1  - (block_dims[0] * BS);
 i = 9 => src_idx = decoded + 1 + (block_dims[0] * block_dims[1] * BS * BS) * 1  - (block_dims[0] * BS);
-src_idx = decoded + (block_dims[0] * block_dims[1] * BS * BS) * (i / 8) + (i % 8)
+...
+src_idx = decoded + (i % 8) + (block_dims[0] * block_dims[1] * BS * BS) * (i / 8)
                                                                                 - (block_dims[0] * BS);
 
+dir = 2 4D
+i =  0 => src_idx = decoded + 0                                                  - (block_dims[0] * block_dims[1] * BS * BS);
+i =  1 => src_idx = decoded + 1                                                  - (block_dims[0] * block_dims[1] * BS * BS);
+i =  2 => src_idx = decoded + 2                                                  - (block_dims[0] * block_dims[1] * BS * BS);
+...
+i =  8 => src_idx = decoded + 0 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
+i =  9 => src_idx = decoded + 1 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
+...
+i = 64 => src_idx = decoded + 0 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
+src_idx = decoded + (i % 8) + (block_dims[0] * BS) * ((i % 64) / 8) + (block_dims[0] * block_dims[1] * block_dims[2] * BS * BS * BS) * (i / 64)                    - (block_dims[0] * block_dims[1] * BS * BS);
+*/
+/*
 template<size_t BS, size_t D>
-void predictDiag(Block<INPUTUNIT, BS, D> &predicted, const std::array<Block<INPUTUNIT, BS, D - 1> *, D> &neighbours) {
+void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded) {
   for (size_t dir = 0; dir < D; dir++) {
     if (neighbours[dir]) {
       putSlice<BS, D, INPUTUNIT>(predicted, *neighbours[dir], dir, 0);
@@ -128,7 +164,7 @@ void predictDiag(Block<INPUTUNIT, BS, D> &predicted, const std::array<Block<INPU
 }
 
 template<size_t BS, size_t D>
-void predictDC(Block<INPUTUNIT, BS, D> &predicted, const Block<INPUTUNIT, BS, D - 1> &neighbour, size_t direction) {
+void predict_DC(Block<INPUTUNIT, BS, D> &predicted, const Block<INPUTUNIT, BS, D - 1> &neighbour, size_t direction) {
   INPUTUNIT avg {};
 
   assert(direction < D);
@@ -160,6 +196,6 @@ void predictHorizontal(const F &decoded, Block<INPUTUNIT, BS, 2> &predicted) {
       predicted[y * BS + x] = decoded(y * (BS + 1));
     }
   }
-}
+}*/
 
 #endif

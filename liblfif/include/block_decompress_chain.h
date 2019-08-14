@@ -259,14 +259,15 @@ void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, 
 }
 
 template <size_t BS, size_t D>
-void depredict(Block<INPUTUNIT, BS, D> &input_block, const std::array<Block<INPUTUNIT, BS, D - 1> *, D> &predict_block_ptrs, size_t prediction_type) {
-  if (!predict_block_ptrs[prediction_type]) {
-    return;
-  }
+void depredict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, int64_t &prediction_type) {
+  Block<INPUTUNIT, BS, D> predicted_block {};
 
-  Block<INPUTUNIT, BS, D> predicted_block = predict1D<BS, D>(*predict_block_ptrs[prediction_type], prediction_type);
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    input_block[i] = predicted_block[i];
+  if (prediction_type >= 0) {
+    predict_perpendicular<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()], prediction_type);
+
+    for (size_t i = 0; i < constpow(BS, D); i++) {
+      input_block[i] += predicted_block[i];
+    }
   }
 }
 
