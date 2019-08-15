@@ -266,8 +266,11 @@ void depredict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D],
     if (prediction_type < static_cast<int64_t>(D)) {
       predict_perpendicular<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()], prediction_type);
     }
-    else {
+    else if (prediction_type == static_cast<int64_t>(D)) {
       predict_DC<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()]);
+    }
+    else {
+      predict_diagonal<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()]);
     }
 
     for (size_t i = 0; i < constpow(BS, D); i++) {

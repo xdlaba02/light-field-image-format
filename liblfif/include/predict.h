@@ -106,7 +106,7 @@ void predict_DC(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], 
     predicted[i] = avg;
   }
 }
- /*
+
 template<size_t BS, size_t D>
 void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded) {
 
@@ -119,25 +119,29 @@ void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dim
   };
 
   for (size_t i = 0; i < constpow(BS, D); i++) {
-    INPUTUNIT *ptr { decoded };
+    size_t shortest {};
+    const INPUTUNIT *ptr { decoded };
 
     for (size_t d = 0; d < D; d++) {
       ptr += (i % constpow(BS, d + 1)) / constpow(BS, d) * multDims(d);
     }
 
-    bool run { true };
-    while (run) {
-      for (size_t d = 0; d < D; d++) {
-        ptr -= multDims(d);
-        if ((ptr % constpow(BS, d + 1) / constpow(BS, d)) < 0) {
-          run = false;
-        }
+    shortest = (i % constpow(BS, 1)) / constpow(BS, 0);
+    for (size_t d = 1; d < D; d++) {
+      size_t next = (i % constpow(BS, d + 1)) / constpow(BS, d);
+
+      if (next < shortest) {
+        shortest = next;
       }
+    }
+
+    for (size_t d = 0; d < D; d++) {
+      ptr -= multDims(d) * (shortest + 1);
     }
 
     predicted[i] = *ptr;
   }
-}*/
+}
 
 /*
 dir = 0 2D

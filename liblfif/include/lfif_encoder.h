@@ -390,14 +390,6 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   auto perform = [&](size_t, size_t block, size_t channel) {
     int64_t prediction_type {};
 
-                           predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
-    forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
-                          quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
-                        dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
-    inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
-                         depredict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type    );
-              encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
-
     auto inputF = [&](size_t index) -> const auto & {
       return enc.input_block[index];
     };
@@ -407,6 +399,14 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     };
 
     putBlock<BS, D>(inputF, block, aligned_dims, outputF);
+
+                           predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
+                          quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
+    //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
+    //inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
+    //                     depredict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type    ); TADY JE NEGDE CHYBA
+              encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
   };
 
   performScan(enc, input, perform);
