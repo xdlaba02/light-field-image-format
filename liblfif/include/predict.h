@@ -217,4 +217,216 @@ i = 64 => src_idx = decoded + 0 + (block_dims[0] * BS) * 1                      
 src_idx = decoded + (i % 8) + (block_dims[0] * BS) * ((i % 64) / 8) + (block_dims[0] * block_dims[1] * block_dims[2] * BS * BS * BS) * (i / 64)                    - (block_dims[0] * block_dims[1] * BS * BS);
 */
 
+#include <iostream>
+
+template <size_t BS, size_t D>
+void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D], bool filter_edges) {
+  std::array<Block<INPUTUNIT, BS + 1, D - 1>, D> refs {};
+
+  //constpow, but multiplies n dimensions instead
+  auto multDims = [&](size_t n) {
+    size_t product { 1 };
+    for (size_t i { 0 }; i < n; i++) {
+      product *= input_stride[i];
+    }
+    return product;
+  };
+
+  int64_t ptr_offset { 0 };
+
+  // move pointer to the start of reference samples instead of start of predicted block
+  for (size_t dd { 0 }; dd < D; dd++) {
+    ptr_offset -= multDims(dd);
+  }
+
+  // copy edge reference samples to buffers
+  for (size_t d { 0 }; d < D; d++) {
+    for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
+      size_t idx = i % multDims(d) + i / multDims(d) * multDims(d + 1);
+      refs[d][i] = src[idx + ptr_offset];
+    }
+  }
+
+  Block<INPUTUNIT, BS * 2 + 1, D - 1> projected_ref {};
+  size_t main_ref { 0 };
+
+  // find which neighbouring block will be main
+  for (size_t d = 0; d < D; d++) {
+    if (direction[d] > direction[main_ref]) {
+      main_ref = d;
+    }
+  }
+
+  // find offset for main neighbour to make space for projected samples
+  size_t ref_offset { 0 };
+  size_t pow_val { 0 };
+  for (size_t d { 0 }; d < D; d++) {
+    if (d != main_ref) {
+      if (direction[d] > 0) {
+        ref_offset += constpow(BS * 2 + 1, pow_val) * BS;
+        pow_val++;
+      }
+    }
+  }
+
+  // project samples to main neighbour
+  for (size_t d { 0 }; d < D; d++) {
+    if (d == main_ref) {
+      for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
+        size_t idx {};
+
+        for (size_t dd { 0 }; dd < D - 1; dd++) {
+          idx += i % constpow(BS + 1, dd + 1) / constpow(BS + 1, dd) * constpow(BS * 2 + 1, dd);
+        }
+
+        projected_ref[idx + ref_offset] = refs[d][i];
+      }
+    }
+    else if (direction[d] > 0) {/*
+      // Extend the Main reference to the left.
+      int invAngleSum = 128;       // rounding for (shift by 8)
+      for (int k = -1; k > (refMainOffsetPreScale + 1) * intraPredAngle >> 5; k--) {
+        invAngleSum += invAngle;
+        refMain[k] = refs[d][invAngleSum >> 8];*/
+    }
+    else {
+
+    }
+  }
+
+  // print projected samples for debug
+  for (size_t y = 0; y < BS * 2 + 1; y++) {
+    for (size_t x = 0; x < BS * 2 + 1; x++) {
+      std::cerr << projected_ref[y * (BS * 2 + 1) + x] << ' ';
+    }
+    std::cerr << '\n';
+  }
+  std::cerr << '\n';
+
+}
+
+#if 0
+
+void predict_angle_HEVC(int bitDepth, const Pel* pSrc, Int srcStride, Pel* pTrueDst, Int dstStrideTrue, UInt uiWidth, UInt uiHeight, const Bool bEnableEdgeFilters) {
+   Int width  = Int(uiWidth);
+   Int height = Int(uiHeight);
+
+   const Bool       bIsModeVer         = (dirMode >= 18);
+   const Int        intraPredAngleMode = (bIsModeVer) ? (Int)dirMode - VER_IDX :  -((Int)dirMode - HOR_IDX);
+   const Int        absAngMode         = abs(intraPredAngleMode);
+   const Int        signAng            = intraPredAngleMode < 0 ? -1 : 1;
+   const Bool       edgeFilter         = bEnableEdgeFilters && isLuma(channelType) && (width <= MAXIMUM_INTRA_FILTERED_WIDTH) && (height <= MAXIMUM_INTRA_FILTERED_HEIGHT);
+
+   // Set bitshifts and scale the angle parameter to block size
+   static const Int angTable[9]    = {0,    2,    5,   9,  13,  17,  21,  26,  32};
+   static const Int invAngTable[9] = {0, 4096, 1638, 910, 630, 482, 390, 315, 256}; // (256 * 32) / Angle
+   Int invAngle                    = invAngTable[absAngMode];
+   Int absAng                      = angTable[absAngMode];
+   Int intraPredAngle              = signAng * absAng;
+
+   Pel* refMain;
+   Pel* refSide;
+
+   Pel  refAbove[2 * MAX_CU_SIZE + 1];
+   Pel   refLeft[2 * MAX_CU_SIZE + 1];
+
+   // Initialize the Main and Left reference array.
+   if (intraPredAngle < 0) {
+     const Int refMainOffsetPreScale = (bIsModeVer ? height : width ) - 1;
+     const Int refMainOffset         = height - 1;
+
+     for (Int x = 0; x < width + 1; x++) {
+       refAbove[x + refMainOffset] = pSrc[x - srcStride - 1];
+     }
+
+     for (Int y = 0; y < height + 1; y++) {
+       refLeft[y + refMainOffset] = pSrc[(y - 1) * srcStride - 1];
+     }
+
+     refMain = (bIsModeVer ? refAbove : refLeft)  + refMainOffset;
+     refSide = (bIsModeVer ? refLeft  : refAbove) + refMainOffset;
+
+     // Extend the Main reference to the left.
+     Int invAngleSum = 128;       // rounding for (shift by 8)
+     for (Int k = -1; k > (refMainOffsetPreScale + 1) * intraPredAngle >> 5; k--) {
+       invAngleSum += invAngle;
+       refMain[k] = refSide[invAngleSum >> 8];
+     }
+   }
+   else {
+     for (Int x = 0; x < 2 * width + 1; x++) {
+       refAbove[x] = pSrc[x - srcStride - 1];
+     }
+
+     for (Int y = 0; y < 2 * height + 1; y++) {
+       refLeft[y] = pSrc[(y - 1) * srcStride - 1];
+     }
+
+     refMain = bIsModeVer ? refAbove : refLeft ;
+     refSide = bIsModeVer ? refLeft  : refAbove;
+   }
+
+   // swap width/height if we are doing a horizontal mode:
+   Pel tempArray[MAX_CU_SIZE * MAX_CU_SIZE];
+   const Int dstStride = bIsModeVer ? dstStrideTrue : MAX_CU_SIZE;
+   Pel *pDst = bIsModeVer ? pTrueDst : tempArray;
+   if (!bIsModeVer) {
+     std::swap(width, height);
+   }
+
+   // pure vertical or pure horizontal
+   if (intraPredAngle == 0) {
+     for (Int y = 0; y < height; y++) {
+       for (Int x = 0; x < width; x++) {
+         pDst[y * dstStride + x] = refMain[x + 1];
+       }
+     }
+
+     if (edgeFilter) {
+       for (Int y = 0; y < height; y++) {
+         pDst[y * dstStride] = Clip3(0, ((1 << bitDepth) - 1), pDst[y * dstStride] + ((refSide[y + 1] - refSide[0]) >> 1));
+       }
+     }
+   }
+   else {
+     Pel *pDsty = pDst;
+
+     for (Int y = 0, deltaPos = intraPredAngle; y < height; y++, deltaPos += intraPredAngle, pDsty += dstStride) {
+       const Int deltaInt   = deltaPos >> 5;
+       const Int deltaFract = deltaPos & (32 - 1);
+
+       if (deltaFract) {
+         // Do linear filtering
+         const Pel *pRM = refMain + deltaInt + 1;
+         Int lastRefMainPel =* pRM++;
+         for (Int x = 0; x < width; pRM++, x++) {
+           Int thisRefMainPel =* pRM;
+           pDsty[x + 0] = (Pel)(((32 - deltaFract) * lastRefMainPel + deltaFract * thisRefMainPel + 16) >> 5);
+           lastRefMainPel = thisRefMainPel;
+         }
+       }
+       else {
+         // Just copy the integer samples
+         for (Int x = 0; x < width; x++) {
+           pDsty[x] = refMain[x + deltaInt + 1];
+         }
+       }
+     }
+   }
+
+   // Flip the block if this is the horizontal mode
+   if (!bIsModeVer) {
+     for (Int y = 0; y < height; y++) {
+       for (Int x = 0; x < width; x++) {
+         pTrueDst[x * dstStrideTrue] = pDst[x];
+       }
+
+       pTrueDst++;
+       pDst += dstStride;
+     }
+   }
+ }
+
+#endif
+
 #endif
