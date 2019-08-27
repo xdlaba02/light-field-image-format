@@ -218,35 +218,54 @@ src_idx = decoded + (i % 8) + (block_dims[0] * BS) * ((i % 64) / 8) + (block_dim
 */
 
 #include <iostream>
+#include <iomanip>
 
 template <size_t BS, size_t D>
-void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D], bool filter_edges) {
-  std::array<Block<INPUTUNIT, BS + 1, D - 1>, D> refs {};
-
-  //constpow, but multiplies n dimensions instead
-  auto multDims = [&](size_t n) {
-    size_t product { 1 };
-    for (size_t i { 0 }; i < n; i++) {
-      product *= input_stride[i];
-    }
-    return product;
-  };
-
+void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1], bool filter_edges) {
+  std::array<Block<INPUTUNIT, (BS * 2) + 1, D - 1>, D> refs {};
   int64_t ptr_offset { 0 };
 
   // move pointer to the start of reference samples instead of start of predicted block
   for (size_t dd { 0 }; dd < D; dd++) {
-    ptr_offset -= multDims(dd);
+    ptr_offset -= input_stride[dd];
   }
 
   // copy edge reference samples to buffers
   for (size_t d { 0 }; d < D; d++) {
-    for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
-      size_t idx = i % multDims(d) + i / multDims(d) * multDims(d + 1);
-      refs[d][i] = src[idx + ptr_offset];
+    if (direction[d] <= 0) {
+      for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
+        size_t src_idx {};
+        size_t dst_idx {};
+
+        for (size_t dd = 0; dd < D; dd++) {
+          src_idx += (i % constpow(BS + 1, dd + 1)) / constpow(BS + 1, dd) * input_stride[dd];
+        }
+
+        src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
+
+        for (size_t dd { 0 }; dd < D - 1; dd++) {
+          dst_idx += i % constpow(BS + 1, dd + 1) / constpow(BS + 1, dd) * constpow((BS * 2) + 1, dd);
+        }
+
+        refs[d][dst_idx] = src[src_idx + ptr_offset];
+      }
+    }
+    else {
+      for (size_t i { 0 }; i < constpow((BS * 2) + 1, D - 1); i++) {
+        size_t src_idx {};
+
+        for (size_t dd = 0; dd < D; dd++) {
+          src_idx += (i % constpow((BS * 2) + 1, dd + 1)) / constpow((BS * 2) + 1, dd) * input_stride[dd];
+        }
+
+        src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
+
+        refs[d][i] = src[src_idx + ptr_offset];
+      }
     }
   }
 
+  /*
   Block<INPUTUNIT, BS * 2 + 1, D - 1> projected_ref {};
   size_t main_ref { 0 };
 
@@ -282,27 +301,29 @@ void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], c
         projected_ref[idx + ref_offset] = refs[d][i];
       }
     }
-    else if (direction[d] > 0) {/*
+    else if (direction[d] > 0) {
       // Extend the Main reference to the left.
       int invAngleSum = 128;       // rounding for (shift by 8)
       for (int k = -1; k > (refMainOffsetPreScale + 1) * intraPredAngle >> 5; k--) {
         invAngleSum += invAngle;
-        refMain[k] = refs[d][invAngleSum >> 8];*/
+        refMain[k] = refs[d][invAngleSum >> 8];
     }
     else {
 
     }
   }
+  */
 
   // print projected samples for debug
-  for (size_t y = 0; y < BS * 2 + 1; y++) {
-    for (size_t x = 0; x < BS * 2 + 1; x++) {
-      std::cerr << projected_ref[y * (BS * 2 + 1) + x] << ' ';
+  for (size_t i { 0 }; i < D; i++) {
+    for (size_t y = 0; y < BS * 2 + 1; y++) {
+      for (size_t x = 0; x < BS * 2 + 1; x++) {
+        std::cerr << std::setw(5) << refs[i][y * (BS * 2 + 1) + x] << ' ';
+      }
+      std::cerr << '\n';
     }
     std::cerr << '\n';
   }
-  std::cerr << '\n';
-
 }
 
 #if 0

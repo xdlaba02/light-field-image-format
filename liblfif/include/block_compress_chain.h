@@ -585,28 +585,28 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
   Block<INPUTUNIT, BS, D> predicted_block {};
   INPUTUNIT sae[D + 2] {};
   const INPUTUNIT *ptr {};
+  size_t block_stride[D + 1] {};
+  size_t image_stride[D + 1] {};
 
   size_t num_neighbours { 0 };
 
   prediction_type = -1;
 
 
-  auto multDims = [&](size_t n) {
-    size_t product { 1 };
-    for (size_t i { 0 }; i < n; i++) {
-      product *= block_dims[i];
-    }
-    return product;
-  };
-
+  block_stride[0] = 1;
+  input_stride[0] = 1;
+  for (size_t d { 0 }; d < D; d++) {
+    block_stride[d + 1] = block_stride[d] * block_dims[d];
+    image_stride[d + 1] = image_stride[d] * block_dims[d] * BS;
+  }
 
   ptr = decoded.data();
   for (size_t d = 0; d < D; d++) {
-    ptr += (offset % multDims(d + 1)) / multDims(d) * constpow(BS, d + 1) * multDims(d);
+    ptr += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
   }
 
   for (size_t d = 0; d < D; d++) {
-    if ((offset % multDims(d + 1)) / multDims(d)) {
+    if ((offset % block_stride[d + 1]) / block_stride[d]) {
       num_neighbours++;
 
       predict_perpendicular<BS, D>(predicted_block, block_dims, ptr, d);
