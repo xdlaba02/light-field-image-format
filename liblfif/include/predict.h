@@ -220,13 +220,27 @@ src_idx = decoded + (i % 8) + (block_dims[0] * BS) * ((i % 64) / 8) + (block_dim
 #include <iostream>
 #include <iomanip>
 
+template <typename T>
+T gcd(T a, T b) {
+  if (a == 0) {
+    return b;
+  }
+
+  return gcd(b % a, a);
+}
+
+template <typename T>
+T lcm(T a, T b) {
+    return (a*b) / gcd(a, b);
+}
+
 template <size_t BS, size_t D>
 void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1], bool filter_edges) {
   std::array<Block<INPUTUNIT, BS + 1, D - 1>, D> refs          {};
-  Block<INPUTUNIT, BS * 2 + 1, D - 1>            projected_ref {};
+             Block<INPUTUNIT, BS * 2 + 1, D - 1> projected_ref {};
   int64_t ptr_offset { 0 };
+  int64_t ref_offset  { 0 };
   size_t main_ref    { 0 };
-  size_t ref_offset  { 0 };
   size_t pow_val     { 0 };
 
   // move pointer to the start of reference samples instead of start of predicted block
@@ -256,17 +270,75 @@ void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], c
     }
   }
 
+  int64_t dir_offset {};
+
+  size_t pow {};
+  for (size_t d { 0 }; d < D; d++) {
+    if (d != main_ref) {
+      dir_offset += direction[d] * constpow(BS * 2 + 1, pow);
+      pow++;
+    }
+  }
+
+  int64_t LCM { 1 };
+
+  for (size_t d { 0 }; d < D; d++) {
+    if (d != main_ref) {
+      LCM = lcm<int64_t>(LCM, direction[d]);
+    }
+  }
+
+  std::array<size_t, D - 1> ref_offsets {};
+
   // find offset for main neighbour to make space for projected samples
+  size_t idx {};
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref) {
       if (direction[d] > 0) {
-        ref_offset += constpow(BS * 2 + 1, pow_val) * BS;
-        pow_val++;
+        ref_offsets[idx] = BS;
+        ref_offset += constpow(BS * 2 + 1, idx) * BS;
+        idx++;
       }
     }
   }
 
-  // project samples to main neighbour
+  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+    std::array<int64_t, D> indices {};
+
+    size_t pow {};
+    for (size_t d = 0; d < D; d++) {
+      if (d != main_ref) {
+        indices[d] = (i % constpow(BS * 2 + 1, pow + 1)) / constpow(BS * 2 + 1, pow) - ref_offsets[pow];
+        indices[d] *= LCM;
+        pow++;
+      }
+    }
+
+    int64_t exit = -1;
+    while (true) {
+      for (size_t d = 0; d < D; d++) {
+        if (d != main_ref) {
+          if (indices[d] >= 0) {
+            exit = d;
+            break;
+          }
+        }
+      }
+
+      if (exit != -1) {
+        break;
+      }
+
+      for (size_t d { 0 }; d < D; d++) {
+        indices[d] += direction[d];
+      }
+    }
+
+    projected_ref[i] = exit;
+  }
+
+
+  // project samples to main neighbour // zlomky smer / spolecny nasobek => vynasobit souradnice spolecnym nasobkem, odecist ke nule a zjistit hloubku, tu pak vydelit spolecnym nasobkem a zaokrouhlit
   for (size_t d { 0 }; d < D; d++) {
     if (d == main_ref) {
       for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
@@ -279,18 +351,6 @@ void predict_angle(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], c
         projected_ref[idx + ref_offset] = refs[d][i];
       }
     }
-    /* HELLP MEEE
-    else if (direction[d] > 0) {
-      // Extend the Main reference to the left.
-      int invAngleSum = 128;       // rounding for (shift by 8)
-      for (int k = -1; k > (refMainOffsetPreScale + 1) * intraPredAngle >> 5; k--) {
-        invAngleSum += invAngle;
-        refMain[k] = refs[d][invAngleSum >> 8];
-    }
-    else {
-
-    }
-    */
   }
 
   // print projected samples for debug
