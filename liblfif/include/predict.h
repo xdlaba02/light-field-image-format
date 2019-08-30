@@ -236,11 +236,15 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     }
   }
 
+  if (direction[main_ref] <= 0) {
+    return;
+  }
+
   // find offset for main neighbour to make space for projected samples
   size_t idx {};
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref) {
-      if (direction[d] > 0) {
+      if (direction[d] >= 0) {
         ref_offset     += constpow(BS * 2 + 1, idx) * BS;
         project_offset += constpow(BS * 4 + 2, idx) * BS;
         idx++;
@@ -257,10 +261,8 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   size_t rotate_dir {};
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref) {
-      std::cerr << "d: " << d << '\n';
       if (direction[d] > 0) {
         for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
-          std::cerr << "i: " << i << '\n';
           int64_t src_idx {};
           int64_t dst_idx {};
 
@@ -271,9 +273,6 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
           }
 
           src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
-
-          std::cerr << "projecting sample " << src[src_idx + ptr_offset] << '\n';
-
 
           //scale index from (BS * 2 + 1) ^ D to (BS * 4 + 2) ^ D while retaining position
           for (size_t dd = 0; dd < D; dd++) {
@@ -288,25 +287,20 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
           bool overflow {};
           for (size_t dd { 0 }; dd < D; dd++) {
             dst_pos[dd] = dst_idx % constpow(BS * 4 + 2, dd + 1) / constpow(BS * 4 + 2, dd) * direction[main_ref];
-            std::cerr << dst_pos[dd] << ' ';
 
             if (dst_pos[dd] >= BS * 2 + 1) {
               overflow = true;
             }
           }
-          std::cerr << '\n';
 
           if (overflow) {
-            std::cerr << "overflow\n";
             continue;
           }
 
           while (dst_pos[main_ref] > 0) {
             for (size_t dd { 0 }; dd < D; dd++) {
               dst_pos[dd] -= direction[dd];
-              std::cerr << dst_pos[dd] << ' ';
             }
-            std::cerr << '\n';
           }
 
           for (size_t dd { 0 }; dd < D; dd++) {
@@ -319,17 +313,14 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
           }
 
           if (overflow) {
-            std::cerr << "overflow\n";
             continue;
           }
 
           dst_idx = 0;
           for (size_t dd { 0 }; dd < D; dd++) {
             dst_idx += dst_pos[dd] / direction[main_ref] * constpow(BS * 2 + 1, dd);
-            std::cerr << "dst_idx += " << dst_pos[dd] << " / " << static_cast<double>(direction[main_ref]) << " * " << constpow(BS * 2 + 1, dd) << '\n';
           }
 
-          std::cerr << "ref[" << dst_idx << "] = src[" << src_idx + ptr_offset << "] = " << src[src_idx + ptr_offset] << '\n';
           ref[dst_idx] = src[src_idx + ptr_offset];
           }
       }
@@ -338,10 +329,8 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     }
   }
 
-  std::cerr << '\n';
-
+  // copy main samples to main reference
   for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
-    std::cerr << "i: " << i << '\n';
     int64_t src_idx {};
     size_t dst_idx {};
 
@@ -355,20 +344,16 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
 
     bool overflow {};
     for (size_t dd = 0; dd < D; dd++) {
-      std::cerr << ((dst_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) << " < " << ((ref_offset % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) << '\n';
       if (((dst_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) < ((ref_offset % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd))) {
         overflow = true;
       }
     }
 
     if (overflow) {
-      std::cerr << "overflow\n";
       continue;
     }
 
     ref[dst_idx] = src[src_idx + ptr_offset];
-
-    std::cerr << "ref[" << dst_idx + ref_offset << "] = src[" << src_idx + ptr_offset << "] = " << src[src_idx + ptr_offset] << '\n';
   }
 
   // print projected samples for debug
