@@ -220,27 +220,13 @@ src_idx = decoded + (i % 8) + (block_dims[0] * BS) * ((i % 64) / 8) + (block_dim
 #include <iostream>
 #include <iomanip>
 
-template <typename T>
-T GCD(T a, T b) {
-  if (a == 0) {
-    return b;
-  }
-
-  return GCD(b % a, a);
-}
-
-template <typename T>
-T LCM(T a, T b) {
-    return (a * b) / GCD(a, b);
-}
-
 template <size_t BS, size_t D>
 void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1], bool filter_edges) {
   Block<INPUTUNIT, BS * 2 + 1, D - 1> ref {};
 
   int64_t ptr_offset { 0 };
   int64_t ref_offset { 0 };
-  int64_t dir_offset { 0 };
+  int64_t project_offset { 0 };
   size_t  main_ref   { 0 };
 
   // find which neighbouring block will be main
@@ -255,7 +241,8 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref) {
       if (direction[d] > 0) {
-        ref_offset += constpow(BS * 2 + 1, idx) * BS;
+        ref_offset     += constpow(BS * 2 + 1, idx) * BS;
+        project_offset += constpow(BS * 4 + 2, idx) * BS;
         idx++;
       }
     }
@@ -264,70 +251,87 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   // move pointer to the start of reference samples instead of start of predicted block
   for (size_t d { 0 }; d < D; d++) {
     ptr_offset -= input_stride[d];
-    dir_offset += direction[d] * constpow(BS * 2 + 1, d);
   }
-
-  std::cerr << "dir_offset = " << dir_offset << '\n';
 
   // copy neighbour samples to main reference
   size_t rotate_dir {};
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref) {
       std::cerr << "d: " << d << '\n';
-      for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
-        std::cerr << "i: " << i << '\n';
-        int64_t src_idx {};
-
-        for (size_t dd = 0; dd < D; dd++) {
-          src_idx += (i % constpow(BS + 1, dd + 1)) / constpow(BS + 1, dd) * input_stride[dd];
-        }
-
-        src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
-
-        std::cerr << "sample " << src[src_idx + ptr_offset] << '\n';
-
-        if (direction[d] > 0) {
-          std::cerr << "projecting sample\n";
+      if (direction[d] > 0) {
+        for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+          std::cerr << "i: " << i << '\n';
+          int64_t src_idx {};
           int64_t dst_idx {};
 
-          //scale index from (BS + 1) ^ D to (BS * 2 + 1) ^ D while retaining position
+          std::array<int64_t, D> dst_pos {};
+
           for (size_t dd = 0; dd < D; dd++) {
-            dst_idx += (i % constpow(BS + 1, dd + 1)) / constpow(BS + 1, dd) * constpow(BS * 2 + 1, dd);
+            src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
+          }
+
+          src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
+
+          std::cerr << "projecting sample " << src[src_idx + ptr_offset] << '\n';
+
+
+          //scale index from (BS * 2 + 1) ^ D to (BS * 4 + 2) ^ D while retaining position
+          for (size_t dd = 0; dd < D; dd++) {
+            dst_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * constpow(BS * 4 + 2, dd);
           }
 
           //rotate index to direction rotate_dir
-          dst_idx = dst_idx % constpow(BS * 2 + 1, rotate_dir) + dst_idx / constpow(BS * 2 + 1, rotate_dir) * constpow(BS * 2 + 1, rotate_dir + 1);
+          dst_idx = dst_idx % constpow(BS * 4 + 2, rotate_dir) + dst_idx / constpow(BS * 4 + 2, rotate_dir) * constpow(BS * 4 + 2, rotate_dir + 1);
 
-          dst_idx += ref_offset;
+          dst_idx += project_offset;
 
-          std::array<int64_t, D> dst_position {};
-
+          bool overflow {};
           for (size_t dd { 0 }; dd < D; dd++) {
-            dst_position[dd] = dst_idx % constpow(BS * 2 + 1, dd + 1) / constpow(BS * 2 + 1, dd) * direction[main_ref];
-            std::cerr << dst_position[dd] << ' ';
+            dst_pos[dd] = dst_idx % constpow(BS * 4 + 2, dd + 1) / constpow(BS * 4 + 2, dd) * direction[main_ref];
+            std::cerr << dst_pos[dd] << ' ';
+
+            if (dst_pos[dd] >= BS * 2 + 1) {
+              overflow = true;
+            }
           }
           std::cerr << '\n';
 
-          while (dst_position[main_ref] > 0) {
+          if (overflow) {
+            std::cerr << "overflow\n";
+            continue;
+          }
 
+          while (dst_pos[main_ref] > 0) {
             for (size_t dd { 0 }; dd < D; dd++) {
-              dst_position[dd] -= direction[dd];
-              std::cerr << dst_position[dd] << ' ';
+              dst_pos[dd] -= direction[dd];
+              std::cerr << dst_pos[dd] << ' ';
             }
             std::cerr << '\n';
+          }
 
-            // kontrolovat, jestli nepreteklo v zadnem smeru
+          for (size_t dd { 0 }; dd < D; dd++) {
+            if (dst_pos[dd] < 0) {
+              overflow = true;
+            }
+            else if (dst_pos[dd] >= BS * 2 + 1) {
+              overflow = true;
+            }
+          }
+
+          if (overflow) {
+            std::cerr << "overflow\n";
+            continue;
           }
 
           dst_idx = 0;
           for (size_t dd { 0 }; dd < D; dd++) {
-            dst_idx += dst_position[dd] / direction[main_ref] * constpow(BS * 2 + 1, dd);
-            std::cerr << "dst_idx += " << dst_position[dd] << " / " << static_cast<double>(direction[main_ref]) << " * " << constpow(BS * 2 + 1, dd) << '\n';
+            dst_idx += dst_pos[dd] / direction[main_ref] * constpow(BS * 2 + 1, dd);
+            std::cerr << "dst_idx += " << dst_pos[dd] << " / " << static_cast<double>(direction[main_ref]) << " * " << constpow(BS * 2 + 1, dd) << '\n';
           }
 
           std::cerr << "ref[" << dst_idx << "] = src[" << src_idx + ptr_offset << "] = " << src[src_idx + ptr_offset] << '\n';
           ref[dst_idx] = src[src_idx + ptr_offset];
-        }
+          }
       }
 
       rotate_dir++;
@@ -336,88 +340,44 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
 
   std::cerr << '\n';
 
-  for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
+  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
     std::cerr << "i: " << i << '\n';
     int64_t src_idx {};
     size_t dst_idx {};
 
     for (size_t dd = 0; dd < D; dd++) {
-      src_idx += (i % constpow(BS + 1, dd + 1)) / constpow(BS + 1, dd) * input_stride[dd];
+      src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
     }
 
     src_idx = src_idx % input_stride[main_ref] + src_idx / input_stride[main_ref] * input_stride[main_ref + 1];
 
+    dst_idx = i + ref_offset;
 
-    for (size_t dd { 0 }; dd < D - 1; dd++) {
-      dst_idx += i % constpow(BS + 1, dd + 1) / constpow(BS + 1, dd) * constpow(BS * 2 + 1, dd);
+    bool overflow {};
+    for (size_t dd = 0; dd < D; dd++) {
+      std::cerr << ((dst_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) << " < " << ((ref_offset % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) << '\n';
+      if (((dst_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) < ((ref_offset % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd))) {
+        overflow = true;
+      }
     }
 
-    ref[dst_idx + ref_offset] = src[src_idx + ptr_offset];
+    if (overflow) {
+      std::cerr << "overflow\n";
+      continue;
+    }
+
+    ref[dst_idx] = src[src_idx + ptr_offset];
 
     std::cerr << "ref[" << dst_idx + ref_offset << "] = src[" << src_idx + ptr_offset << "] = " << src[src_idx + ptr_offset] << '\n';
   }
 
-  /*
-  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
-    std::array<int64_t, D> indices {};
-
-    size_t pow {};
-    for (size_t d = 0; d < D; d++) {
-      if (d != main_ref) {
-        indices[d] = (i % constpow(BS * 2 + 1, pow + 1)) / constpow(BS * 2 + 1, pow) - ref_offsets[pow];
-        indices[d] *= LCM;
-        pow++;
-      }
-    }
-
-    int64_t exit = -1;
-    while (true) {
-      for (size_t d = 0; d < D; d++) {
-        if (d != main_ref) {
-          if (indices[d] >= 0) {
-            exit = d;
-            break;
-          }
-        }
-      }
-
-      if (exit != -1) {
-        break;
-      }
-
-      for (size_t d { 0 }; d < D; d++) {
-        indices[d] += direction[d];
-      }
-    }
-
-    projected_ref[i] = exit;
-  }
-  */
-
-  /*
-  // project samples to main neighbour // zlomky smer / spolecny nasobek => vynasobit souradnice spolecnym nasobkem, odecist ke nule a zjistit hloubku, tu pak vydelit spolecnym nasobkem a zaokrouhlit
-  for (size_t d { 0 }; d < D; d++) {
-    if (d == main_ref) {
-      for (size_t i { 0 }; i < constpow(BS + 1, D - 1); i++) {
-        size_t idx {};
-
-        for (size_t dd { 0 }; dd < D - 1; dd++) {
-          idx += i % constpow(BS + 1, dd + 1) / constpow(BS + 1, dd) * constpow(BS * 2 + 1, dd);
-        }
-
-        projected_ref[idx + ref_offset] = refs[d][i];
-      }
-    }
-  }
-  */
-
   // print projected samples for debug
-    for (size_t y = 0; y < BS * 2 + 1; y++) {
-      for (size_t x = 0; x < BS * 2 + 1; x++) {
-        std::cerr << std::setw(5) << ref[y * (BS * 2 + 1) + x] << ' ';
-      }
-      std::cerr << '\n';
+  for (size_t y = 0; y < BS * 2 + 1; y++) {
+    for (size_t x = 0; x < BS * 2 + 1; x++) {
+      std::cerr << std::setw(5) << ref[y * (BS * 2 + 1) + x] << ' ';
     }
+    std::cerr << '\n';
+  }
 }
 
 #if 0

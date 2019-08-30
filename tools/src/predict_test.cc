@@ -38,7 +38,7 @@ int main(void) {
     strides[d + 1] = strides[d] * (2 * BS + 2);
   }
 
-  int8_t direction[3] {1, 1, 2};
+  int8_t direction[3] {1, 0, 1};
 
   predict_direction<BS, D>(predicted_block, direction, &test_block[constpow(2 * BS + 2, 2) + constpow(2 * BS + 2, 1) + constpow(2 * BS + 2, 0)], strides.data(), false);
 }
