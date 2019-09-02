@@ -298,6 +298,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     size_t pow {};
     for (size_t d { 0 }; d < D; d++) {
       if (d != main_ref) {
+        // hodnoty by se mohly interpolovat?
         dst_idx += pos[d] / direction[main_ref] * constpow(BS * 2 + 1, pow);
         pow++;
       }

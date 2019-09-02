@@ -388,7 +388,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   cabac.init(bitstream);
 
   auto perform = [&](size_t, size_t block, size_t channel) {
-    int64_t prediction_type {};
+    uint64_t prediction_type {};
 
     auto inputF = [&](size_t index) -> const auto & {
       return enc.input_block[index];
