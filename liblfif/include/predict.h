@@ -143,85 +143,8 @@ void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dim
   }
 }
 
-/*
-dir = 0 2D
-i = 0 => src_idx = decoded                                                      - 1
-i = 1 => src_idx = decoded + (block_dims[0] * BS) * 1                           - 1
-i = 2 => src_idx = decoded + (block_dims[0] * BS) * 2                           - 1
-src_idx = decoded + (block_dims[0] * BS) * i                                    - 1;
-
-dir = 1 2D
-i = 0 => src_idx = decoded + 0                                                  - (block_dims[0] * BS);
-i = 1 => src_idx = decoded + 1                                                  - (block_dims[0] * BS);
-i = 2 => src_idx = decoded + 2                                                  - (block_dims[0] * BS);
-src_idx = decoded + (i % 8) + (block_dims[0] * block_dims[1] * BS * BS) * (i / 8)
-                                                                                - (block_dims[0] * BS);
-
-
-dir = 0 3D
-i = 0 => src_idx = decoded                                                      - 1
-i = 1 => src_idx = decoded + (block_dims[0] * BS) * 1                           - 1;
-i = 2 => src_idx = decoded + (block_dims[0] * BS) * 2                           - 1;
-...
-i = 8 => src_idx = decoded + (block_dims[0] * BS) * 8                           - 1;
-src_idx = decoded + (block_dims[0] * BS) * i                                    - 1;
-
-dir = 1 3D
-i = 0 => src_idx = decoded + 0                                                  - (block_dims[0] * BS);
-i = 1 => src_idx = decoded + 1                                                  - (block_dims[0] * BS);
-i = 2 => src_idx = decoded + 2                                                  - (block_dims[0] * BS);
-..
-i = 8 => src_idx = decoded + 0 + (block_dims[0] * block_dims[1] * BS * BS) * 1  - (block_dims[0] * BS);
-i = 9 => src_idx = decoded + 1 + (block_dims[0] * block_dims[1] * BS * BS) * 1  - (block_dims[0] * BS);
-src_idx = decoded + (i % 8) + (block_dims[0] * block_dims[1] * BS * BS) * (i / 8)
-                                                                                - (block_dims[0] * BS);
-dir = 2 3D
-i = 0 => src_idx = decoded + 0                                                  - (block_dims[0] * block_dims[1] * BS * BS);
-i = 1 => src_idx = decoded + 1                                                  - (block_dims[0] * block_dims[1] * BS * BS);
-i = 2 => src_idx = decoded + 2                                                  - (block_dims[0] * block_dims[1] * BS * BS);
-...
-i = 8 => src_idx = decoded + 0 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
-i = 9 => src_idx = decoded + 1 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
-src_idx = decoded + (i % 8) + (block_dims[0] * BS) * (i / 8)                    - (block_dims[0] * block_dims[1] * BS * BS);
-
-dir = 0 4D
-i = 0  => src_idx = decoded                                                     - 1;
-i = 1  => src_idx = decoded + (block_dims[0] * BS) * 1                          - 1;
-i = 2  => src_idx = decoded + (block_dims[0] * BS) * 2                          - 1;
-...
-i = 8  => src_idx = decoded + (block_dims[0] * BS) * 8                          - 1;
-...
-i = 64 => src_idx = decoded + (block_dims[0] * BS) * 64                         - 1;
-src_idx = decoded + (block_dims[0] * BS) * i                                    - 1;
-
-dir = 1 4D
-i = 0 => src_idx = decoded + 0                                                  - (block_dims[0] * BS);
-i = 1 => src_idx = decoded + 1                                                  - (block_dims[0] * BS);
-i = 2 => src_idx = decoded + 2                                                  - (block_dims[0] * BS);
-..
-i = 8 => src_idx = decoded + 0 + (block_dims[0] * block_dims[1] * BS * BS) * 1  - (block_dims[0] * BS);
-i = 9 => src_idx = decoded + 1 + (block_dims[0] * block_dims[1] * BS * BS) * 1  - (block_dims[0] * BS);
-...
-src_idx = decoded + (i % 8) + (block_dims[0] * block_dims[1] * BS * BS) * (i / 8)
-                                                                                - (block_dims[0] * BS);
-
-dir = 2 4D
-i =  0 => src_idx = decoded + 0                                                  - (block_dims[0] * block_dims[1] * BS * BS);
-i =  1 => src_idx = decoded + 1                                                  - (block_dims[0] * block_dims[1] * BS * BS);
-i =  2 => src_idx = decoded + 2                                                  - (block_dims[0] * block_dims[1] * BS * BS);
-...
-i =  8 => src_idx = decoded + 0 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
-i =  9 => src_idx = decoded + 1 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
-...
-i = 64 => src_idx = decoded + 0 + (block_dims[0] * BS) * 1                       - (block_dims[0] * block_dims[1] * BS * BS);
-src_idx = decoded + (i % 8) + (block_dims[0] * BS) * ((i % 64) / 8) + (block_dims[0] * block_dims[1] * block_dims[2] * BS * BS * BS) * (i / 64)                    - (block_dims[0] * block_dims[1] * BS * BS);
-*/
-
-#include <iostream>
-#include <iomanip>
-
 template <size_t BS, size_t D>
-void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1], bool filter_edges) {
+void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
   Block<INPUTUNIT, BS * 2 + 1, D - 1> ref {};
 
   int64_t ptr_offset { 0 };
@@ -246,7 +169,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     if (d != main_ref) {
       if (direction[d] >= 0) {
         ref_offset     += constpow(BS * 2 + 1, idx) * BS;
-        project_offset += constpow(BS * 4 + 2, idx) * BS;
+        project_offset += constpow(BS * 4 + 2, d) * BS;
         idx++;
       }
     }
@@ -257,8 +180,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     ptr_offset -= input_stride[d];
   }
 
-  // copy neighbour samples to main reference
-  size_t rotate_dir {};
+  // project neighbour samples to main reference
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref) {
       if (direction[d] > 0) {
@@ -279,8 +201,8 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
             dst_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * constpow(BS * 4 + 2, dd);
           }
 
-          //rotate index to direction rotate_dir
-          dst_idx = dst_idx % constpow(BS * 4 + 2, rotate_dir) + dst_idx / constpow(BS * 4 + 2, rotate_dir) * constpow(BS * 4 + 2, rotate_dir + 1);
+          //rotate index to direction d
+          dst_idx = dst_idx % constpow(BS * 4 + 2, d) + dst_idx / constpow(BS * 4 + 2, d) * constpow(BS * 4 + 2, d + 1);
 
           dst_idx += project_offset;
 
@@ -288,7 +210,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
           for (size_t dd { 0 }; dd < D; dd++) {
             dst_pos[dd] = dst_idx % constpow(BS * 4 + 2, dd + 1) / constpow(BS * 4 + 2, dd) * direction[main_ref];
 
-            if (dst_pos[dd] >= BS * 2 + 1) {
+            if (dst_pos[dd] >= static_cast<int64_t>((BS * 2 + 1) * direction[main_ref])) {
               overflow = true;
             }
           }
@@ -307,7 +229,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
             if (dst_pos[dd] < 0) {
               overflow = true;
             }
-            else if (dst_pos[dd] >= BS * 2 + 1) {
+            else if (dst_pos[dd] >= static_cast<int64_t>((BS * 2 + 1) * direction[main_ref])) {
               overflow = true;
             }
           }
@@ -317,15 +239,17 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
           }
 
           dst_idx = 0;
+          size_t pow {};
           for (size_t dd { 0 }; dd < D; dd++) {
-            dst_idx += dst_pos[dd] / direction[main_ref] * constpow(BS * 2 + 1, dd);
+            if (dd != main_ref) {
+              dst_idx += dst_pos[dd] / direction[main_ref] * constpow(BS * 2 + 1, pow);
+              pow++;
+            }
           }
-
+          // Tady by se taky mozna hodilo kontrolovat, jestli tam uz neni nejaka hodnota s mensi chybou
           ref[dst_idx] = src[src_idx + ptr_offset];
-          }
+        }
       }
-
-      rotate_dir++;
     }
   }
 
@@ -356,12 +280,29 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     ref[dst_idx] = src[src_idx + ptr_offset];
   }
 
-  // print projected samples for debug
-  for (size_t y = 0; y < BS * 2 + 1; y++) {
-    for (size_t x = 0; x < BS * 2 + 1; x++) {
-      std::cerr << std::setw(5) << ref[y * (BS * 2 + 1) + x] << ' ';
+  for (size_t i { 0 }; i < constpow(BS, D); i++) {
+    std::array<int64_t, D> pos {};
+
+    for (size_t d { 0 }; d < D; d++) {
+      pos[d] = ((i % constpow(BS, d + 1) / constpow(BS, d)) + 1) * direction[main_ref];
     }
-    std::cerr << '\n';
+
+    while (pos[main_ref] > 0) {
+      for (size_t d { 0 }; d < D; d++) {
+        pos[d] -= direction[d];
+      }
+    }
+
+
+    int64_t dst_idx {};
+    size_t pow {};
+    for (size_t d { 0 }; d < D; d++) {
+      if (d != main_ref) {
+        dst_idx += pos[d] / direction[main_ref] * constpow(BS * 2 + 1, pow);
+        pow++;
+      }
+    }
+    output[i] = ref[dst_idx + ref_offset];
   }
 }
 
