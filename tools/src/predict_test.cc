@@ -10,7 +10,7 @@
 
 using namespace std;
 
-const size_t BS = 8;
+const size_t BS = 4;
 const size_t D = 3;
 
 int main(void) {
@@ -19,7 +19,7 @@ int main(void) {
   std::array<size_t, D + 1> strides {};
 
   for (size_t i { 0 }; i < constpow((2 * BS) + 2, D); i++) {
-    test_block[i] = i;
+    test_block[i] = i + 1;
   }
 
   for (size_t z = 0; z < 2 * BS + 2; z++) {
@@ -38,10 +38,9 @@ int main(void) {
     strides[d + 1] = strides[d] * (2 * BS + 2);
   }
 
-  int8_t direction[D] {1, 1, 1};
+  int8_t direction[D] {1, 1, 3};
 
   int64_t offset {};
-
   for (size_t d { 0 }; d < D; d++) {
     offset += constpow(2 * BS + 2, d);
   }

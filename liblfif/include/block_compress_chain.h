@@ -600,8 +600,6 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
   size_t block_stride[D + 1] {};
   size_t image_stride[D + 1] {};
 
-  size_t num_neighbours { 0 };
-
   prediction_type = 0;
 
   block_stride[0] = 1;
@@ -612,56 +610,78 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
   }
 
 
-  ptr = decoded.data();
+  size_t ptr_offset {};
   for (size_t d = 0; d < D; d++) {
-    ptr += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
+    ptr_offset += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
   }
 
-  std::cerr << "Block " << offset << '\n';
+  ptr = &decoded[ptr_offset];
 
-  for (size_t dir { 0 }; dir < constpow(3, D); dir++) {
-    int8_t direction[D] {};
-
-    bool have_positive {};
-    bool have_neighbours { true };
-    for (size_t d { 0 }; d < D; d++) {
-      direction[d] = dir % constpow(3, d + 1) / constpow(3, d) - 1;
-
-      if (direction[d] > 0) {
-        have_positive = true;
-      }
-
-      if ((direction[d] > 0) && (((offset % block_stride[d + 1]) / block_stride[d]) == 0)) {
-        have_neighbours = false;
-      }
-      else if ((direction[d] < 0) && (((offset % block_stride[d + 1]) / block_stride[d]) >= block_dims[d])) {
-        have_neighbours = false;
-      }
-    }
-
-    for (size_t d { 0 }; d < D; d++) {
-      std::cerr << (int)direction[d] << ' ';
+  for (size_t y { 0 }; y < BS; y++) {
+    for (size_t x { 0 }; x < BS; x++) {
+      std::cerr << std::setw(7) << std::fixed << std::setprecision(2) << input_block[y * BS + x] << ' ';
     }
     std::cerr << '\n';
+  }
+  std::cerr << '\n';
 
-    if (!have_positive || !have_neighbours) {
-      continue;
-    }
+  for (size_t d0 {0}; d0 < 3; d0++) {
+    for (size_t dir { 0 }; dir < constpow(2, D - 1); dir++) {
+      int8_t direction[D] {};
 
-    std::cerr << "predicting with this\n";
 
-    predict_direction<BS, D>(predicted_block, direction, ptr, image_stride);
+      direction[0] = d0 - 1;
+      for (size_t d { 0 }; d < D - 1; d++) {
+        direction[d + 1] = dir % constpow(2, d + 1) / constpow(2, d);
+      }
 
-    sae = SAE<BS, D>(input_block, predicted_block);
-    if (sae < lowest_sae) {
-      lowest_sae = sae;
-      prediction_type = dir + 1;
+      bool have_positive {};
+      bool have_neighbours { true };
+      for (size_t d { 0 }; d < D; d++) {
+        if (direction[d] > 0) {
+          have_positive = true;
+        }
+
+        if ((direction[d] > 0) && (((offset % block_stride[d + 1]) / block_stride[d]) == 0)) {
+          have_neighbours = false;
+        }
+        else if ((direction[d] < 0) && (((offset % block_stride[d + 1]) / block_stride[d]) >= block_dims[d])) {
+          have_neighbours = false;
+        }
+      }
+
+      for (size_t d { 0 }; d < D; d++) {
+        std::cerr << std::setw(2) << (int)direction[d] << ' ';
+      }
+
+      if (!have_positive || !have_neighbours) {
+        std::cerr << " nope!\n";
+        continue;
+      }
+      std::cerr << " ok!\n";
+
+      predict_direction<BS, D>(predicted_block, direction, ptr, image_stride);
+
+      std::cerr << "SAE: ";
+
+      sae = SAE<BS, D>(input_block, predicted_block);
+      if (sae < lowest_sae) {
+        lowest_sae = sae;
+        prediction_type = dir + 1;
+      }
+
+      std::cerr << sae << '\n';
+
+      for (size_t y { 0 }; y < BS; y++) {
+        for (size_t x { 0 }; x < BS; x++) {
+          std::cerr << std::setw(7) << std::fixed << std::setprecision(2) << predicted_block[y * BS + x] << ' ';
+        }
+        std::cerr << '\n';
+      }
+      std::cerr << '\n';
     }
   }
-
-  if (!num_neighbours) {
-    return;
-  }
+  std::cerr << '\n';
 
   if (prediction_type > 0) {
     int8_t direction[D] {};
@@ -676,7 +696,6 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
   for (size_t i = 0; i < constpow(BS, D); i++) {
     input_block[i] -= predicted_block[i];
   }
-
 }
 
 #endif

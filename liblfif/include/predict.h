@@ -37,7 +37,7 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
 }
 
 template<size_t BS, size_t D>
-void predict_perpendicular(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded, size_t direction) {
+void predict_perpendicular(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded, size_t direction) { // DEPRICATED
   assert(direction < D);
 
   auto multDims = [&](size_t n) {
@@ -108,7 +108,7 @@ void predict_DC(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], 
 }
 
 template<size_t BS, size_t D>
-void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded) {
+void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded) { // DEPRICATED
 
   auto multDims = [&](size_t n) {
     size_t product { 1 };
@@ -143,52 +143,41 @@ void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dim
   }
 }
 
+#include <iostream>
+#include <iomanip>
+
 template <size_t BS, size_t D>
-void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
-  Block<INPUTUNIT, BS * 2 + 1, D - 1> ref {};
+void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
+  size_t main_ref_idx {};
+  int64_t ref_offset {};
 
-  int64_t ptr_offset { 0 };
-  int64_t ref_offset { 0 };
-  int64_t project_offset { 0 };
-  size_t  main_ref   { 0 };
-
-  // find which neighbouring block will be main
   for (size_t d = 0; d < D; d++) {
-    if (direction[d] >= direction[main_ref]) {
-      main_ref = d;
+    if (direction[d] >= direction[main_ref_idx]) {
+      main_ref_idx = d;
     }
   }
 
-  if (direction[main_ref] <= 0) {
-    return;
-  }
-
-  // find offset for main neighbour to make space for projected samples
   size_t idx {};
   for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref) {
+    if (d != main_ref_idx) {
       if (direction[d] >= 0) {
-        ref_offset     += constpow(BS * 2 + 1, idx) * BS;
-        project_offset += constpow(BS * 4 + 2, d) * BS;
-        idx++;
+        ref_offset += constpow(BS * 2 + 1, idx) * BS;
       }
+      /*
+      if (direction[d] <= 0){
+        ref_offset += constpow(BS * 2 + 1, idx);
+      }
+      */
+      idx++;
     }
   }
 
-  // move pointer to the start of reference samples instead of start of predicted block
   for (size_t d { 0 }; d < D; d++) {
-    ptr_offset -= input_stride[d];
-  }
-
-  // project neighbour samples to main reference
-  for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref) {
+    if (d != main_ref_idx) {
       if (direction[d] > 0) {
         for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+          std::cerr << "i = " << i << '\n';
           int64_t src_idx {};
-          int64_t dst_idx {};
-
-          std::array<int64_t, D> dst_pos {};
 
           for (size_t dd = 0; dd < D; dd++) {
             src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
@@ -196,58 +185,73 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
 
           src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
 
-          //scale index from (BS * 2 + 1) ^ D to (BS * 4 + 2) ^ D while retaining position
-          for (size_t dd = 0; dd < D; dd++) {
-            dst_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * constpow(BS * 4 + 2, dd);
-          }
+          std::cerr << "src_idx = " << src_idx << '\n';
+
+          int64_t dst_idx {};
+          std::array<int64_t, D> dst_pos {};
 
           //rotate index to direction d
-          dst_idx = dst_idx % constpow(BS * 4 + 2, d) + dst_idx / constpow(BS * 4 + 2, d) * constpow(BS * 4 + 2, d + 1);
+          dst_idx = i % constpow(BS * 2 + 1, d) + i / constpow(BS * 2 + 1, d) * constpow(BS * 2 + 1, d + 1);
 
-          dst_idx += project_offset;
+          std::cerr << "dst_idx = " << dst_idx << '\n';
 
+          std::cerr << "dst_pos = [ ";
           bool overflow {};
           for (size_t dd { 0 }; dd < D; dd++) {
-            dst_pos[dd] = dst_idx % constpow(BS * 4 + 2, dd + 1) / constpow(BS * 4 + 2, dd) * direction[main_ref];
+            dst_pos[dd] = dst_idx % constpow(BS * 2 + 1, dd + 1) / constpow(BS * 2 + 1, dd);
 
-            if (dst_pos[dd] >= static_cast<int64_t>((BS * 2 + 1) * direction[main_ref])) {
-              overflow = true;
+            std::cerr << dst_pos[dd] << ' ';
+
+            if ((dd != main_ref_idx) && (direction[dd] >= 0)) {
+              dst_pos[dd] += BS;
             }
+
           }
+          std::cerr << "]\n";
 
           if (overflow) {
+            std::cerr << "overflow\n";
             continue;
           }
 
-          while (dst_pos[main_ref] > 0) {
-            for (size_t dd { 0 }; dd < D; dd++) {
-              dst_pos[dd] -= direction[dd];
-            }
+          int64_t distance { dst_pos[main_ref_idx] };
+
+          std::cerr << "dst_pos = [ ";
+          for (size_t dd { 0 }; dd < D; dd++) {
+            dst_pos[dd] *= direction[main_ref_idx];
+            dst_pos[dd] -= direction[dd] * distance;
+            dst_pos[dd] /= direction[main_ref_idx];
+            std::cerr << dst_pos[dd] << ' ';
           }
+          std::cerr << "]\n";
 
           for (size_t dd { 0 }; dd < D; dd++) {
             if (dst_pos[dd] < 0) {
               overflow = true;
             }
-            else if (dst_pos[dd] >= static_cast<int64_t>((BS * 2 + 1) * direction[main_ref])) {
+            else if (dst_pos[dd] >= static_cast<int64_t>(BS * 2 + 1)) {
               overflow = true;
             }
           }
 
           if (overflow) {
+            std::cerr << "overflow\n";
             continue;
           }
 
           dst_idx = 0;
           size_t pow {};
           for (size_t dd { 0 }; dd < D; dd++) {
-            if (dd != main_ref) {
-              dst_idx += dst_pos[dd] / direction[main_ref] * constpow(BS * 2 + 1, pow);
+            if (dd != main_ref_idx) {
+              dst_idx += dst_pos[dd] * constpow(BS * 2 + 1, pow);
               pow++;
             }
           }
+
+          std::cerr << "main_ref[" << dst_idx << "] = " << src[src_idx] << '\n';
+
           // Tady by se taky mozna hodilo kontrolovat, jestli tam uz neni nejaka hodnota s mensi chybou
-          ref[dst_idx] = src[src_idx + ptr_offset];
+          main_ref[dst_idx] = src[src_idx];
         }
       }
     }
@@ -262,7 +266,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
       src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
     }
 
-    src_idx = src_idx % input_stride[main_ref] + src_idx / input_stride[main_ref] * input_stride[main_ref + 1];
+    src_idx = src_idx % input_stride[main_ref_idx] + src_idx / input_stride[main_ref_idx] * input_stride[main_ref_idx + 1];
 
     dst_idx = i + ref_offset;
 
@@ -277,34 +281,98 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
       continue;
     }
 
-    ref[dst_idx] = src[src_idx + ptr_offset];
+    main_ref[dst_idx] = src[src_idx];
+  }
+}
+
+template <size_t BS, size_t D>
+void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref) {
+  int64_t main_ref_offset {};
+  size_t  main_ref_idx {};
+
+  for (size_t d = 0; d < D; d++) {
+    if (direction[d] >= direction[main_ref_idx]) {
+      main_ref_idx = d;
+    }
+  }
+
+  // find offset for main neighbour to make space for projected samples
+  size_t idx {};
+  for (size_t d { 0 }; d < D; d++) {
+    if (d != main_ref_idx) {
+      if (direction[d] >= 0) {
+        main_ref_offset += constpow(BS * 2 + 1, idx) * BS;
+      }
+      idx++;
+    }
   }
 
   for (size_t i { 0 }; i < constpow(BS, D); i++) {
     std::array<int64_t, D> pos {};
 
     for (size_t d { 0 }; d < D; d++) {
-      pos[d] = ((i % constpow(BS, d + 1) / constpow(BS, d)) + 1) * direction[main_ref];
+      pos[d] = ((i % constpow(BS, d + 1) / constpow(BS, d)) + 1);
     }
 
-    while (pos[main_ref] > 0) {
-      for (size_t d { 0 }; d < D; d++) {
-        pos[d] -= direction[d];
-      }
-    }
+    int64_t distance { pos[main_ref_idx] };
 
+    for (size_t d { 0 }; d < D; d++) {
+      pos[d] *= direction[main_ref_idx];
+      pos[d] -= direction[d] * distance;
+      pos[d] /= direction[main_ref_idx];
+    }
 
     int64_t dst_idx {};
+
     size_t pow {};
     for (size_t d { 0 }; d < D; d++) {
-      if (d != main_ref) {
+      if (d != main_ref_idx) {
         // hodnoty by se mohly interpolovat?
-        dst_idx += pos[d] / direction[main_ref] * constpow(BS * 2 + 1, pow);
+        dst_idx += pos[d] * constpow(BS * 2 + 1, pow);
         pow++;
       }
     }
-    output[i] = ref[dst_idx + ref_offset];
+    output[i] = main_ref[dst_idx + main_ref_offset];
   }
+}
+
+template <size_t BS, size_t D>
+void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
+  Block<INPUTUNIT, BS * 2 + 1, D - 1> ref {};
+
+  int64_t ptr_offset { 0 };
+  size_t  main_ref   { 0 };
+
+  // find which neighbouring block will be main
+  for (size_t d = 0; d < D; d++) {
+    if (direction[d] >= direction[main_ref]) {
+      main_ref = d;
+    }
+  }
+
+  if (direction[main_ref] <= 0) {
+    return;
+  }
+
+  for (size_t d { 0 }; d < D; d++) {
+    //if (direction[d] > 0) {
+      ptr_offset -= input_stride[d];
+    //}
+  }
+
+  project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
+
+
+  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
+    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
+      std::cerr << std::setw(3) << ref[y * (2 * BS + 1) + x] << ' ';
+    }
+    std::cerr << '\n';
+
+  }
+  std::cerr << '\n';
+
+  predict_from_main_ref<BS, D>(output, direction, ref);
 }
 
 #if 0

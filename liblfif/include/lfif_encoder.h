@@ -348,6 +348,8 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
   bitstream.flush();
 }
 
+#include <iostream>
+
 /**
 * @brief Function which encodes the image to the stream with CABAC.
 * @param enc The encoder structure.
@@ -399,6 +401,8 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     };
 
     putBlock<BS, D>(inputF, block, aligned_dims, outputF);
+
+    std::cerr << "Block " << block << ", channel " << channel << '\n';
 
                            predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
