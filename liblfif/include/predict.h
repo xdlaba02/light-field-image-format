@@ -177,7 +177,7 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref_idx) {
       if (direction[d] > 0) {
-        for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+        for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) { // staci projit jen polovinu z toho, zbytek se tam nikdy nedostane
           std::cerr << "i = " << i << '\n';
           int64_t src_idx {};
 
