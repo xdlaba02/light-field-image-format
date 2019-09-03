@@ -13,6 +13,8 @@
 
 #include <cstdint>
 #include <cassert>
+#include <cmath>
+
 
 template<size_t BS, size_t D, typename T>
 void getSlice(const Block<T, BS, D> &block, Block<T, BS, D - 1> &slice, size_t direction, size_t index) {
@@ -206,8 +208,15 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
               dst_pos[dd] += BS;
             }
 
+            if (dst_pos[dd] >= static_cast<int64_t>(BS * 2 + 1)) {
+              overflow = true;
+            }
           }
           std::cerr << "]\n";
+
+          if (dst_pos[main_ref_idx] > static_cast<int64_t>(BS)) {
+            overflow = true;
+          }
 
           if (overflow) {
             std::cerr << "overflow\n";
@@ -308,22 +317,28 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
   }
 
   for (size_t i { 0 }; i < constpow(BS, D); i++) {
+    std::cerr << "i = " << i << '\n';
     std::array<int64_t, D> pos {};
 
+    std::cerr << "dst_pos = [ ";
     for (size_t d { 0 }; d < D; d++) {
       pos[d] = ((i % constpow(BS, d + 1) / constpow(BS, d)) + 1);
+      std::cerr << pos[d] << ' ';
     }
+    std::cerr << "]\n";
 
     int64_t distance { pos[main_ref_idx] };
 
+    std::cerr << "dst_pos = [ ";
     for (size_t d { 0 }; d < D; d++) {
       pos[d] *= direction[main_ref_idx];
       pos[d] -= direction[d] * distance;
-      pos[d] /= direction[main_ref_idx];
+      pos[d] = std::floor(pos[d] / static_cast<double>(direction[main_ref_idx]) + 0.5);
+      std::cerr << pos[d] << ' ';
     }
+    std::cerr << "]\n";
 
     int64_t dst_idx {};
-
     size_t pow {};
     for (size_t d { 0 }; d < D; d++) {
       if (d != main_ref_idx) {
@@ -332,6 +347,8 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
         pow++;
       }
     }
+    std::cerr << "dst_idx = " << dst_idx << '\n';
+
     output[i] = main_ref[dst_idx + main_ref_offset];
   }
 }
