@@ -10,8 +10,8 @@
 
 using namespace std;
 
-const size_t BS = 4;
-const size_t D = 3;
+const size_t BS = 8;
+const size_t D = 2;
 
 int main(void) {
   Block<INPUTUNIT, (2 * BS) + 2, D> test_block {};
@@ -22,7 +22,7 @@ int main(void) {
     test_block[i] = i + 1;
   }
 
-  for (size_t z = 0; z < 2 * BS + 2; z++) {
+  for (size_t z = 0; z < 1; z++) {
     for (size_t y = 0; y < 2 * BS + 2; y++) {
       for (size_t x = 0; x < 2 * BS + 2; x++) {
         std::cout << std::setw(5) << test_block[(z * (2 * BS + 2) + y) * (2 * BS + 2) + x];
@@ -38,7 +38,7 @@ int main(void) {
     strides[d + 1] = strides[d] * (2 * BS + 2);
   }
 
-  int8_t direction[D] {1, 1, 2};
+  int8_t direction[D] {-1, 2};
 
   int64_t offset {};
   for (size_t d { 0 }; d < D; d++) {
@@ -49,7 +49,7 @@ int main(void) {
 
   std::cerr << '\n';
 
-  for (size_t z = 0; z < BS; z++) {
+  for (size_t z = 0; z < 1; z++) {
     for (size_t y = 0; y < BS; y++) {
       for (size_t x = 0; x < BS; x++) {
         std::cout << std::setw(5) << predicted_block[(z * BS + y) * BS + x];

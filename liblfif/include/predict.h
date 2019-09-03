@@ -380,7 +380,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
 
 
-  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
+  for (size_t y { 0 }; y < 1; y++) {
     for (size_t x { 0 }; x < 2 * BS + 1; x++) {
       std::cerr << std::setw(3) << ref[y * (2 * BS + 1) + x] << ' ';
     }
