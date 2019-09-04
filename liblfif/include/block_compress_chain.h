@@ -596,7 +596,6 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
   uint64_t lowest_sae { static_cast<uint64_t>(-1) }; //vymyslet aby to bylo taky v inputunit
   INPUTUNIT sae {};
 
-  const INPUTUNIT *ptr {};
   size_t block_stride[D + 1] {};
   size_t image_stride[D + 1] {};
 
@@ -615,7 +614,18 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
     ptr_offset += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
   }
 
-  ptr = &decoded[ptr_offset];
+  std::cerr << "ptr_offset = " << ptr_offset << '\n';
+
+  for (size_t z { 0 }; z < BS; z++) {
+    for (size_t y { 0 }; y < BS; y++) {
+      for (size_t x { 0 }; x < BS; x++) {
+        std::cerr << std::fixed << std::setw(7) << std::setprecision(2) << input_block[(z * BS + y) * BS + x] << ' ';
+      }
+      std::cerr << '\n';
+    }
+    std::cerr << '\n';
+  }
+  std::cerr << '\n';
 
   for (size_t d0 {0}; d0 < 3; d0++) {
     for (size_t dir { 0 }; dir < constpow(2, D - 1); dir++) {
@@ -642,11 +652,19 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
         }
       }
 
+      std::cerr << "[ ";
+      for (size_t i { 0 }; i < D; i++) {
+        std::cerr << (int)direction[i] << ' ';
+      }
+      std::cerr << "] = " << (dir * 3) + d0;
+
       if (!have_positive || !have_neighbours) {
+        std::cerr << ", not usable!\n";
         continue;
       }
+      std::cerr << '\n';
 
-      predict_direction<BS, D>(predicted_block, direction, ptr, image_stride);
+      predict_direction<BS, D>(predicted_block, direction, &decoded[ptr_offset], image_stride);
 
 
       sae = SAE<BS, D>(input_block, predicted_block);
@@ -655,11 +673,7 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
         prediction_type = (dir * 3) + d0 + 1;
       }
 
-      std::cerr << "[ ";
-      for (size_t i { 0 }; i < D; i++) {
-        std::cerr << (int)direction[i] << ' ';
-      }
-      std::cerr << "] = " << (dir * 3) + d0 << ", SAE: " << sae << '\n';
+      std::cerr << "SAE: " << sae << '\n';
     }
   }
 
@@ -680,7 +694,7 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
     }
     std::cerr << "], SAE: " << lowest_sae << '\n';
 
-    predict_direction<BS, D>(predicted_block, direction, ptr, image_stride);
+    predict_direction<BS, D>(predicted_block, direction, &decoded[ptr_offset], image_stride);
   }
 
   for (size_t i = 0; i < constpow(BS, D); i++) {

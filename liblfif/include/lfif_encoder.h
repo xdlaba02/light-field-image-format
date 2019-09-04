@@ -369,7 +369,9 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
   for (size_t d = 0; d < D; d++) {
     aligned_dims[d] = ceil(enc.block_dims[d] * BS);
+    std::cerr << aligned_dims[d] << ' ';
   }
+  std::cerr << '\n';
 
   threshold = (D * (BS - 1) + 1) / 2;
 

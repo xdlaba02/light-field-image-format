@@ -145,6 +145,9 @@ void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dim
   }
 }
 
+#include <iostream>
+#include <iomanip>
+
 template <size_t BS, size_t D>
 void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
   size_t main_ref_idx {};
@@ -153,19 +156,6 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
   for (size_t d = 0; d < D; d++) {
     if (direction[d] >= direction[main_ref_idx]) {
       main_ref_idx = d;
-    }
-  }
-
-  size_t idx {};
-  for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref_idx) {
-      if (direction[d] >= 0) {
-        ref_offset += constpow(BS * 2 + 1, idx) * BS;
-      }
-      if (direction[d] <= 0){
-        ref_offset += constpow(BS * 2 + 1, idx);
-      }
-      idx++;
     }
   }
 
@@ -250,16 +240,31 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
     }
   }
 
+  size_t idx {};
+  for (size_t d { 0 }; d < D; d++) {
+    if (d != main_ref_idx) {
+      if (direction[d] >= 0) {
+        ref_offset += constpow(BS * 2 + 1, idx) * BS;
+      }
+      if (direction[d] <= 0){
+        ref_offset += constpow(BS * 2 + 1, idx);
+      }
+      idx++;
+    }
+  }
+
   // copy main samples to main reference
   for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+    int64_t rot_idx {};
     int64_t src_idx {};
     size_t dst_idx {};
 
-    for (size_t dd = 0; dd < D; dd++) {
-      src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
-    }
+    rot_idx = i % constpow(BS * 2 + 1, main_ref_idx) + i / constpow(BS * 2 + 1, main_ref_idx) * constpow(BS * 2 + 1, main_ref_idx + 1);
 
-    src_idx = src_idx % input_stride[main_ref_idx] + src_idx / input_stride[main_ref_idx] * input_stride[main_ref_idx + 1];
+
+    for (size_t dd = 0; dd < D; dd++) {
+      src_idx += (rot_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
+    }
 
     dst_idx = i + ref_offset;
 
@@ -273,6 +278,7 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
     if (overflow) {
       continue;
     }
+
 
     main_ref[dst_idx] = src[src_idx];
   }
@@ -354,6 +360,16 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
+
+  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
+    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
+      std::cerr << std::setw(3) << ref[y * (2 * BS + 1) + x] << ' ';
+    }
+    std::cerr << '\n';
+  }
+  std::cerr << '\n';
+
+
   predict_from_main_ref<BS, D>(output, direction, ref);
 }
 

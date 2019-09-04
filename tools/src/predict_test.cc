@@ -38,7 +38,7 @@ int main(void) {
     strides[d + 1] = strides[d] * (2 * BS + 2);
   }
 
-  int8_t direction[D] {0, 0, 1};
+  int8_t direction[D] {1, 0, 0};
 
   int64_t offset {};
   for (size_t d { 0 }; d < D; d++) {
