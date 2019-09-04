@@ -165,11 +165,9 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
       if (direction[d] >= 0) {
         ref_offset += constpow(BS * 2 + 1, idx) * BS;
       }
-      /*
       if (direction[d] <= 0){
         ref_offset += constpow(BS * 2 + 1, idx);
       }
-      */
       idx++;
     }
   }
@@ -204,8 +202,13 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
 
             std::cerr << dst_pos[dd] << ' ';
 
-            if ((dd != main_ref_idx) && (direction[dd] >= 0)) {
-              dst_pos[dd] += BS;
+            if (dd != main_ref_idx) {
+              if (direction[dd] >= 0) {
+                dst_pos[dd] += BS;
+              }
+              if (direction[dd] <= 0){
+                dst_pos[dd] += 1;
+              }
             }
 
             if (dst_pos[dd] >= static_cast<int64_t>(BS * 2 + 1)) {
@@ -372,15 +375,15 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   for (size_t d { 0 }; d < D; d++) {
-    //if (direction[d] > 0) {
+    if (direction[d] > 0) {
       ptr_offset -= input_stride[d];
-    //}
+    }
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
 
 
-  for (size_t y { 0 }; y < 1; y++) {
+  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
     for (size_t x { 0 }; x < 2 * BS + 1; x++) {
       std::cerr << std::setw(3) << ref[y * (2 * BS + 1) + x] << ' ';
     }
