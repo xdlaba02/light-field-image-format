@@ -145,9 +145,6 @@ void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dim
   }
 }
 
-#include <iostream>
-#include <iomanip>
-
 template <size_t BS, size_t D>
 void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
   size_t main_ref_idx {};
@@ -360,14 +357,6 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
-
-  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
-    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
-      std::cerr << std::setw(3) << ref[y * (2 * BS + 1) + x] << ' ';
-    }
-    std::cerr << '\n';
-  }
-  std::cerr << '\n';
 
 
   predict_from_main_ref<BS, D>(output, direction, ref);

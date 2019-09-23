@@ -41,7 +41,10 @@ tools: $(FOLDERS) \
 benchmarks: $(FOLDERS) \
 						$(BINDIR)/lfifbench \
 						$(BINDIR)/mozbench \
-						$(BINDIR)/x265bench $(BINDIR)/openjpegbench $(BINDIR)/av1bench $(BINDIR)/xvcbench
+						$(BINDIR)/x265bench \
+						$(BINDIR)/openjpegbench \
+						$(BINDIR)/av1bench \
+						$(BINDIR)/xvcbench
 
 others: $(FOLDERS) \
 			  $(BINDIR)/hevc_compress \
@@ -97,6 +100,9 @@ $(BINDIR)/openjpegbench: $(OBJDIR)/openjpegbench.o $(PLENO)
 	$(CC) -lm -lpthread $^ /usr/local/lib/libopenjp2.a -o $@
 
 $(BINDIR)/av1bench: $(OBJDIR)/av1bench.o $(PLENO)
+	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
+
+$(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(PLENO)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 $(BINDIR)/xvcbench: $(OBJDIR)/xvcbench.o $(PLENO)

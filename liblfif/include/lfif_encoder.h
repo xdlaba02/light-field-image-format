@@ -348,7 +348,7 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
   bitstream.flush();
 }
 
-#include <iostream>
+//#include <iostream>
 
 /**
 * @brief Function which encodes the image to the stream with CABAC.
@@ -369,9 +369,9 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
   for (size_t d = 0; d < D; d++) {
     aligned_dims[d] = ceil(enc.block_dims[d] * BS);
-    std::cerr << aligned_dims[d] << ' ';
+    //std::cerr << aligned_dims[d] << ' ';
   }
-  std::cerr << '\n';
+  //std::cerr << '\n';
 
   threshold = (D * (BS - 1) + 1) / 2;
 
@@ -404,9 +404,9 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
     putBlock<BS, D>(inputF, block, aligned_dims, outputF);
 
-    std::cerr << "Block " << block << ", channel " << channel << '\n';
+    //std::cerr << "Block " << block << ", channel " << channel << '\n';
 
-                           predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
+                           //predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
     //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
