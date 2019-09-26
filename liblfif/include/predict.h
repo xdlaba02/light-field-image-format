@@ -39,39 +39,6 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
 }
 
 template<size_t BS, size_t D>
-void predict_perpendicular(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded, size_t direction) { // DEPRICATED
-  assert(direction < D);
-
-  auto multDims = [&](size_t n) {
-    size_t product { 1 };
-    for (size_t i { 0 }; i < n; i++) {
-      product *= block_dims[i] * BS;
-    }
-    return product;
-  };
-
-  for (size_t j { 0 }; j < BS; j++) {
-    for (size_t i { 0 }; i < constpow(BS, D - 1); i++) {
-      const INPUTUNIT *ptr { decoded };
-
-      size_t pow_val { 0 };
-      for (size_t d {0}; d < D; d++) {
-        if (d == direction) {
-          ptr -= multDims(d);
-        }
-        else {
-          ptr += multDims(d) * ((i % constpow(BS, pow_val + 1)) / constpow(BS, pow_val));
-          pow_val++;
-        }
-      }
-
-      size_t dst_index = i % constpow(BS, direction) + i / constpow(BS, direction) * constpow(BS, direction + 1);
-      predicted[dst_index + j * constpow(BS, direction)] = *ptr;
-    }
-  }
-}
-
-template<size_t BS, size_t D>
 void predict_DC(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded) {
   INPUTUNIT avg { 0 };
 
@@ -109,42 +76,6 @@ void predict_DC(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], 
   }
 }
 
-template<size_t BS, size_t D>
-void predict_diagonal(Block<INPUTUNIT, BS, D> &predicted, const size_t block_dims[D], const INPUTUNIT *decoded) { // DEPRICATED
-
-  auto multDims = [&](size_t n) {
-    size_t product { 1 };
-    for (size_t i { 0 }; i < n; i++) {
-      product *= block_dims[i] * BS;
-    }
-    return product;
-  };
-
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    size_t shortest {};
-    const INPUTUNIT *ptr { decoded };
-
-    for (size_t d = 0; d < D; d++) {
-      ptr += (i % constpow(BS, d + 1)) / constpow(BS, d) * multDims(d);
-    }
-
-    shortest = (i % constpow(BS, 1)) / constpow(BS, 0);
-    for (size_t d = 1; d < D; d++) {
-      size_t next = (i % constpow(BS, d + 1)) / constpow(BS, d);
-
-      if (next < shortest) {
-        shortest = next;
-      }
-    }
-
-    for (size_t d = 0; d < D; d++) {
-      ptr -= multDims(d) * (shortest + 1);
-    }
-
-    predicted[i] = *ptr;
-  }
-}
-
 template <size_t BS, size_t D>
 void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
   size_t main_ref_idx {};
@@ -159,14 +90,13 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref_idx) {
       if (direction[d] > 0) {
-        for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) { // staci projit jen polovinu z toho, zbytek se tam nikdy nedostane
+        for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
           int64_t src_idx {};
 
-          for (size_t dd = 0; dd < D; dd++) {
-            src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
+          for (size_t dd = 0; dd < D - 1; dd++) {
+            int64_t idx = dd < d ? dd : dd + 1;
+            src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[idx];
           }
-
-          src_idx = src_idx % input_stride[d] + src_idx / input_stride[d] * input_stride[d + 1];
 
           int64_t dst_idx {};
           std::array<int64_t, D> dst_pos {};
@@ -357,133 +287,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
-
-
   predict_from_main_ref<BS, D>(output, direction, ref);
 }
-
-#if 0
-
-void predict_angle_HEVC(int bitDepth, const Pel* pSrc, Int srcStride, Pel* pTrueDst, Int dstStrideTrue, UInt uiWidth, UInt uiHeight, const Bool bEnableEdgeFilters) {
-   Int width  = Int(uiWidth);
-   Int height = Int(uiHeight);
-
-   const Bool       bIsModeVer         = (dirMode >= 18);
-   const Int        intraPredAngleMode = (bIsModeVer) ? (Int)dirMode - VER_IDX :  -((Int)dirMode - HOR_IDX);
-   const Int        absAngMode         = abs(intraPredAngleMode);
-   const Int        signAng            = intraPredAngleMode < 0 ? -1 : 1;
-   const Bool       edgeFilter         = bEnableEdgeFilters && isLuma(channelType) && (width <= MAXIMUM_INTRA_FILTERED_WIDTH) && (height <= MAXIMUM_INTRA_FILTERED_HEIGHT);
-
-   // Set bitshifts and scale the angle parameter to block size
-   static const Int angTable[9]    = {0,    2,    5,   9,  13,  17,  21,  26,  32};
-   static const Int invAngTable[9] = {0, 4096, 1638, 910, 630, 482, 390, 315, 256}; // (256 * 32) / Angle
-   Int invAngle                    = invAngTable[absAngMode];
-   Int absAng                      = angTable[absAngMode];
-   Int intraPredAngle              = signAng * absAng;
-
-   Pel* refMain;
-   Pel* refSide;
-
-   Pel  refAbove[2 * MAX_CU_SIZE + 1];
-   Pel   refLeft[2 * MAX_CU_SIZE + 1];
-
-   // Initialize the Main and Left reference array.
-   if (intraPredAngle < 0) {
-     const Int refMainOffsetPreScale = (bIsModeVer ? height : width ) - 1;
-     const Int refMainOffset         = height - 1;
-
-     for (Int x = 0; x < width + 1; x++) {
-       refAbove[x + refMainOffset] = pSrc[x - srcStride - 1];
-     }
-
-     for (Int y = 0; y < height + 1; y++) {
-       refLeft[y + refMainOffset] = pSrc[(y - 1) * srcStride - 1];
-     }
-
-     refMain = (bIsModeVer ? refAbove : refLeft)  + refMainOffset;
-     refSide = (bIsModeVer ? refLeft  : refAbove) + refMainOffset;
-
-     // Extend the Main reference to the left.
-     Int invAngleSum = 128;       // rounding for (shift by 8)
-     for (Int k = -1; k > (refMainOffsetPreScale + 1) * intraPredAngle >> 5; k--) {
-       invAngleSum += invAngle;
-       refMain[k] = refSide[invAngleSum >> 8];
-     }
-   }
-   else {
-     for (Int x = 0; x < 2 * width + 1; x++) {
-       refAbove[x] = pSrc[x - srcStride - 1];
-     }
-
-     for (Int y = 0; y < 2 * height + 1; y++) {
-       refLeft[y] = pSrc[(y - 1) * srcStride - 1];
-     }
-
-     refMain = bIsModeVer ? refAbove : refLeft ;
-     refSide = bIsModeVer ? refLeft  : refAbove;
-   }
-
-   // swap width/height if we are doing a horizontal mode:
-   Pel tempArray[MAX_CU_SIZE * MAX_CU_SIZE];
-   const Int dstStride = bIsModeVer ? dstStrideTrue : MAX_CU_SIZE;
-   Pel *pDst = bIsModeVer ? pTrueDst : tempArray;
-   if (!bIsModeVer) {
-     std::swap(width, height);
-   }
-
-   // pure vertical or pure horizontal
-   if (intraPredAngle == 0) {
-     for (Int y = 0; y < height; y++) {
-       for (Int x = 0; x < width; x++) {
-         pDst[y * dstStride + x] = refMain[x + 1];
-       }
-     }
-
-     if (edgeFilter) {
-       for (Int y = 0; y < height; y++) {
-         pDst[y * dstStride] = Clip3(0, ((1 << bitDepth) - 1), pDst[y * dstStride] + ((refSide[y + 1] - refSide[0]) >> 1));
-       }
-     }
-   }
-   else {
-     Pel *pDsty = pDst;
-
-     for (Int y = 0, deltaPos = intraPredAngle; y < height; y++, deltaPos += intraPredAngle, pDsty += dstStride) {
-       const Int deltaInt   = deltaPos >> 5;
-       const Int deltaFract = deltaPos & (32 - 1);
-
-       if (deltaFract) {
-         // Do linear filtering
-         const Pel *pRM = refMain + deltaInt + 1;
-         Int lastRefMainPel =* pRM++;
-         for (Int x = 0; x < width; pRM++, x++) {
-           Int thisRefMainPel =* pRM;
-           pDsty[x + 0] = (Pel)(((32 - deltaFract) * lastRefMainPel + deltaFract * thisRefMainPel + 16) >> 5);
-           lastRefMainPel = thisRefMainPel;
-         }
-       }
-       else {
-         // Just copy the integer samples
-         for (Int x = 0; x < width; x++) {
-           pDsty[x] = refMain[x + deltaInt + 1];
-         }
-       }
-     }
-   }
-
-   // Flip the block if this is the horizontal mode
-   if (!bIsModeVer) {
-     for (Int y = 0; y < height; y++) {
-       for (Int x = 0; x < width; x++) {
-         pTrueDst[x * dstStrideTrue] = pDst[x];
-       }
-
-       pTrueDst++;
-       pDst += dstStride;
-     }
-   }
- }
-
-#endif
 
 #endif

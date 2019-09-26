@@ -577,9 +577,6 @@ void encodeCABAC_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, CABACEn
   } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
 
-#include <iostream>
-#include <iomanip>
-
 template <size_t BS, size_t D, typename T>
 T SAE(const Block<T, BS, D> &b1, const Block<T, BS, D> &b2) {
   T sae {};
@@ -590,7 +587,8 @@ T SAE(const Block<T, BS, D> &b1, const Block<T, BS, D> &b2) {
 }
 
 template <size_t BS, size_t D>
-void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, uint64_t &prediction_type) {
+uint64_t find_best_prediction_type(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset) {
+  uint64_t best_prediction_type {};
   Block<INPUTUNIT, BS, D> predicted_block {};
 
   uint64_t lowest_sae { static_cast<uint64_t>(-1) }; //vymyslet aby to bylo taky v inputunit
@@ -599,15 +597,12 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
   size_t block_stride[D + 1] {};
   size_t image_stride[D + 1] {};
 
-  prediction_type = 0;
-
   block_stride[0] = 1;
   image_stride[0] = 1;
   for (size_t d { 0 }; d < D; d++) {
     block_stride[d + 1] = block_stride[d] * block_dims[d];
     image_stride[d + 1] = image_stride[d] * block_dims[d] * BS;
   }
-
 
   size_t ptr_offset {};
   for (size_t d = 0; d < D; d++) {
@@ -639,52 +634,56 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
         }
       }
 
-      std::cerr << "[ ";
-      for (size_t i { 0 }; i < D; i++) {
-        std::cerr << (int)direction[i] << ' ';
-      }
-      std::cerr << "] = " << (dir * 3) + d0;
-
       if (!have_positive || !have_neighbours) {
-        std::cerr << ", not usable!\n";
         continue;
       }
 
       predict_direction<BS, D>(predicted_block, direction, &decoded[ptr_offset], image_stride);
 
-
       sae = SAE<BS, D>(input_block, predicted_block);
       if (sae < lowest_sae) {
         lowest_sae = sae;
-        prediction_type = (dir * 3) + d0 + 1;
+        best_prediction_type = (dir * 3) + d0 + 1;
       }
-
-      std::cerr << ", SAE: " << sae << '\n';
     }
   }
 
+  return best_prediction_type;
+}
+
+template <size_t BS, size_t D>
+void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, uint64_t prediction_type) {
   if (prediction_type > 0) {
+    Block<INPUTUNIT, BS, D> predicted_block {};
     int8_t direction[D] {};
 
     size_t prediction_idx = prediction_type - 1;
 
     direction[0] = (prediction_idx % 3) - 1;
-
     for (size_t d { 0 }; d < D - 1; d++) {
       direction[d + 1] = (prediction_idx / 3) % constpow(2, d + 1) / constpow(2, d);
     }
 
-    std::cerr << "Chosen prediction = [ ";
-    for (size_t i { 0 }; i < D; i++) {
-      std::cerr << (int)direction[i] << ' ';
+    size_t block_stride[D + 1] {};
+    size_t image_stride[D + 1] {};
+
+    block_stride[0] = 1;
+    image_stride[0] = 1;
+    for (size_t d { 0 }; d < D; d++) {
+      block_stride[d + 1] = block_stride[d] * block_dims[d];
+      image_stride[d + 1] = image_stride[d] * block_dims[d] * BS;
     }
-    std::cerr << "], SAE: " << lowest_sae << '\n';
+
+    size_t ptr_offset {};
+    for (size_t d = 0; d < D; d++) {
+      ptr_offset += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
+    }
 
     predict_direction<BS, D>(predicted_block, direction, &decoded[ptr_offset], image_stride);
-  }
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    input_block[i] -= predicted_block[i];
+    for (size_t i = 0; i < constpow(BS, D); i++) {
+      input_block[i] -= predicted_block[i];
+    }
   }
 }
 

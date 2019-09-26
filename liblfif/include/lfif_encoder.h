@@ -348,8 +348,6 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
   bitstream.flush();
 }
 
-//#include <iostream>
-
 /**
 * @brief Function which encodes the image to the stream with CABAC.
 * @param enc The encoder structure.
@@ -369,9 +367,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
   for (size_t d = 0; d < D; d++) {
     aligned_dims[d] = ceil(enc.block_dims[d] * BS);
-    //std::cerr << aligned_dims[d] << ' ';
   }
-  //std::cerr << '\n';
 
   threshold = (D * (BS - 1) + 1) / 2;
 
@@ -391,9 +387,9 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  auto perform = [&](size_t, size_t block, size_t channel) {
-    uint64_t prediction_type {};
+  uint64_t prediction_type {};
 
+  auto perform = [&](size_t, size_t block, size_t channel) {
     auto inputF = [&](size_t index) -> const auto & {
       return enc.input_block[index];
     };
@@ -404,9 +400,11 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
     putBlock<BS, D>(inputF, block, aligned_dims, outputF);
 
-    //std::cerr << "Block " << block << ", channel " << channel << '\n';
+    if (channel == 0) {
+      prediction_type = find_best_prediction_type<BS, D>(enc.input_block, enc.block_dims, decoded[channel], block);
+    }
 
-                           //predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
+                           predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
     //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
