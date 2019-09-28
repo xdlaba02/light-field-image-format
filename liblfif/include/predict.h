@@ -270,11 +270,11 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
 
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
-      main_ref_pos[idx] = (pos[idx] * direction[main_ref_idx]) - (direction[idx] * pos[main_ref_idx]);
+      main_ref_pos[d] = (pos[idx] * direction[main_ref_idx]) - (direction[idx] * pos[main_ref_idx]);
 
       // find offset for main neighbour to make space for projected samples
       if (direction[idx] >= 0) {
-        main_ref_pos[idx] += BS * direction[main_ref_idx];
+        main_ref_pos[d] += BS * direction[main_ref_idx];
       }
     }
 
@@ -311,7 +311,6 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
-
   predict_from_main_ref<BS, D>(output, direction, ref);
 }
 
