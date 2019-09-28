@@ -362,6 +362,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   OBitstream                                                 bitstream  {};
   CABACEncoder                                               cabac      {};
   size_t                                                     threshold  {};
+  Block<INPUTUNIT,     BS, D>                                prediction_block {};
 
   size_t aligned_dims[D] {};
 
@@ -398,19 +399,21 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
       decoded[channel][index] = value;
     };
 
-    putBlock<BS, D>(inputF, block, aligned_dims, outputF);
-
     if (channel == 0) {
       prediction_type = find_best_prediction_type<BS, D>(enc.input_block, enc.block_dims, decoded[channel], block);
+      encodePredictionType(prediction_type, cabac, contexts[0]);
     }
 
-                           predict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type     );
+                           predict<BS, D>(prediction_block,    enc.block_dims,       decoded[channel], block, prediction_type     );
+                   applyPrediction<BS, D>(enc.input_block,     prediction_block                                                   );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
-    //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
-    //inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
-    //                     depredict<BS, D>(enc.input_block,     enc.block_dims,       decoded[channel], block, prediction_type    ); TADY JE NEGDE CHYBA
+                        dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
+    inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
+                  disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
+                          putBlock<BS, D>(inputF,              block,                aligned_dims,           outputF              );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
+
   };
 
   performScan(enc, input, perform);
