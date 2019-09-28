@@ -9,6 +9,7 @@
 #ifndef LFIF_DECODER_H
 #define LFIF_DECODER_H
 
+#include "block_compress_chain.h"
 #include "block_decompress_chain.h"
 #include "bitstream.h"
 
@@ -34,6 +35,7 @@ struct LfifDecoder {
   TraversalTable<BS, D>  *traversal_table_ptr [3]; /**< @brief Pointer to traversal matrix used by each channel.*/
   QuantTable<BS, D>      *quant_table_ptr     [3]; /**< @brief Pointer to quantization matrix used by each channel.*/
 
+  size_t block_dims[D]; /**< @brief Dimensions of an encoded image in blocks. The multiple of all values should be equal to number of blocks in encoded image.*/
   size_t blocks_cnt; /**< @brief Number of blocks in the decoded image.*/
   size_t pixels_cnt; /**< @brief Number of pixels in the decoded image.*/
 
@@ -128,8 +130,9 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
   dec.pixels_cnt = 1;
 
   for (size_t i = 0; i < D; i++) {
-    dec.blocks_cnt *= ceil(dec.img_dims[i]/static_cast<double>(BS));
-    dec.pixels_cnt *= dec.img_dims[i];
+    dec.block_dims[i] = ceil(dec.img_dims[i] / static_cast<double>(BS));
+    dec.blocks_cnt   *= dec.block_dims[i];
+    dec.pixels_cnt   *= dec.img_dims[i];
   }
 
   dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.color_depth - D - (D/2);
@@ -187,10 +190,11 @@ template<size_t BS, size_t D, typename F>
 void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
   std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts    {};
-  std::array<std::vector<std::array<Block<INPUTUNIT, BS, D - 1>, D>>, 3> decoded {};
+  std::array<std::vector<INPUTUNIT>, 3>                      decoded     {};
   IBitstream                                                 bitstream   {};
   CABACDecoder                                               cabac       {};
   size_t                                                     threshold   {};
+  Block<INPUTUNIT,     BS, D>                                prediction_block {};
 
   threshold = (D * (BS - 1) + 1) / 2;
 
@@ -204,7 +208,13 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   }
 
   for (size_t i = 0; i < 3; i++) {
-    decoded[i].resize(dec.blocks_cnt);
+    decoded[i].resize(dec.blocks_cnt * constpow(BS, D));
+  }
+
+  size_t aligned_dims[D] {};
+
+  for (size_t d = 0; d < D; d++) {
+    aligned_dims[d] = ceil(dec.block_dims[d] * BS);
   }
 
   bitstream.open(&input);
@@ -214,36 +224,32 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
     return dec.current_block[index];
   };
 
+  auto inputFP = [&](size_t index) -> const auto & {
+    return dec.output_block[index];
+  };
+
   for (size_t img = 0; img < dec.img_dims[D]; img++) {
     auto outputF = [&](size_t index, const auto &value) {
       output(img * dec.pixels_cnt + index, value);
     };
 
     for (size_t block = 0; block < dec.blocks_cnt; block++) {
+      int64_t prediction_type {};
+
       for (size_t channel = 0; channel < 3; channel++) {
-        std::array<Block<INPUTUNIT, BS, D - 1> *, D> predict_block_ptrs {};
+        auto outputFP = [&](size_t index, const auto &value) {
+          decoded[channel][index] = value;
+        };
 
-        int64_t product = 1;
-
-        for (size_t i = 0; i < D; i++) {
-          int64_t neighbour = block - product;
-          product *= ceil(dec.img_dims[i] / static_cast<double>(BS));
-          if ((static_cast<int64_t>(block) % product) > (neighbour % product)) {
-            predict_block_ptrs[i] = &decoded[channel][neighbour][i];
-          }
-          else {
-            predict_block_ptrs[i] = nullptr;
-          }
+        if (channel == 0) {
+          decodePredictionType(prediction_type, cabac, contexts[0]);
         }
-
+                               predict<BS, D>(prediction_block,    dec.block_dims,       decoded[channel], block, prediction_type);
                   decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
                             dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
         inverseDiscreteCosineTransform<BS, D>(dec.dct_block,        dec.output_block);
-/*                             depredict<BS, D>(dec.output_block,     predict_block_ptrs,   0);
-
-        for (size_t i = 0; i < D; i++) {
-          decoded[channel][block][i] = getSlice<BS, D>(dec.output_block, i, BS - 1);
-        }*/
+                      disusePrediction<BS, D>(dec.output_block,     prediction_block);
+                              putBlock<BS, D>(inputFP,              block,                aligned_dims,           outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
           dec.current_block[i][channel] = dec.output_block[i];
