@@ -212,9 +212,47 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
 }
 
 template <size_t BS, size_t D>
+struct interpolate {
+
+  template <typename F>
+  interpolate(F &&main_ref, const int64_t main_ref_pos[D], int8_t multiplier, INPUTUNIT &output) {
+    int64_t pos = std::floor(main_ref_pos[D - 1] / static_cast<double>(multiplier));
+    int64_t frac = main_ref_pos[D - 1] % multiplier;
+
+    auto inputF1 = [&](size_t index) {
+      return main_ref(pos * constpow(BS, D - 1) + index);
+    };
+
+    if (frac == 0) {
+      interpolate<BS, D - 1>(inputF1, main_ref_pos, multiplier, output);
+    }
+    else {
+      INPUTUNIT val1 {};
+      INPUTUNIT val2 {};
+
+      auto inputF2 = [&](size_t index) {
+        return main_ref((pos + 1) * constpow(BS, D - 1) + index);
+      };
+
+      interpolate<BS, D - 1>(inputF1, main_ref_pos, multiplier, val1);
+      interpolate<BS, D - 1>(inputF2, main_ref_pos, multiplier, val2);
+
+      output = (val1 * (multiplier - frac) + val2 * frac) / multiplier;
+    }
+  }
+};
+
+template <size_t BS>
+struct interpolate<BS, 0> {
+  template <typename F>
+  interpolate(F &&main_ref, const int64_t *, int8_t, INPUTUNIT &output) {
+    output = main_ref(0);
+  }
+};
+
+template <size_t BS, size_t D>
 void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref) {
-  int64_t main_ref_offset {};
-  size_t  main_ref_idx {};
+  size_t main_ref_idx {};
 
   for (size_t d = 0; d < D; d++) {
     if (direction[d] >= direction[main_ref_idx]) {
@@ -222,43 +260,29 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
     }
   }
 
-  // find offset for main neighbour to make space for projected samples
-  size_t idx {};
-  for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref_idx) {
-      if (direction[d] >= 0) {
-        main_ref_offset += constpow(BS * 2 + 1, idx) * BS;
-      }
-      idx++;
-    }
-  }
-
   for (size_t i { 0 }; i < constpow(BS, D); i++) {
     std::array<int64_t, D> pos {};
+    int64_t main_ref_pos[D - 1] {};
 
     for (size_t d { 0 }; d < D; d++) {
       pos[d] = ((i % constpow(BS, d + 1) / constpow(BS, d)) + 1);
     }
 
-    int64_t distance { pos[main_ref_idx] };
+    for (size_t d { 0 }; d < D - 1; d++) {
+      size_t idx = d < main_ref_idx ? d : d + 1;
+      main_ref_pos[idx] = (pos[idx] * direction[main_ref_idx]) - (direction[idx] * pos[main_ref_idx]);
 
-    for (size_t d { 0 }; d < D; d++) {
-      pos[d] *= direction[main_ref_idx];
-      pos[d] -= direction[d] * distance;
-      pos[d] = std::floor(pos[d] / static_cast<double>(direction[main_ref_idx]) + 0.5);
-    }
-
-    int64_t dst_idx {};
-    size_t pow {};
-    for (size_t d { 0 }; d < D; d++) {
-      if (d != main_ref_idx) {
-        // hodnoty by se mohly interpolovat?
-        dst_idx += pos[d] * constpow(BS * 2 + 1, pow);
-        pow++;
+      // find offset for main neighbour to make space for projected samples
+      if (direction[idx] >= 0) {
+        main_ref_pos[idx] += BS * direction[main_ref_idx];
       }
     }
 
-    output[i] = main_ref[dst_idx + main_ref_offset];
+    auto inputF = [&](size_t index) {
+      return main_ref[index];
+    };
+
+    interpolate<BS * 2 + 1, D - 1>(inputF, main_ref_pos, direction[main_ref_idx], output[i]);
   }
 }
 
@@ -287,6 +311,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride);
+
   predict_from_main_ref<BS, D>(output, direction, ref);
 }
 
