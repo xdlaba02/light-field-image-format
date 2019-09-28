@@ -15,6 +15,9 @@
 #include <cassert>
 #include <cmath>
 
+//TODO
+// LOW PASS FILTR HLAVNI REFERENCE
+// INTERPOLACE PRI PROMITANI NA HLAVNI REFERENCI?
 
 template<size_t BS, size_t D, typename T>
 void getSlice(const Block<T, BS, D> &block, Block<T, BS, D - 1> &slice, size_t direction, size_t index) {
