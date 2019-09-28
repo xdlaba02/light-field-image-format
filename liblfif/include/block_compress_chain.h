@@ -351,6 +351,14 @@ void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
   }
 }
 
+template <size_t BS, size_t D>
+void encodePredictionType(int64_t prediction_type, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts) {
+  size_t i {};
+  for (i = 0; i < prediction_type; i++) {
+    encoder.encodeBit(contexts.prediction_ctx[i], 1);
+  }
+  encoder.encodeBit(contexts.prediction_ctx[i], 0);
+}
 
 /**
  * @brief Function encodes block block to stream by CABAC encoder.
@@ -589,7 +597,7 @@ T SAE(const Block<T, BS, D> &b1, const Block<T, BS, D> &b2) {
 template <size_t BS, size_t D>
 uint64_t find_best_prediction_type(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset) {
   uint64_t best_prediction_type {};
-  Block<INPUTUNIT, BS, D> predicted_block {};
+  Block<INPUTUNIT, BS, D> prediction_block {};
 
   uint64_t lowest_sae { static_cast<uint64_t>(-1) }; //vymyslet aby to bylo taky v inputunit
   INPUTUNIT sae {};
@@ -609,14 +617,14 @@ uint64_t find_best_prediction_type(Block<INPUTUNIT, BS, D> &input_block, const s
     ptr_offset += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
   }
 
-  for (size_t d0 {0}; d0 < 3; d0++) {
-    for (size_t dir { 0 }; dir < constpow(2, D - 1); dir++) {
+  for (size_t d0 {0}; d0 < 4; d0++) {
+    for (size_t dir { 0 }; dir < constpow(3, D - 1); dir++) {
       int8_t direction[D] {};
 
 
       direction[0] = d0 - 1;
       for (size_t d { 0 }; d < D - 1; d++) {
-        direction[d + 1] = dir % constpow(2, d + 1) / constpow(2, d);
+        direction[d + 1] = dir % constpow(3, d + 1) / constpow(3, d);
       }
 
       bool have_positive {};
@@ -638,12 +646,12 @@ uint64_t find_best_prediction_type(Block<INPUTUNIT, BS, D> &input_block, const s
         continue;
       }
 
-      predict_direction<BS, D>(predicted_block, direction, &decoded[ptr_offset], image_stride);
+      predict_direction<BS, D>(prediction_block, direction, &decoded[ptr_offset], image_stride);
 
-      sae = SAE<BS, D>(input_block, predicted_block);
+      sae = SAE<BS, D>(input_block, prediction_block);
       if (sae < lowest_sae) {
         lowest_sae = sae;
-        best_prediction_type = (dir * 3) + d0 + 1;
+        best_prediction_type = (dir * 4) + d0 + 1;
       }
     }
   }
@@ -652,16 +660,18 @@ uint64_t find_best_prediction_type(Block<INPUTUNIT, BS, D> &input_block, const s
 }
 
 template <size_t BS, size_t D>
-void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, uint64_t prediction_type) {
+void predict(Block<INPUTUNIT, BS, D> &prediction_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, uint64_t prediction_type) {
+  prediction_block.fill(0);
+
   if (prediction_type > 0) {
-    Block<INPUTUNIT, BS, D> predicted_block {};
+    Block<INPUTUNIT, BS, D> prediction_block {};
     int8_t direction[D] {};
 
     size_t prediction_idx = prediction_type - 1;
 
-    direction[0] = (prediction_idx % 3) - 1;
+    direction[0] = (prediction_idx % 4) - 1;
     for (size_t d { 0 }; d < D - 1; d++) {
-      direction[d + 1] = (prediction_idx / 3) % constpow(2, d + 1) / constpow(2, d);
+      direction[d + 1] = (prediction_idx / 4) % constpow(3, d + 1) / constpow(3, d);
     }
 
     size_t block_stride[D + 1] {};
@@ -679,11 +689,14 @@ void predict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], c
       ptr_offset += (offset % block_stride[d + 1]) / block_stride[d] * constpow(BS, d + 1) * block_stride[d];
     }
 
-    predict_direction<BS, D>(predicted_block, direction, &decoded[ptr_offset], image_stride);
+    predict_direction<BS, D>(prediction_block, direction, &decoded[ptr_offset], image_stride);
+  }
+}
 
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      input_block[i] -= predicted_block[i];
-    }
+template <size_t BS, size_t D>
+void applyPrediction(Block<INPUTUNIT, BS, D> &input_block, const Block<INPUTUNIT, BS, D> &prediction_block) {
+  for (size_t i { 0 }; i < constpow(BS, D); i++) {
+    input_block[i] -= prediction_block[i];
   }
 }
 
