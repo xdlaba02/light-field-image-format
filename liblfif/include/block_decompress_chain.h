@@ -38,7 +38,15 @@ void decodeHuffman_RUNLENGTH(IBitstream &bitstream, Block<RunLengthPair, BS, D> 
   do {
     pairs_it++;
     pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
-  } while((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
+  } while ((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
+}
+
+template <size_t BS, size_t D>
+void decodePredictionType(int64_t &prediction_type, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts) {
+  prediction_type = 0;
+  while (decoder.decodeBit(contexts.prediction_ctx[prediction_type])) {
+    prediction_type++;
+  }
 }
 
 template <size_t BS, size_t D>
@@ -259,23 +267,9 @@ void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, 
 }
 
 template <size_t BS, size_t D>
-void depredict(Block<INPUTUNIT, BS, D> &input_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, int64_t &prediction_type) {
-  Block<INPUTUNIT, BS, D> predicted_block {};
-
-  if (prediction_type >= 0) {
-    if (prediction_type < static_cast<int64_t>(D)) {
-      //predict_perpendicular<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()], prediction_type);
-    }
-    else if (prediction_type == static_cast<int64_t>(D)) {
-      predict_DC<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()]);
-    }
-    else {
-      //predict_diagonal<BS, D>(predicted_block, block_dims, &decoded[((offset % block_dims[0]) * constpow(BS, D - 1) + (offset / block_dims[0]) * constpow(BS, D) * block_dims[0]) % decoded.size()]);
-    }
-
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      input_block[i] += predicted_block[i];
-    }
+void disusePrediction(Block<INPUTUNIT, BS, D> &input_block, const Block<INPUTUNIT, BS, D> &prediction_block) {
+  for (size_t i { 0 }; i < constpow(BS, D); i++) {
+    input_block[i] += prediction_block[i];
   }
 }
 
