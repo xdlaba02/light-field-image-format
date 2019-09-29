@@ -42,7 +42,7 @@ void decodeHuffman_RUNLENGTH(IBitstream &bitstream, Block<RunLengthPair, BS, D> 
 }
 
 template <size_t BS, size_t D>
-void decodePredictionType(int64_t &prediction_type, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts) {
+void decodePredictionType(uint64_t &prediction_type, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts) {
   prediction_type = 0;
   while (decoder.decodeBit(contexts.prediction_ctx[prediction_type])) {
     prediction_type++;

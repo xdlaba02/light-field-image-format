@@ -234,7 +234,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
     };
 
     for (size_t block = 0; block < dec.blocks_cnt; block++) {
-      int64_t prediction_type {};
+      uint64_t prediction_type {};
 
       for (size_t channel = 0; channel < 3; channel++) {
         auto outputFP = [&](size_t index, const auto &value) {

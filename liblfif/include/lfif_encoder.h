@@ -390,10 +390,11 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
   uint64_t prediction_type {};
 
+  auto inputF = [&](size_t index) -> const auto & {
+    return enc.input_block[index];
+  };
+
   auto perform = [&](size_t, size_t block, size_t channel) {
-    auto inputF = [&](size_t index) -> const auto & {
-      return enc.input_block[index];
-    };
 
     auto outputF = [&](size_t index, const auto &value) {
       decoded[channel][index] = value;
