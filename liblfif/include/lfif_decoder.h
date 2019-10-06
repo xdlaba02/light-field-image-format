@@ -242,14 +242,14 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
         };
 
         if (channel == 0) {
-          decodePredictionType(prediction_type, cabac, contexts[0]);
+          //decodePredictionType(prediction_type, cabac, contexts[0]);
         }
-                               predict<BS, D>(prediction_block,    dec.block_dims,       decoded[channel], block, prediction_type);
+        //                       predict<BS, D>(prediction_block,    dec.block_dims,       decoded[channel], block, prediction_type);
                   decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
                             dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
         inverseDiscreteCosineTransform<BS, D>(dec.dct_block,        dec.output_block);
-                      disusePrediction<BS, D>(dec.output_block,     prediction_block);
-                              putBlock<BS, D>(inputFP,              block,                aligned_dims,           outputFP);
+          //            disusePrediction<BS, D>(dec.output_block,     prediction_block);
+          //                    putBlock<BS, D>(inputFP,              block,                aligned_dims,           outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
           dec.current_block[i][channel] = dec.output_block[i];
