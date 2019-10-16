@@ -9,7 +9,7 @@
 #ifndef LFIFTYPES_H
 #define LFIFTYPES_H
 
-#include "constpow.h"
+#include "meta.h"
 
 #include <cstdint>
 

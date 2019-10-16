@@ -9,7 +9,7 @@
 #ifndef DCT_H
 #define DCT_H
 
-#include "constpow.h"
+#include "meta.h"
 
 #include <cmath>
 #include <array>
