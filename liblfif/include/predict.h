@@ -41,9 +41,115 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
   }
 }
 
+#include <iostream>
+
 template <size_t BS, size_t D>
 void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1], size_t main_ref_idx) {
+  int64_t ref_offsets[D - 1] {};
+
+  for (size_t d { 0 }; d < D - 1; d++) {
+    size_t idx {};
+    idx = d < main_ref_idx ? d : d + 1;
+
+    if (direction[idx] >= 0) {
+      ref_offsets[d] += BS;
+    }
+    if (direction[idx] <= 0) {
+      ref_offsets[d] += 1;
+    }
+  }
+
+  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+    std::array<int64_t, D> position {};
+
+    for (size_t d { 0 }; d < D - 1; d++) {
+      size_t idx {};
+      idx = d < main_ref_idx ? d : d + 1;
+      position[idx] = i % constpow(BS * 2 + 1, d + 1) / constpow(BS * 2 + 1, d);
+      position[idx] -= ref_offsets[d];
+    }
+
+    size_t nearest_neighbour_idx {};
+
+    // najde nejblizsi stenu po vektoru direction
+    double neighbour_distance {};
+    for (size_t d { 0 }; d < D; d++) {
+      if (direction[d] > 0) {
+        double distance { static_cast<double>(position[d]) / direction[d] };
+        if (distance <= neighbour_distance) {
+          neighbour_distance = distance;
+          nearest_neighbour_idx = d;
+        }
+      }
+    } //pokud jsou vsechny souradnice kladne, hlavni stena je hlavni prumetna
+
+    std::array<int64_t, D> new_position {};
+
+    bool br {};
+
+    //posunout soradnice podle vektoru diection tak, aby byly pokud mozno vsechny vetsi nebo rovno nule
+    for (size_t d { 0 }; d < D; d++) {
+      int64_t tmp_pos {};
+
+          tmp_pos      =  position[d] * direction[nearest_neighbour_idx];
+          tmp_pos     -= direction[d] *  position[nearest_neighbour_idx];
+      new_position[d]  =      tmp_pos / direction[nearest_neighbour_idx];
+
+      if (new_position[d] < 0) {
+        new_position[d] = 0;
+        br = true;
+      }
+
+      if (direction[d] >= 0 && new_position[d] > BS) {
+        br = true;
+      }
+      else if (new_position[d] > (BS * 2 - 1)) {
+        new_position[d] = BS * 2 - 1;
+        br = true;
+      }
+    }
+
+    if (br) {
+      continue;
+    }
+
+    int64_t src_idx {};
+    for (size_t d = 0; d < D; d++) {
+      src_idx += new_position[d] * input_stride[d];
+    }
+
+    main_ref[i] = src[src_idx];
+  }
+
+  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
+    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
+      std::cerr << main_ref[y * (2 * BS + 1) + x] << ' ';
+    }
+    std::cerr << '\n';
+  }
+  std::cerr << '\n';
+
+  //---------------------------------------------
+
+#if true
+
+  main_ref.fill(0);
+
+
   int64_t ref_offset {};
+  size_t idx {};
+  for (size_t d { 0 }; d < D; d++) {
+    if (d != main_ref_idx) {
+      if (direction[d] >= 0) {
+        ref_offset += constpow(BS * 2 + 1, idx) * BS;
+      }
+      if (direction[d] <= 0){
+        ref_offset += constpow(BS * 2 + 1, idx);
+      }
+      idx++;
+    }
+  }
+
 
   for (size_t d { 0 }; d < D; d++) {
     if (d != main_ref_idx) {
@@ -125,19 +231,6 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
     }
   }
 
-  size_t idx {};
-  for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref_idx) {
-      if (direction[d] >= 0) {
-        ref_offset += constpow(BS * 2 + 1, idx) * BS;
-      }
-      if (direction[d] <= 0){
-        ref_offset += constpow(BS * 2 + 1, idx);
-      }
-      idx++;
-    }
-  }
-
   // copy main samples to main reference
   for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
     int64_t rot_idx {};
@@ -167,6 +260,16 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
 
     main_ref[dst_idx] = src[src_idx];
   }
+
+  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
+    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
+      std::cerr << main_ref[y * (2 * BS + 1) + x] << ' ';
+    }
+    std::cerr << '\n';
+  }
+
+#endif
+
 }
 
 template <size_t BS, size_t D>
