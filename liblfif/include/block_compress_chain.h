@@ -605,8 +605,8 @@ uint64_t find_best_prediction_type(Block<INPUTUNIT, BS, D> &input_block, const s
   INPUTUNIT lowest_sae {};
   INPUTUNIT sae {};
 
-  size_t block_stride[D + 1] {};
-  size_t image_stride[D + 1] {};
+  std::array<size_t, D + 1> block_stride {};
+  std::array<size_t, D + 1> image_stride {};
 
   block_stride[0] = 1;
   image_stride[0] = 1;
@@ -686,8 +686,8 @@ template <size_t BS, size_t D>
 void predict(Block<INPUTUNIT, BS, D> &prediction_block, const size_t block_dims[D], const std::vector<INPUTUNIT> &decoded, size_t offset, uint64_t prediction_type) {
   bool neighbours_prev[D] {};
 
-  size_t block_stride[D + 1] {};
-  size_t image_stride[D + 1] {};
+  std::array<size_t, D + 1> block_stride {};
+  std::array<size_t, D + 1> image_stride {};
 
   block_stride[0] = 1;
   image_stride[0] = 1;

@@ -17,7 +17,7 @@
 
 //TODO
 // LOW PASS FILTR HLAVNI REFERENCE
-// INTERPOLACE PRI PROMITANI NA HLAVNI REFERENCI?
+// INTERPOLACE PRI PROMITANI NA HLAVNI REFERENCI - ZTRATA CASU, viz HEVC, implementoval jsem lepsi zaokrouhlovani
 
 template<size_t BS, size_t D, typename T>
 void getSlice(const Block<T, BS, D> &block, Block<T, BS, D - 1> &slice, size_t direction, size_t index) {
@@ -41,30 +41,14 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
   }
 }
 
-#include <iostream>
-
 template <size_t BS, size_t D>
-void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1], size_t main_ref_idx) {
-  int64_t ref_offsets[D - 1] {};
-
-  for (size_t d { 0 }; d < D - 1; d++) {
-    size_t idx {};
-    idx = d < main_ref_idx ? d : d + 1;
-
-    if (direction[idx] >= 0) {
-      ref_offsets[d] += BS;
-    }
-    if (direction[idx] <= 0) {
-      ref_offsets[d] += 1;
-    }
-  }
-
+void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
+#if true
   for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
     std::array<int64_t, D> position {};
 
     for (size_t d { 0 }; d < D - 1; d++) {
-      size_t idx {};
-      idx = d < main_ref_idx ? d : d + 1;
+      size_t idx = d < main_ref_idx ? d : d + 1;
       position[idx] = i % constpow(BS * 2 + 1, d + 1) / constpow(BS * 2 + 1, d);
       position[idx] -= ref_offsets[d];
     }
@@ -75,66 +59,45 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
     double neighbour_distance {};
     for (size_t d { 0 }; d < D; d++) {
       if (direction[d] > 0) {
-        double distance { static_cast<double>(position[d]) / direction[d] };
+        double distance {};
+        distance = static_cast<double>(position[d]) / direction[d];
         if (distance <= neighbour_distance) {
           neighbour_distance = distance;
           nearest_neighbour_idx = d;
         }
       }
-    } //pokud jsou vsechny souradnice kladne, hlavni stena je hlavni prumetna
-
-    std::array<int64_t, D> new_position {};
-
-    bool br {};
-
-    //posunout soradnice podle vektoru diection tak, aby byly pokud mozno vsechny vetsi nebo rovno nule
-    for (size_t d { 0 }; d < D; d++) {
-      int64_t tmp_pos {};
-
-          tmp_pos      =  position[d] * direction[nearest_neighbour_idx];
-          tmp_pos     -= direction[d] *  position[nearest_neighbour_idx];
-      new_position[d]  =      tmp_pos / direction[nearest_neighbour_idx];
-
-      if (new_position[d] < 0) {
-        new_position[d] = 0;
-        br = true;
-      }
-
-      if (direction[d] >= 0 && new_position[d] > BS) {
-        br = true;
-      }
-      else if (new_position[d] > (BS * 2 - 1)) {
-        new_position[d] = BS * 2 - 1;
-        br = true;
-      }
     }
 
-    if (br) {
-      continue;
+    int64_t num_steps = position[nearest_neighbour_idx];
+
+    //posune soradnice podle vektoru diection tak, aby byly pokud mozno vsechny vetsi nebo rovno nule
+    for (size_t d { 0 }; d < D; d++) {
+      position[d] *= direction[nearest_neighbour_idx];
+      position[d] -= direction[d] * num_steps;
+      position[d] /= direction[nearest_neighbour_idx];
+
+      if (position[d] < 0) {
+        position[d] = 0;
+      }
+      else if (direction[d] >= 0 && position[d] >= (static_cast<int64_t>(BS) + 1)) {
+        position[d] = BS;
+      }
+      else if (position[d] >= (static_cast<int64_t>(BS) * 2 + 1)) {
+        position[d] = BS * 2;
+      }
     }
 
     int64_t src_idx {};
     for (size_t d = 0; d < D; d++) {
-      src_idx += new_position[d] * input_stride[d];
+      src_idx += position[d] * input_stride[d];
     }
 
     main_ref[i] = src[src_idx];
   }
 
-  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
-    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
-      std::cerr << main_ref[y * (2 * BS + 1) + x] << ' ';
-    }
-    std::cerr << '\n';
-  }
-  std::cerr << '\n';
-
-  //---------------------------------------------
-
-#if true
+#else //old implementation
 
   main_ref.fill(0);
-
 
   int64_t ref_offset {};
   size_t idx {};
@@ -260,21 +223,12 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
 
     main_ref[dst_idx] = src[src_idx];
   }
-
-  for (size_t y { 0 }; y < 2 * BS + 1; y++) {
-    for (size_t x { 0 }; x < 2 * BS + 1; x++) {
-      std::cerr << main_ref[y * (2 * BS + 1) + x] << ' ';
-    }
-    std::cerr << '\n';
-  }
-
 #endif
 
 }
 
 template <size_t BS, size_t D>
 struct interpolate {
-
   template <typename F>
   interpolate(F &&main_ref, const int64_t main_ref_pos[D], int8_t multiplier, INPUTUNIT &output) {
     int64_t pos = std::floor(main_ref_pos[D - 1] / static_cast<double>(multiplier));
@@ -312,23 +266,18 @@ struct interpolate<BS, 0> {
 };
 
 template <size_t BS, size_t D>
-void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx) {
+void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
   for (size_t i { 0 }; i < constpow(BS, D); i++) {
-    std::array<int64_t, D> pos {};
+
+    int64_t main_ref_distance = i % constpow(BS, main_ref_idx + 1) / constpow(BS, main_ref_idx);
+
     int64_t main_ref_pos[D - 1] {};
-
-    for (size_t d { 0 }; d < D; d++) {
-      pos[d] = ((i % constpow(BS, d + 1) / constpow(BS, d)) + 1);
-    }
-
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
-      main_ref_pos[d] = (pos[idx] * direction[main_ref_idx]) - (direction[idx] * pos[main_ref_idx]);
-
-      // find offset for main neighbour to make space for projected samples
-      if (direction[idx] >= 0) {
-        main_ref_pos[d] += BS * direction[main_ref_idx];
-      }
+      main_ref_pos[d]  = i % constpow(BS, idx + 1) / constpow(BS, idx);
+      main_ref_pos[d] += ref_offsets[d];
+      main_ref_pos[d] *= direction[main_ref_idx];
+      main_ref_pos[d] -= direction[idx] * main_ref_distance;
     }
 
     auto inputF = [&](size_t index) {
@@ -340,11 +289,11 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
 }
 
 template <size_t BS, size_t D>
-void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
+void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride) {
   Block<INPUTUNIT, BS * 2 + 1, D - 1> ref {};
 
-  int64_t ptr_offset { 0 };
-  size_t  main_ref_idx   { 0 };
+  int64_t ptr_offset   { 0 };
+  size_t  main_ref_idx { 0 };
 
   // find which neighbouring block will be main
   for (size_t d = 0; d < D; d++) {
@@ -357,18 +306,31 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     return;
   }
 
+  std::array<int64_t, D - 1> ref_offsets {};
+  for (size_t d { 0 }; d < D - 1; d++) {
+    size_t idx {};
+    idx = d < main_ref_idx ? d : d + 1;
+
+    if (direction[idx] >= 0) {
+      ref_offsets[d] += BS;
+    }
+    if (direction[idx] <= 0) {
+      ref_offsets[d] += 1;
+    }
+  }
+
   for (size_t d { 0 }; d < D; d++) {
     if (direction[d] > 0) {
       ptr_offset -= input_stride[d];
     }
   }
 
-  project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride, main_ref_idx);
-  predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx);
+  project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride, main_ref_idx, ref_offsets);
+  predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx, ref_offsets);
 }
 
 template<size_t BS, size_t D>
-void predict_DC(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
+void predict_DC(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride) {
   INPUTUNIT sum { 0 };
   size_t    neighbour_cnt { 0 };
 
@@ -400,7 +362,7 @@ void predict_DC(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const
 }
 
 template<size_t BS, size_t D>
-void predict_planar(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const INPUTUNIT *src, const size_t input_stride[D + 1]) {
+void predict_planar(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride) {
   Block<INPUTUNIT, BS, D> tmp_prediction {};
   size_t                  neighbour_cnt  { 0 };
 
