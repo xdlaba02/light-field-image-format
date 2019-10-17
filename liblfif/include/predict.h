@@ -16,34 +16,99 @@
 #include <cmath>
 
 //TODO
-// LOW PASS FILTR HLAVNI REFERENCE
-// INTERPOLACE PRI PROMITANI NA HLAVNI REFERENCI - ZTRATA CASU, viz HEVC, implementoval jsem lepsi zaokrouhlovani
+// INTERPOLACE PRI PROMITANI NA HLAVNI REFERENCI - PROBLY ZTRATA CASU, viz HEVC, implementoval jsem aspon lepsi zaokrouhlovani
 
-template<size_t BS, size_t D, typename T>
-void getSlice(const Block<T, BS, D> &block, Block<T, BS, D - 1> &slice, size_t direction, size_t index) {
-  assert(direction < D);
-  assert(index < BS);
+template <size_t BS, size_t D>
+struct interpolate {
+  template <typename F>
+  interpolate(F &&main_ref, const int64_t main_ref_pos[D], int8_t multiplier, INPUTUNIT &output) {
+    int64_t pos = std::floor(main_ref_pos[D - 1] / static_cast<double>(multiplier));
+    int64_t frac = main_ref_pos[D - 1] % multiplier;
 
-  for (size_t i { 0 }; i < constpow(BS, D - 1); i++) {
-    size_t directional_index = i % constpow(BS, direction) + i / constpow(BS, direction) * constpow(BS, direction + 1);
-    slice[i] = block[directional_index + index * constpow(BS, direction)];
+    auto inputF1 = [&](size_t index) {
+      return main_ref(pos * constpow(BS, D - 1) + index);
+    };
+
+    if (frac == 0) {
+      interpolate<BS, D - 1>(inputF1, main_ref_pos, multiplier, output);
+    }
+    else {
+      INPUTUNIT val1 {};
+      INPUTUNIT val2 {};
+
+      auto inputF2 = [&](size_t index) {
+        return main_ref((pos + 1) * constpow(BS, D - 1) + index);
+      };
+
+      interpolate<BS, D - 1>(inputF1, main_ref_pos, multiplier, val1);
+      interpolate<BS, D - 1>(inputF2, main_ref_pos, multiplier, val2);
+
+      output = (val1 * (multiplier - frac) + val2 * frac) / multiplier;
+    }
   }
-}
+};
 
-template<size_t BS, size_t D, typename T>
-void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t direction, size_t index) {
-  assert(direction < D);
-  assert(index < BS);
+template <size_t BS>
+struct interpolate<BS, 0> {
+  template <typename F>
+  interpolate(F &&main_ref, const int64_t *, int8_t, INPUTUNIT &output) {
+    output = main_ref(0);
+  }
+};
 
-  for (size_t i { 0 }; i < constpow(BS, D - 1); i++) {
-    size_t directional_index = i % constpow(BS, direction) + i / constpow(BS, direction) * constpow(BS, direction + 1);
-    block[directional_index + index * constpow(BS, direction)] = slice[i];
+template <size_t BS, size_t D>
+struct low_pass_sum {
+  template <typename F>
+  low_pass_sum(F &&input) {
+    for (size_t slice = 0; slice < BS; slice++) {
+      auto inputF = [&](size_t index) -> auto & {
+        return input(slice * constpow(BS, D - 1) + index);
+      };
+
+      low_pass_sum<BS, D - 1>{inputF}; //brackets used to disambiguate between creating temporary object and creating object named inputF
+    }
+
+    for (size_t noodle = 0; noodle < constpow(BS, D - 1); noodle++) {
+      auto inputF = [&](size_t index) -> auto & {
+        return input(index * constpow(BS, D - 1) + noodle);
+      };
+
+      low_pass_sum<BS, 1>{inputF};
+    }
+  }
+};
+
+template <size_t BS>
+struct low_pass_sum<BS, 1> {
+  template <typename F>
+  low_pass_sum(F &&input) {
+    auto prev_value = input(0);
+
+    for (size_t i { 0 }; i < BS - 1; i++) {
+      auto tmp = input(i);
+      input(i) = prev_value + 2 * input(i) + input(i + 1);
+      prev_value = tmp;
+    }
+
+    input(BS - 1) = prev_value + 3 * input(BS - 1);
+  }
+};
+
+template <size_t BS, size_t D>
+void low_pass_filter(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref) {
+  auto inputF = [&](size_t index) -> auto & {
+    return main_ref[index];
+  };
+
+  low_pass_sum<BS * 2 + 1, D - 1>{inputF};
+
+  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+    main_ref[i] /= constpow(4, D - 1);
   }
 }
 
 template <size_t BS, size_t D>
 void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
-#if true
   for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
     std::array<int64_t, D> position {};
 
@@ -94,176 +159,7 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
 
     main_ref[i] = src[src_idx];
   }
-
-#else //old implementation
-
-  main_ref.fill(0);
-
-  int64_t ref_offset {};
-  size_t idx {};
-  for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref_idx) {
-      if (direction[d] >= 0) {
-        ref_offset += constpow(BS * 2 + 1, idx) * BS;
-      }
-      if (direction[d] <= 0){
-        ref_offset += constpow(BS * 2 + 1, idx);
-      }
-      idx++;
-    }
-  }
-
-
-  for (size_t d { 0 }; d < D; d++) {
-    if (d != main_ref_idx) {
-      if (direction[d] > 0) {
-        for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
-          int64_t src_idx {};
-
-          for (size_t dd = 0; dd < D - 1; dd++) {
-            int64_t idx = dd < d ? dd : dd + 1;
-            src_idx += (i % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[idx];
-          }
-
-          int64_t dst_idx {};
-          std::array<int64_t, D> dst_pos {};
-
-          //rotate index to direction d
-          dst_idx = i % constpow(BS * 2 + 1, d) + i / constpow(BS * 2 + 1, d) * constpow(BS * 2 + 1, d + 1);
-
-          bool overflow {};
-          for (size_t dd { 0 }; dd < D; dd++) {
-            dst_pos[dd] = dst_idx % constpow(BS * 2 + 1, dd + 1) / constpow(BS * 2 + 1, dd);
-
-            if (dd != main_ref_idx) {
-              if (direction[dd] >= 0) {
-                dst_pos[dd] += BS;
-              }
-              if (direction[dd] <= 0){
-                dst_pos[dd] += 1;
-              }
-            }
-
-            if (dst_pos[dd] >= static_cast<int64_t>(BS * 2 + 1)) {
-              overflow = true;
-            }
-          }
-
-          if (dst_pos[main_ref_idx] > static_cast<int64_t>(BS)) {
-            overflow = true;
-          }
-
-          if (overflow) {
-            continue;
-          }
-
-          int64_t distance { dst_pos[main_ref_idx] };
-
-          for (size_t dd { 0 }; dd < D; dd++) {
-            dst_pos[dd] *= direction[main_ref_idx];
-            dst_pos[dd] -= direction[dd] * distance;
-            dst_pos[dd] /= direction[main_ref_idx];
-          }
-
-          for (size_t dd { 0 }; dd < D; dd++) {
-            if (dst_pos[dd] < 0) {
-              overflow = true;
-            }
-            else if (dst_pos[dd] >= static_cast<int64_t>(BS * 2 + 1)) {
-              overflow = true;
-            }
-          }
-
-          if (overflow) {
-            continue;
-          }
-
-          dst_idx = 0;
-          size_t pow {};
-          for (size_t dd { 0 }; dd < D; dd++) {
-            if (dd != main_ref_idx) {
-              dst_idx += dst_pos[dd] * constpow(BS * 2 + 1, pow);
-              pow++;
-            }
-          }
-
-          // Tady by se taky mozna hodilo kontrolovat, jestli tam uz neni nejaka hodnota s mensi chybou
-          main_ref[dst_idx] = src[src_idx];
-        }
-      }
-    }
-  }
-
-  // copy main samples to main reference
-  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
-    int64_t rot_idx {};
-    int64_t src_idx {};
-    size_t dst_idx {};
-
-    rot_idx = i % constpow(BS * 2 + 1, main_ref_idx) + i / constpow(BS * 2 + 1, main_ref_idx) * constpow(BS * 2 + 1, main_ref_idx + 1);
-
-
-    for (size_t dd = 0; dd < D; dd++) {
-      src_idx += (rot_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd) * input_stride[dd];
-    }
-
-    dst_idx = i + ref_offset;
-
-    bool overflow {};
-    for (size_t dd = 0; dd < D; dd++) {
-      if (((dst_idx % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd)) < ((ref_offset % constpow(BS * 2 + 1, dd + 1)) / constpow(BS * 2 + 1, dd))) {
-        overflow = true;
-      }
-    }
-
-    if (overflow) {
-      continue;
-    }
-
-
-    main_ref[dst_idx] = src[src_idx];
-  }
-#endif
-
 }
-
-template <size_t BS, size_t D>
-struct interpolate {
-  template <typename F>
-  interpolate(F &&main_ref, const int64_t main_ref_pos[D], int8_t multiplier, INPUTUNIT &output) {
-    int64_t pos = std::floor(main_ref_pos[D - 1] / static_cast<double>(multiplier));
-    int64_t frac = main_ref_pos[D - 1] % multiplier;
-
-    auto inputF1 = [&](size_t index) {
-      return main_ref(pos * constpow(BS, D - 1) + index);
-    };
-
-    if (frac == 0) {
-      interpolate<BS, D - 1>(inputF1, main_ref_pos, multiplier, output);
-    }
-    else {
-      INPUTUNIT val1 {};
-      INPUTUNIT val2 {};
-
-      auto inputF2 = [&](size_t index) {
-        return main_ref((pos + 1) * constpow(BS, D - 1) + index);
-      };
-
-      interpolate<BS, D - 1>(inputF1, main_ref_pos, multiplier, val1);
-      interpolate<BS, D - 1>(inputF2, main_ref_pos, multiplier, val2);
-
-      output = (val1 * (multiplier - frac) + val2 * frac) / multiplier;
-    }
-  }
-};
-
-template <size_t BS>
-struct interpolate<BS, 0> {
-  template <typename F>
-  interpolate(F &&main_ref, const int64_t *, int8_t, INPUTUNIT &output) {
-    output = main_ref(0);
-  }
-};
 
 template <size_t BS, size_t D>
 void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
@@ -274,10 +170,10 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
     int64_t main_ref_pos[D - 1] {};
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
-      main_ref_pos[d]  = i % constpow(BS, idx + 1) / constpow(BS, idx);
-      main_ref_pos[d] += ref_offsets[d];
-      main_ref_pos[d] *= direction[main_ref_idx];
-      main_ref_pos[d] -= direction[idx] * main_ref_distance;
+      main_ref_pos[d]  = i % constpow(BS, idx + 1) / constpow(BS, idx); //zjisti souradnici z indexu
+      main_ref_pos[d] += ref_offsets[d]; //posune se podle smeru projekce
+      main_ref_pos[d] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo pocitat s floating point
+      main_ref_pos[d] -= direction[idx] * main_ref_distance; //vytvori projekci souradnice na hlavni referencni rovinu
     }
 
     auto inputF = [&](size_t index) {
@@ -326,6 +222,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, &src[ptr_offset], input_stride, main_ref_idx, ref_offsets);
+  low_pass_filter<BS, D>(ref);
   predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx, ref_offsets);
 }
 
