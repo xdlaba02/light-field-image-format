@@ -39,6 +39,7 @@ const char *zztabletype = "DEFAULT";
 bool nothreads              {};
 bool append                 {};
 bool huffman                {};
+bool nopredict              {};
 
 array<float, 3> quality_interval {};
 
@@ -128,6 +129,10 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
       writeHeader(*encoder, output);
       outputScanHuffman_RUNLENGTH(*encoder, inputF, output);
     }
+    else if (nopredict) {
+      writeHeader(*encoder, output);
+      outputScanCABAC_DIAGONAL_NOPREDICT(*encoder, inputF, output);
+    }
     else {
       writeHeader(*encoder, output);
       outputScanCABAC_DIAGONAL(*encoder, inputF, output);
@@ -153,6 +158,9 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     if (huffman) {
       decodeScanHuffman(*decoder, input, outputF);
     }
+    if (nopredict) {
+      decodeScanCABAC_NOPREDICT(*decoder, input, outputF);
+    }
     else {
       decodeScanCABAC(*decoder, input, outputF);
     }
@@ -171,12 +179,12 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h]" << endl;
+  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h] [-p]" << endl;
 }
 
 void parse_args(int argc, char *argv[]) {
   char opt {};
-  while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:naQ:Z:h")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:naQ:Z:hp")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -258,6 +266,13 @@ void parse_args(int argc, char *argv[]) {
       case 'h':
         if (!huffman) {
           huffman = true;
+          continue;
+        }
+      break;
+
+      case 'p':
+        if (!nopredict) {
+          nopredict = true;
           continue;
         }
       break;

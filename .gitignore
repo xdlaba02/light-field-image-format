@@ -10,3 +10,4 @@ callgrind*
 samples
 binaries
 doc
+*.h.gch

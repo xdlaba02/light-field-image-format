@@ -424,6 +424,43 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 }
 
 template<size_t BS, size_t D, typename F>
+void outputScanCABAC_DIAGONAL_NOPREDICT(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
+  std::array<         std::vector<size_t>, D * (BS - 1) + 1> scan_table {};
+  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts   {};
+  OBitstream                                                 bitstream  {};
+  CABACEncoder                                               cabac      {};
+  size_t                                                     threshold  {};
+
+  threshold = (D * (BS - 1) + 1) / 2;
+
+  for (size_t i = 0; i < constpow(BS, D); i++) {
+    size_t diagonal { 0 };
+    for (size_t j = i; j; j /= BS) {
+      diagonal += j % BS;
+    }
+
+    scan_table[diagonal].push_back(i);
+  }
+
+  bitstream.open(&output);
+  cabac.init(bitstream);
+
+  auto perform = [&](size_t, size_t, size_t channel) {
+    forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
+                          quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
+                        dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
+    inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
+              encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
+
+  };
+
+  performScan(enc, input, perform);
+
+  cabac.terminate();
+  bitstream.flush();
+}
+
+template<size_t BS, size_t D, typename F>
 void outputScanCABAC_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
   std::array<CABACContextsRUNLENGTH<BS, D>, 3> contexts    {};
   std::array<QDATAUNIT,                     3> previous_DC {};
