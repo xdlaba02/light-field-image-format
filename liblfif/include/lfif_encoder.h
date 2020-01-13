@@ -406,7 +406,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     return enc.input_block[get_index<BS, D>(pos)];
   };
 
-  auto perform = [&](size_t image, size_t channel, const std::array<size_t, D> &block) {
+  auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &block) {
     auto outputF = [&](const std::array<size_t, D> &pos, const auto &value) {
       size_t img_index {};
 
@@ -417,38 +417,45 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
       decoded[channel][img_index] = value;
     };
 
-    auto predInputF = [&](const std::array<int64_t, D> &pos) {
-      int64_t src_idx {};
-
-      for (size_t d { 0 }; d < D; d++) {
-        /*
-        if ((position[d] < 0) && !neighbours_prev[d]) {
-          position[d] = 0;
+    auto predInputF = [&](std::array<int64_t, D> &block_pos) {
+      //TODO tady se musí interpolovat, musím zjistit jak. Nebude to vůbec tak jednoduché, jak jsem čekal
+      for (size_t i { 1 }; i < D; i++) {
+        if (block_pos[i] >= static_cast<int64_t>(BS)) {
+          block_pos[i] = BS - 1;
         }
-        else if ((position[d] > static_cast<int64_t>(BS - 1)) && !neighbours_next[d]) {
-          position[d] = BS - 1;
-        }
-        */
-
-        src_idx += pos[d] * enc.img_stride_unaligned[d];
       }
 
-      return decoded[channel][src_idx];
+      size_t img_idx {};
+      std::array<int64_t, D> img_pos {};
+      for (size_t i { 0 }; i < D; i++) {
+        img_pos[i] = block[i] * BS + block_pos[i];
+
+        if (img_pos[i] < 0) {
+          img_pos[i] = 0;
+        }
+        else if (img_pos[i] >= static_cast<int64_t>(enc.img_dims_aligned[i])) {
+          img_pos[i] = enc.img_dims_aligned[i] - 1;
+        }
+
+        img_idx += img_pos[i] * enc.img_stride_aligned[i];
+      }
+
+      return decoded[channel][img_idx];
     };
 
     if (channel == 0) {
-      //prediction_type = find_best_prediction_type<BS, D>(enc.input_block, predInputF);
-      //encodePredictionType(prediction_type, cabac, contexts[0]);
+      prediction_type = find_best_prediction_type<BS, D>(enc.input_block, predInputF);
+      encodePredictionType(prediction_type, cabac, contexts[0]);
     }
 
-    //                       predict<BS, D>(prediction_block,    prediction_type,      predInputF);
-    //               applyPrediction<BS, D>(enc.input_block,     prediction_block                                                   );
+                           predict<BS, D>(prediction_block,    prediction_type,      predInputF);
+                   applyPrediction<BS, D>(enc.input_block,     prediction_block                                                   );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
-    //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
-    //inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
-    //              disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
-    //                      putBlock<BS, D>(inputF,              block,                enc.img_dims_aligned,   outputF              );
+                        dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
+    inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
+                  disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
+                          putBlock<BS, D>(inputF,              block,                enc.img_dims_aligned,   outputF              );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
 
   };

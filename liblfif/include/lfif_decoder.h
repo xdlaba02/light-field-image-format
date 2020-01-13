@@ -257,23 +257,29 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
       uint64_t prediction_type {};
       for (size_t channel = 0; channel < 3; channel++) {
 
-        auto predInputF = [&](const std::array<int64_t, D> &pos) {
-          int64_t src_idx {};
-
-          for (size_t d { 0 }; d < D; d++) {
-            /*
-            if ((position[d] < 0) && !neighbours_prev[d]) {
-              position[d] = 0;
+        auto predInputF = [&](std::array<int64_t, D> &block_pos) {
+          for (size_t i { 1 }; i < D; i++) {
+            if (block_pos[i] >= static_cast<int64_t>(BS)) {
+              block_pos[i] = BS - 1;
             }
-            else if ((position[d] > static_cast<int64_t>(BS - 1)) && !neighbours_next[d]) {
-              position[d] = BS - 1;
-            }
-            */
-
-            src_idx += pos[d] * dec.img_stride_unaligned[d];
           }
 
-          return decoded[channel][src_idx];
+          size_t img_idx {};
+          std::array<int64_t, D> img_pos {};
+          for (size_t i { 0 }; i < D; i++) {
+            img_pos[i] = block[i] * BS + block_pos[i];
+
+            if (img_pos[i] < 0) {
+              img_pos[i] = 0;
+            }
+            else if (img_pos[i] >= static_cast<int64_t>(dec.img_dims_aligned[i])) {
+              img_pos[i] = dec.img_dims_aligned[i] - 1;
+            }
+
+            img_idx += img_pos[i] * dec.img_stride_aligned[i];
+          }
+
+          return decoded[channel][img_idx];
         };
 
         auto outputFP = [&](const std::array<size_t, D> &img_pos, const auto &value) {
@@ -287,14 +293,14 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
         };
 
         if (channel == 0) {
-          //decodePredictionType(prediction_type, cabac, contexts[0]);
+          decodePredictionType(prediction_type, cabac, contexts[0]);
         }
-        //                       predict<BS, D>(prediction_block,    prediction_type,       predInputF);
-                  decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
-                            dequantize<BS, D>(dec.quantized_block, dec.dct_block, *dec.quant_table_ptr[channel]);
-        inverseDiscreteCosineTransform<BS, D>(dec.dct_block,       dec.output_block);
-        //              disusePrediction<BS, D>(dec.output_block,    prediction_block);
-                              putBlock<BS, D>(inputFP,             block,                dec.img_dims_aligned,           outputFP);
+                               predict<BS, D>(prediction_block,    prediction_type,                predInputF                    );
+                  decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0],  threshold, scan_table         );
+                            dequantize<BS, D>(dec.quantized_block, dec.dct_block,                 *dec.quant_table_ptr[channel]  );
+        inverseDiscreteCosineTransform<BS, D>(dec.dct_block,       dec.output_block                                              );
+                      disusePrediction<BS, D>(dec.output_block,    prediction_block                                              );
+                              putBlock<BS, D>(inputFP,             block,                          dec.img_dims_aligned, outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
           dec.current_block[i][channel] = dec.output_block[i];
