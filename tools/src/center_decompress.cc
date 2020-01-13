@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
   initDecoder(*decoder2D);
 
-  size_t prediction_size = decoder2D->pixels_cnt * decoder2D->img_dims[2] * 3;
+  size_t prediction_size = decoder2D->img_stride_unaligned[2] * decoder2D->img_dims[2] * 3;
   prediction_size *= (decoder2D->color_depth > 8) ? 2 : 1;
   prediction.resize(prediction_size);
 
@@ -93,16 +93,16 @@ int main(int argc, char *argv[]) {
 
   initDecoder(*decoder4D);
 
-  size_t output_size = decoder4D->pixels_cnt * decoder4D->img_dims[4] * 3;
+  size_t output_size = decoder4D->img_stride_unaligned[4] * decoder4D->img_dims[4] * 3;
   output_size *= (decoder4D->color_depth > 8) ? 2 : 1;
   rgb_data.resize(output_size);
 
   auto outputF0 = [&](size_t channel, size_t index, INPUTUNIT value) {
     if (max_rgb_value < 256) {
-      reinterpret_cast<uint8_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint8_t *>(prediction.data())[(index % decoder2D->pixels_cnt) * 3 + channel] - max_rgb_value), 0, max_rgb_value);
+      reinterpret_cast<uint8_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint8_t *>(prediction.data())[(index % decoder2D->img_stride_unaligned[2]) * 3 + channel] - max_rgb_value), 0, max_rgb_value);
     }
     else {
-      reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint16_t *>(prediction.data())[(index % decoder2D->pixels_cnt) * 3 + channel] - max_rgb_value) , 0, max_rgb_value);
+      reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint16_t *>(prediction.data())[(index % decoder2D->img_stride_unaligned[2]) * 3 + channel] - max_rgb_value) , 0, max_rgb_value);
     }
   };
 

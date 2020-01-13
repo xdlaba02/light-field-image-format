@@ -27,57 +27,63 @@ struct getBlock {
    * @param output The output callback function with signature void output(size_t index, T value), where T is type of extracted sample.
    */
   template <typename IF, typename OF>
-  getBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
-    size_t blocks_x = 1;
-    size_t size_x   = 1;
+  getBlock(IF &&input, const std::array<size_t, D> &pos_block, const std::array<size_t, D> &img_dims, OF &&output) {
+    for (size_t block_y = 0; block_y < BS; block_y++) {
+      size_t img_y = pos_block[D - 1] * BS + block_y;
 
-    for (size_t i = 0; i < D - 1; i++) {
-      blocks_x *= ceil(dims[i]/static_cast<double>(BS));
-      size_x *= dims[i];
-    }
-
-    for (size_t pixel = 0; pixel < BS; pixel++) {
-      size_t image_y = (block / blocks_x) * BS + pixel;
-
-      if (image_y >= dims[D-1]) {
-        image_y = dims[D-1] - 1;
+      if (img_y >= img_dims[D - 1]) {
+        img_y = img_dims[D - 1] - 1;
       }
 
-      auto inputF = [&](size_t image_index) {
-        return input(image_y * size_x + image_index);
+      auto inputF = [&](const std::array<size_t, D - 1> &img_pos) {
+        std::array<size_t, D> new_img_pos {};
+
+        for (size_t i { 0 }; i < D - 1; i++) {
+          new_img_pos[i] = img_pos[i];
+        }
+        new_img_pos[D - 1] = img_y;
+
+        return input(new_img_pos);
       };
 
-      auto outputF = [&](size_t pixel_index, const auto &value) {
-        output(pixel * constpow(BS, D-1) + pixel_index, value);
+      auto outputF = [&](const std::array<size_t, D - 1> &block_pos, const auto &value) {
+        std::array<size_t, D> new_block_pos {};
+
+        for (size_t i { 0 }; i < D - 1; i++) {
+          new_block_pos[i] = block_pos[i];
+        }
+        new_block_pos[D - 1] = block_y;
+
+        output(new_block_pos, value);
       };
 
-      getBlock<BS, D-1>(inputF, block % blocks_x, dims, outputF);
+      std::array<size_t, D - 1> new_pos_block {};
+      std::array<size_t, D - 1> new_img_dims  {};
+
+      for (size_t i { 0 }; i < D - 1; i++) {
+        new_pos_block[i] = pos_block[i];
+         new_img_dims[i] =  img_dims[i];
+      }
+
+      getBlock<BS, D - 1>(inputF, new_pos_block, new_img_dims, outputF);
     }
   }
 };
 
 /**
- * @brief The parital specialization for getting one dimensional block.
+ * @brief The parital specialization for getting one sample.
  * @see getBlock<BS, D>
  */
 template<size_t BS>
-struct getBlock<BS, 1> {
+struct getBlock<BS, 0> {
 
   /**
-   * @brief The parital specialization for getting one dimensional block.
+   * @brief The parital specialization for getting one sample.
    * @see getBlock<BS, D>::getBlock
    */
   template <typename IF, typename OF>
-  getBlock(IF &&input, const size_t block, const size_t dims[1], OF &&output) {
-    for (size_t pixel = 0; pixel < BS; pixel++) {
-      size_t image = block * BS + pixel;
-
-      if (image >= dims[0]) {
-        image = dims[0] - 1;
-      }
-
-      output(pixel, input(image));
-    }
+  getBlock(IF &&input, const std::array<size_t, 0> &, const std::array<size_t, 0> &, OF &&output) {
+    output({}, input({}));
   }
 };
 
@@ -95,57 +101,63 @@ struct putBlock {
    * @param output The output callback function with signature void output(size_t index, T value), where T is type of inserted sample.
    */
   template <typename IF, typename OF>
-  putBlock(IF &&input, size_t block, const size_t dims[D], OF &&output) {
-    size_t blocks_x = 1;
-    size_t size_x   = 1;
+  putBlock(IF &&input, const std::array<size_t, D> &pos_block, const std::array<size_t, D> &img_dims, OF &&output) {
+    for (size_t block_y = 0; block_y < BS; block_y++) {
+      size_t img_y = pos_block[D - 1] * BS + block_y;
 
-    for (size_t i = 0; i < D - 1; i++) {
-      blocks_x *= ceil(dims[i]/static_cast<double>(BS));
-      size_x *= dims[i];
-    }
-
-    for (size_t pixel = 0; pixel < BS; pixel++) {
-      size_t image = (block / blocks_x) * BS + pixel;
-
-      if (image >= dims[D-1]) {
+      if (img_y >= img_dims[D - 1]) {
         break;
       }
 
-      auto inputF = [&](size_t pixel_index) {
-        return input(pixel * constpow(BS, D-1) + pixel_index);
+      auto inputF = [&](const std::array<size_t, D - 1> &block_pos) {
+        std::array<size_t, D> new_block_pos {};
+
+        for (size_t i { 0 }; i < D - 1; i++) {
+          new_block_pos[i] = block_pos[i];
+        }
+        new_block_pos[D - 1] = block_y;
+
+        return input(new_block_pos);
       };
 
-      auto outputF = [&](size_t image_index, const auto &value) {
-        return output(image * size_x + image_index, value);
+      auto outputF = [&](const std::array<size_t, D - 1> &img_pos, const auto &value) {
+        std::array<size_t, D> new_img_pos {};
+
+        for (size_t i { 0 }; i < D - 1; i++) {
+          new_img_pos[i] = img_pos[i];
+        }
+        new_img_pos[D - 1] = img_y;
+
+        return output(new_img_pos, value);
       };
 
-      putBlock<BS, D-1>(inputF, block % blocks_x, dims, outputF);
+      std::array<size_t, D - 1> new_pos_block {};
+      std::array<size_t, D - 1> new_img_dims  {};
+
+      for (size_t i { 0 }; i < D - 1; i++) {
+        new_pos_block[i] = pos_block[i];
+         new_img_dims[i] =  img_dims[i];
+      }
+
+      putBlock<BS, D - 1>(inputF, new_pos_block, new_img_dims, outputF);
     }
   }
 };
 
 /**
- * @brief The parital specialization for putting one dimensional block.
+ * @brief The parital specialization for putting one sample.
  * @see putBlock<BS, D>
  */
 template<size_t BS>
-struct putBlock<BS, 1> {
+struct putBlock<BS, 0> {
 
   /**
-   * @brief The parital specialization for putting one dimensional block.
+   * @brief The parital specialization for putting one sample.
    * @see putBlock<BS, D>::getBlock
    */
   template <typename IF, typename OF>
-  putBlock(IF &&input, size_t block, const size_t dims[1], OF &&output) {
-    for (size_t pixel = 0; pixel < BS; pixel++) {
-      size_t image = block * BS + pixel;
-
-      if (image >= dims[0]) {
-        break;
-      }
-
-      output(image, input(pixel));
-    }
+  putBlock(IF &&input, const std::array<size_t, 0> &, const std::array<size_t, 0> &, OF &&output) {
+    output({}, input({}));
   }
 };
 

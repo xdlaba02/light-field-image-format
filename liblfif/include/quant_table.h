@@ -62,17 +62,19 @@ template <size_t BSIN, size_t D, size_t BSOUT>
 constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
   QuantTable<BSOUT, D> output {};
 
-  auto inputF = [&](size_t index) {
-    return input[index];
+  auto inputF = [&](const std::array<size_t, D> &pos) {
+    return input[get_index<BSIN, D>(pos)];
   };
 
-  auto outputF = [&](size_t index, const auto &value) {
-    output[index] = value;
+  auto outputF = [&](const std::array<size_t, D> &pos, const auto &value) {
+    output[get_index<BSOUT, D>(pos)] = value;
   };
 
-  size_t dims[D] {};
-  std::fill(dims, dims + D, BSIN);
-  getBlock<BSOUT, D>(inputF, 0, dims, outputF);
+  std::array<size_t, D> dims {};
+  std::fill(std::begin(dims), std::end(dims), BSIN);
+
+  std::array<size_t, D> pos {};
+  getBlock<BSOUT, D>(inputF, pos, dims, outputF);
 
   return output;
 }

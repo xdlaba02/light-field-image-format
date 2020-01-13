@@ -131,7 +131,7 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     }
     else if (nopredict) {
       writeHeader(*encoder, output);
-      outputScanCABAC_DIAGONAL_NOPREDICT(*encoder, inputF, output);
+      outputScanCABAC_DIAGONAL(*encoder, inputF, output);
     }
     else {
       writeHeader(*encoder, output);
@@ -159,7 +159,7 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
       decodeScanHuffman(*decoder, input, outputF);
     }
     if (nopredict) {
-      decodeScanCABAC_NOPREDICT(*decoder, input, outputF);
+      decodeScanCABAC(*decoder, input, outputF);
     }
     else {
       decodeScanCABAC(*decoder, input, outputF);

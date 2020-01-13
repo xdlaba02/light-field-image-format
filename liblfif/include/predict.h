@@ -23,10 +23,16 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
   assert(direction < D);
   assert(index < BS);
 
-  for (size_t i { 0 }; i < constpow(BS, D - 1); i++) {
-    size_t directional_index = i % constpow(BS, direction) + i / constpow(BS, direction) * constpow(BS, direction + 1);
-    block[directional_index + index * constpow(BS, direction)] = slice[i];
-  }
+  iterate_cube<BS, D - 1>([&](const std::array<size_t, D - 1> &pos) {
+    std::array<size_t, D> dir_pos {};
+
+    for (size_t i { 0 }; i < D - 1; i++) {
+      size_t idx = i < direction ? i : i + 1;
+      dir_pos[idx] = pos[i];
+    }
+
+    block[get_index<BS, D>(dir_pos) + index * constpow(BS, direction)] = slice[get_index<BS, D - 1>(pos)];
+  });
 }
 
 template <size_t BS, size_t D>
@@ -120,12 +126,12 @@ void low_pass_filter(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref) {
 
 template <size_t BS, size_t D, typename F>
 void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets, F &&inputF) {
-  for (size_t i { 0 }; i < constpow(BS * 2 + 1, D - 1); i++) {
+  iterate_cube<BS * 2 + 1, D - 1>([&](const std::array<size_t, D - 1> &pos) {
     std::array<int64_t, D> position {};
 
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
-      position[idx] = i % constpow(BS * 2 + 1, d + 1) / constpow(BS * 2 + 1, d);
+      position[idx] = pos[d];
       position[idx] -= ref_offsets[d];
     }
 
@@ -167,31 +173,28 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
       }
     }
 
-    main_ref[i] = inputF(position);
-  }
+    main_ref[get_index<BS * 2 + 1, D - 1>(pos)] = inputF(position);
+  });
 }
 
 template <size_t BS, size_t D>
 void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
-  for (size_t i { 0 }; i < constpow(BS, D); i++) {
-
-    int64_t main_ref_distance = i % constpow(BS, main_ref_idx + 1) / constpow(BS, main_ref_idx);
-
+  iterate_cube<BS, D>([&](const std::array<size_t, D> &pos) {
     int64_t main_ref_pos[D - 1] {};
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
-      main_ref_pos[d]  = i % constpow(BS, idx + 1) / constpow(BS, idx); //zjisti souradnici z indexu
+      main_ref_pos[d]  = pos[idx]; //zjisti souradnici z indexu
       main_ref_pos[d] += ref_offsets[d]; //posune se podle smeru projekce
       main_ref_pos[d] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo pocitat s floating point
-      main_ref_pos[d] -= direction[idx] * main_ref_distance; //vytvori projekci souradnice na hlavni referencni rovinu
+      main_ref_pos[d] -= direction[idx] * pos[main_ref_idx]; //vytvori projekci souradnice na hlavni referencni rovinu
     }
 
     auto inputF = [&](size_t index) {
       return main_ref[index];
     };
 
-    interpolate<BS * 2 + 1, D - 1>(inputF, main_ref_pos, direction[main_ref_idx], output[i]);
-  }
+    interpolate<BS * 2 + 1, D - 1>(inputF, main_ref_pos, direction[main_ref_idx], output[get_index<BS, D>(pos)]);
+  });
 }
 
 template <size_t BS, size_t D, typename F>
@@ -229,73 +232,48 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx, ref_offsets);
 }
 
-template<size_t BS, size_t D>
-void predict_DC(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride) {
+template<size_t BS, size_t D, typename F>
+void predict_DC(Block<INPUTUNIT, BS, D> &output, F &inputF) {
   INPUTUNIT sum { 0 };
-  size_t    neighbour_cnt { 0 };
 
   for (size_t neighbour_idx { 0 }; neighbour_idx < D; neighbour_idx++) {
-    if (neighbours[neighbour_idx]) {
-      for (size_t i { 0 }; i < constpow(BS, D - 1); i++) {
-        int64_t offset {};
+    iterate_cube<BS, D - 1>([&](const std::array<size_t, D - 1> &pos) {
+      std::array<int64_t, D> position {};
+      position[neighbour_idx]--;
 
-        for (size_t d {0}; d < D; d++) {
-          if (d == neighbour_idx) {
-            offset -= input_stride[d];
-          }
-          else {
-            size_t pow_val { d < neighbour_idx ? d : d - 1 };
-            offset += ((i % constpow(BS, pow_val + 1)) / constpow(BS, pow_val)) * input_stride[d];
-          }
-        }
-
-        sum += src[offset];
+      for (size_t d { 0 }; d < D - 1; d++) {
+        size_t idx     = d < neighbour_idx ? d : d + 1;
+        position[idx] += pos[d];
       }
 
-      neighbour_cnt++;
-    }
+      sum += inputF(position);
+    });
   }
 
   for (size_t i { 0 }; i < constpow(BS, D); i++) {
-    output[i] = sum / (constpow(BS, D - 1) * neighbour_cnt);
+    output[i] = sum / (constpow(BS, D - 1) * D);
   }
 }
 
-template<size_t BS, size_t D>
-void predict_planar(Block<INPUTUNIT, BS, D> &output, const bool neighbours[D], const INPUTUNIT *src, const std::array<size_t, D + 1> &input_stride) {
-  Block<INPUTUNIT, BS, D> tmp_prediction {};
-  size_t                  neighbour_cnt  { 0 };
-
+template<size_t BS, size_t D, typename F>
+void predict_planar(Block<INPUTUNIT, BS, D> &output, F &inputF) {
   output.fill(0);
 
   for (size_t neighbour_idx { 0 }; neighbour_idx < D; neighbour_idx++) {
-    if (neighbours[neighbour_idx]) {
-      int8_t direction[D] {};
+    Block<INPUTUNIT, BS, D> tmp_prediction {};
 
-      direction[neighbour_idx] = 1;
+    int8_t direction[D] {};
+    direction[neighbour_idx] = 1;
 
-      auto inputF = [&](std::array<int64_t, D> position) {
-        int64_t src_idx {};
+    predict_direction<BS, D>(tmp_prediction, direction, inputF);
 
-        for (size_t d { 0 }; d < D; d++) {
-          src_idx += position[d] * input_stride[d];
-        }
-
-        return src[src_idx];
-      };
-
-      predict_direction<BS, D>(tmp_prediction, direction, inputF);
-
-      for (size_t i { 0 }; i < constpow(BS, D); i++) {
-        output[i] += tmp_prediction[i];
-      }
-
-      neighbour_cnt++;
+    for (size_t i { 0 }; i < constpow(BS, D); i++) {
+      output[i] += tmp_prediction[i];
     }
   }
 
   for (size_t i { 0 }; i < constpow(BS, D); i++) {
-    output[i] /= neighbour_cnt;
+    output[i] /= D;
   }
 }
 
