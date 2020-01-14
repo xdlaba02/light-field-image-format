@@ -321,7 +321,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
           size_t img_index {};
 
           for (size_t i { 0 }; i < D; i++) {
-            img_index += img_pos[i] * dec.img_stride_unaligned[i];
+            img_index += img_pos[i] * dec.img_stride_aligned[i];
           }
 
           decoded[channel][img_index] = value;
