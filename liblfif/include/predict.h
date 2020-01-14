@@ -179,14 +179,14 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
 
 template <size_t BS, size_t D>
 void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
-  iterate_cube<BS, D>([&](const std::array<size_t, D> &pos) {
+  iterate_cube<BS, D>([&](std::array<size_t, D> &pos) {
     int64_t main_ref_pos[D - 1] {};
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
-      main_ref_pos[d]  = pos[idx]; //zjisti souradnici z indexu
+      main_ref_pos[d]  = pos[idx] + 1; //zjisti souradnici z indexu
       main_ref_pos[d] += ref_offsets[d]; //posune se podle smeru projekce
       main_ref_pos[d] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo pocitat s floating point
-      main_ref_pos[d] -= direction[idx] * pos[main_ref_idx]; //vytvori projekci souradnice na hlavni referencni rovinu
+      main_ref_pos[d] -= direction[idx] * (pos[main_ref_idx] + 1); //vytvori projekci souradnice na hlavni referencni rovinu
     }
 
     auto inputF = [&](size_t index) {
