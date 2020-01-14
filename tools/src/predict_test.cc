@@ -12,7 +12,7 @@ using namespace std;
 
 const size_t BS = 4;
 const size_t D = 2;
-const int8_t direction[D] {1, 2};
+const int8_t direction[D] {2, 2};
 
 int main(void) {
   Block<INPUTUNIT, (2 * BS) + 1, D> input_block     {};
@@ -67,7 +67,8 @@ int main(void) {
       is_available[i] = true;
     }
 
-    //is_available[0] = false;
+    is_available[0] = false;
+    //is_available[1] = false;
 
 
     for (size_t i { 1 }; i < D; i++) {
@@ -85,24 +86,24 @@ int main(void) {
     }
     std::cerr << "] -> [ ";
 
-    bool has_negative { false };
-    while(true) {
-      for (size_t i = 0; i < D; i++) {
-        if (is_available[i] && block_pos[i] < 0) {
-          has_negative = true;
-          break;
-        }
+    int64_t max_pos {};
+    for (size_t i = 0; i < D; i++) {
+      if (is_available[i] && (block_pos[i] + 1) > max_pos) {
+        max_pos = block_pos[i] + 1;
       }
+    }
 
-      if (!has_negative) {
-        for (size_t i = 0; i < D; i++) {
-          if (is_available[i]) {
-            block_pos[i]--;
-          }
-        }
+    int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
+
+    for (size_t i = 0; i < D; i++) {
+      if (is_available[i] && (block_pos[i] + 1) < min_pos) {
+        min_pos = block_pos[i] + 1;
       }
-      else {
-        break;
+    }
+
+    for (size_t i = 0; i < D; i++) {
+      if (is_available[i]) {
+        block_pos[i] -= min_pos;
       }
     }
 

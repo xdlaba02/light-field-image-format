@@ -254,6 +254,16 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
     };
 
     iterate_dimensions<D>(dec.block_dims, [&](const std::array<size_t, D> &block) {
+      bool previous_block_available[D] {};
+      for (size_t i { 0 }; i < D; i++) {
+        if (block[i]) {
+          previous_block_available[i] = true;
+        }
+        else {
+          previous_block_available[i] = false;
+        }
+      }
+
       uint64_t prediction_type {};
       for (size_t channel = 0; channel < 3; channel++) {
 
@@ -264,19 +274,44 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
             }
           }
 
-          size_t img_idx {};
-          std::array<int64_t, D> img_pos {};
           for (size_t i { 0 }; i < D; i++) {
-            img_pos[i] = block[i] * BS + block_pos[i];
-
-            if (img_pos[i] < 0) {
-              img_pos[i] = 0;
+            if (!previous_block_available[i] && block_pos[i] < 0) {
+              block_pos[i] = 0;
             }
-            else if (img_pos[i] >= static_cast<int64_t>(dec.img_dims_aligned[i])) {
-              img_pos[i] = dec.img_dims_aligned[i] - 1;
+          }
+
+          int64_t max_pos {};
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i] && (block_pos[i] + 1) > max_pos) {
+              max_pos = block_pos[i] + 1;
+            }
+          }
+
+          int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
+
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i] && (block_pos[i] + 1) < min_pos) {
+              min_pos = block_pos[i] + 1;
+            }
+          }
+
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i]) {
+              block_pos[i] -= min_pos;
+            }
+          }
+
+          size_t img_idx {};
+          for (size_t i { 0 }; i < D; i++) {
+            size_t img_pos {};
+
+            img_pos = block[i] * BS + block_pos[i];
+
+            if (img_pos >= dec.img_dims_aligned[i]) {
+              img_pos = dec.img_dims_aligned[i] - 1;
             }
 
-            img_idx += img_pos[i] * dec.img_stride_aligned[i];
+            img_idx += img_pos * dec.img_stride_aligned[i];
           }
 
           return decoded[channel][img_idx];
@@ -303,7 +338,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
                               putBlock<BS, D>(inputFP,             block,                          dec.img_dims_aligned, outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
-          dec.current_block[i][channel] = dec.output_block[i];
+          dec.current_block[i][channel] = prediction_block[i];
         }
       }
 

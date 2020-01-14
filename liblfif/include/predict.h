@@ -185,10 +185,6 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
   });
 }
 
-#include <iostream>
-#include <iomanip>
-
-
 template <size_t BS, size_t D>
 void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx) {
   iterate_cube<BS, D>([&](std::array<size_t, D> &pos) {
@@ -206,9 +202,7 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
 
 
       if (main_ref_pos[d] > static_cast<int64_t>(BS) * direction[main_ref_idx] * 2) {
-        std::cerr << main_ref_pos[d] << " ";
         main_ref_pos[d] = BS * direction[main_ref_idx] * 2;
-        std::cerr << main_ref_pos[d] << "\n";
       }
     }
 
@@ -238,25 +232,7 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, main_ref_idx, inputF);
-
-  for (size_t y = 0; y < 1; y++) {
-    for (size_t x = 0; x < BS * 2 + 1; x++) {
-      std::cerr << std::setw(6) << std::setprecision(2) << std::fixed << ref[y * (BS * 2 + 1) + x];
-    }
-    std::cerr << "\n";
-  }
-
-
   low_pass_filter<BS, D>(ref);
-
-  for (size_t y = 0; y < 1; y++) {
-    for (size_t x = 0; x < BS * 2 + 1; x++) {
-      std::cerr << std::setw(6) << std::setprecision(2) << std::fixed << ref[y * (BS * 2 + 1) + x];
-    }
-    std::cerr << "\n";
-  }
-  std::cerr << "\n";
-
   predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx);
 }
 

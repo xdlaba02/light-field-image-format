@@ -161,6 +161,8 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
   return 0;
 }
 
+#include <iostream>
+
 /**
 * @brief Function which performs arbitrary scan of an image. This function prepares a block into the encoding structure buffers.
 * @param enc The encoder structure.
@@ -187,6 +189,12 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &pos_block) {
+
+      for (size_t d = 0; d < D; d++) {
+        std::cerr << pos_block[d] << " ";
+      }
+      std::cerr << "\n";
+
       getBlock<BS, D>(inputF, pos_block, enc.img_dims_unaligned, outputF);
 
       for (size_t channel = 0; channel < 3; channel++) {
@@ -417,27 +425,61 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
       decoded[channel][img_index] = value;
     };
 
+    bool previous_block_available[D] {};
+    for (size_t i { 0 }; i < D; i++) {
+      if (block[i]) {
+        previous_block_available[i] = true;
+      }
+      else {
+        previous_block_available[i] = false;
+      }
+    }
+
     auto predInputF = [&](std::array<int64_t, D> &block_pos) {
-      //TODO tady se musí interpolovat, musím zjistit jak. Nebude to vůbec tak jednoduché, jak jsem čekal
       for (size_t i { 1 }; i < D; i++) {
         if (block_pos[i] >= static_cast<int64_t>(BS)) {
           block_pos[i] = BS - 1;
         }
       }
 
-      size_t img_idx {};
-      std::array<int64_t, D> img_pos {};
       for (size_t i { 0 }; i < D; i++) {
-        img_pos[i] = block[i] * BS + block_pos[i];
-
-        if (img_pos[i] < 0) {
-          img_pos[i] = 0;
+        if (!previous_block_available[i] && block_pos[i] < 0) {
+          block_pos[i] = 0;
         }
-        else if (img_pos[i] >= static_cast<int64_t>(enc.img_dims_aligned[i])) {
-          img_pos[i] = enc.img_dims_aligned[i] - 1;
+      }
+
+      int64_t max_pos {};
+      for (size_t i = 0; i < D; i++) {
+        if (previous_block_available[i] && (block_pos[i] + 1) > max_pos) {
+          max_pos = block_pos[i] + 1;
+        }
+      }
+
+      int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
+
+      for (size_t i = 0; i < D; i++) {
+        if (previous_block_available[i] && (block_pos[i] + 1) < min_pos) {
+          min_pos = block_pos[i] + 1;
+        }
+      }
+
+      for (size_t i = 0; i < D; i++) {
+        if (previous_block_available[i]) {
+          block_pos[i] -= min_pos;
+        }
+      }
+
+      size_t img_idx {};
+      for (size_t i { 0 }; i < D; i++) {
+        size_t img_pos {};
+
+        img_pos = block[i] * BS + block_pos[i];
+
+        if (img_pos >= enc.img_dims_aligned[i]) {
+          img_pos = enc.img_dims_aligned[i] - 1;
         }
 
-        img_idx += img_pos[i] * enc.img_stride_aligned[i];
+        img_idx += img_pos * enc.img_stride_aligned[i];
       }
 
       return decoded[channel][img_idx];
@@ -457,7 +499,6 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
                   disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
                           putBlock<BS, D>(inputF,              block,                enc.img_dims_aligned,   outputF              );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
-
   };
 
   performScan(enc, input, perform);

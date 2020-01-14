@@ -627,14 +627,16 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
       direction[i] = pos[i] - 2;
     }
 
-    bool have_positive  {};
-    for (size_t d { 0 }; d < D; d++) {
-      if (direction[d] > 0) {
-        have_positive = true;
+    auto have_positive = [&]() {
+      for (size_t d { 0 }; d < D; d++) {
+        if (direction[d] > 0) {
+          return true;
+        }
       }
-    }
+      return false;
+    };
 
-    if (!have_positive) {
+    if (!have_positive()) {
       return;
     }
 
