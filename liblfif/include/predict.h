@@ -125,14 +125,20 @@ void low_pass_filter(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref) {
 }
 
 template <size_t BS, size_t D, typename F>
-void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets, F &&inputF) {
+void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, F &&inputF) {
   iterate_cube<BS * 2 + 1, D - 1>([&](const std::array<size_t, D - 1> &pos) {
     std::array<int64_t, D> position {};
 
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
       position[idx] = pos[d];
-      position[idx] -= ref_offsets[d];
+
+      if (direction[idx] >= 0) {
+        position[idx] -= BS;
+      }
+      if (direction[idx] <= 0) {
+        position[idx] -= 1;
+      }
     }
 
     size_t nearest_neighbour_idx {};
@@ -161,12 +167,14 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
       if (position[d] < 0) {
         position[d] = 0;
       }
-      else if (direction[d] >= 0 && position[d] >= (static_cast<int64_t>(BS) + 1)) {
+
+      else if ((direction[d] >= 0) && (position[d] > static_cast<int64_t>(BS))) { // is this important?
         position[d] = BS;
       }
-      else if (position[d] >= (static_cast<int64_t>(BS) * 2 + 1)) {
+      else if (position[d] > static_cast<int64_t>(BS) * 2) { // is THIS important?
         position[d] = BS * 2;
       }
+
 
       if (direction[d] > 0) {
         position[d]--;
@@ -177,16 +185,31 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
   });
 }
 
+#include <iostream>
+#include <iomanip>
+
+
 template <size_t BS, size_t D>
-void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx, const std::array<int64_t, D - 1> &ref_offsets) {
+void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], const Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_ref, size_t main_ref_idx) {
   iterate_cube<BS, D>([&](std::array<size_t, D> &pos) {
     int64_t main_ref_pos[D - 1] {};
     for (size_t d { 0 }; d < D - 1; d++) {
       size_t idx = d < main_ref_idx ? d : d + 1;
       main_ref_pos[d]  = pos[idx] + 1; //zjisti souradnici z indexu
-      main_ref_pos[d] += ref_offsets[d]; //posune se podle smeru projekce
-      main_ref_pos[d] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo pocitat s floating point
+
+      if (direction[idx] >= 0) {
+        main_ref_pos[d] += BS;
+      }
+
+      main_ref_pos[d] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo konvertovat do floating point
       main_ref_pos[d] -= direction[idx] * (pos[main_ref_idx] + 1); //vytvori projekci souradnice na hlavni referencni rovinu
+
+
+      if (main_ref_pos[d] > static_cast<int64_t>(BS) * direction[main_ref_idx] * 2) {
+        std::cerr << main_ref_pos[d] << " ";
+        main_ref_pos[d] = BS * direction[main_ref_idx] * 2;
+        std::cerr << main_ref_pos[d] << "\n";
+      }
     }
 
     auto inputF = [&](size_t index) {
@@ -196,9 +219,6 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
     interpolate<BS * 2 + 1, D - 1>(inputF, main_ref_pos, direction[main_ref_idx], output[get_index<BS, D>(pos)]);
   });
 }
-
-#include <iostream>
-#include <iomanip>
 
 template <size_t BS, size_t D, typename F>
 void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], F &&inputF) {
@@ -217,32 +237,27 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
     return;
   }
 
-  std::array<int64_t, D - 1> ref_offsets {};
-  for (size_t d { 0 }; d < D - 1; d++) {
-    size_t idx {};
-    idx = d < main_ref_idx ? d : d + 1;
-
-    if (direction[idx] >= 0) {
-      ref_offsets[d] += BS;
-    }
-    if (direction[idx] <= 0) {
-      ref_offsets[d] += 1;
-    }
-  }
-
-  project_neighbours_to_main_ref<BS, D>(ref, direction, main_ref_idx, ref_offsets, inputF);
+  project_neighbours_to_main_ref<BS, D>(ref, direction, main_ref_idx, inputF);
 
   for (size_t y = 0; y < 1; y++) {
     for (size_t x = 0; x < BS * 2 + 1; x++) {
-      std::cerr << std::setw(4) << ref[y * (BS * 2 + 1) + x];
+      std::cerr << std::setw(6) << std::setprecision(2) << std::fixed << ref[y * (BS * 2 + 1) + x];
+    }
+    std::cerr << "\n";
+  }
+
+
+  low_pass_filter<BS, D>(ref);
+
+  for (size_t y = 0; y < 1; y++) {
+    for (size_t x = 0; x < BS * 2 + 1; x++) {
+      std::cerr << std::setw(6) << std::setprecision(2) << std::fixed << ref[y * (BS * 2 + 1) + x];
     }
     std::cerr << "\n";
   }
   std::cerr << "\n";
 
-
-  //low_pass_filter<BS, D>(ref);
-  predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx, ref_offsets);
+  predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx);
 }
 
 template<size_t BS, size_t D, typename F>
