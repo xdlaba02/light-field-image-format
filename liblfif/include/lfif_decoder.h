@@ -338,7 +338,7 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
                               putBlock<BS, D>(inputFP,             block,                          dec.img_dims_aligned, outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
-          dec.current_block[i][channel] = prediction_block[i];
+          dec.current_block[i][channel] = dec.output_block[i];
         }
       }
 
