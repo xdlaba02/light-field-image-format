@@ -419,7 +419,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
       size_t img_index {};
 
       for (size_t i { 0 }; i < D; i++) {
-        img_index += pos[i] * enc.img_stride_unaligned[i];
+        img_index += pos[i] * enc.img_stride_aligned[i];
       }
 
       decoded[channel][img_index] = value;
