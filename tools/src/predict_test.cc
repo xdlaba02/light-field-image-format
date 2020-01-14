@@ -12,28 +12,31 @@ using namespace std;
 
 const size_t BS = 4;
 const size_t D = 2;
-const int8_t direction[D] {1, 1};
+const int8_t direction[D] {1, 2};
 
 int main(void) {
   Block<INPUTUNIT, (2 * BS) + 1, D> input_block     {};
   Block<INPUTUNIT, BS, D>           predicted_block {};
-  std::array<size_t, D>     block_offsets {};
-  std::array<size_t, D>     input_dims    {};
-  std::array<size_t, D + 1> input_strides {};
+  std::array<size_t, D>             block_offsets   {};
+  std::array<size_t, D>             input_dims      {};
+  std::array<size_t, D + 1>         input_strides   {};
 
   for (size_t d { 0 }; d < D; d++) {
     Block<INPUTUNIT, (2 * BS) + 1, D - 1> slice {};
 
     for (size_t i { 0 }; i < constpow((2 * BS) + 1, D - 1); i++) {
-      slice[i] = i + 1;
+      slice[i] = constpow((2 * BS) + 1, D - 1) * d + i;
     }
 
     putSlice<BS * 2 + 1, D, INPUTUNIT>(input_block, slice, d, 0);
   }
 
-  for (size_t y = 0; y < 2 * BS + 1; y++) {
-    for (size_t x = 0; x < 2 * BS + 1; x++) {
-      std::cout << std::setw(3) << input_block[y * (2 * BS + 1) + x];
+  for (size_t z = 0; z < 1; z++) {
+    for (size_t y = 0; y < 2 * BS + 1; y++) {
+      for (size_t x = 0; x < 2 * BS + 1; x++) {
+        std::cout << std::setw(4) << input_block[(z * (2 * BS + 1) + y) * (2 * BS + 1) + x];
+      }
+      std::cout << '\n';
     }
     std::cout << '\n';
   }
@@ -58,9 +61,48 @@ int main(void) {
     }
     std::cerr << "] -> [ ";
 
+    bool is_available[D] {};
+
+    for (size_t i { 0 }; i < D; i++) {
+      is_available[i] = true;
+    }
+
+    //is_available[0] = false;
+
+
     for (size_t i { 1 }; i < D; i++) {
       if (block_pos[i] >= static_cast<int64_t>(BS)) {
         block_pos[i] = BS - 1;
+        std::cerr << "NOOT ";
+      }
+    }
+
+    for (size_t i { 0 }; i < D; i++) {
+      if (!is_available[i] && block_pos[i] < 0) {
+        block_pos[i] = 0;
+      }
+      std::cerr << block_pos[i] << " ";
+    }
+    std::cerr << "] -> [ ";
+
+    bool has_negative { false };
+    while(true) {
+      for (size_t i = 0; i < D; i++) {
+        if (is_available[i] && block_pos[i] < 0) {
+          has_negative = true;
+          break;
+        }
+      }
+
+      if (!has_negative) {
+        for (size_t i = 0; i < D; i++) {
+          if (is_available[i]) {
+            block_pos[i]--;
+          }
+        }
+      }
+      else {
+        break;
       }
     }
 
@@ -69,14 +111,9 @@ int main(void) {
     }
     std::cerr << "] -> [ ";
 
-    size_t img_idx {};
     std::array<int64_t, D> img_pos {};
     for (size_t i { 0 }; i < D; i++) {
       img_pos[i] = block_offsets[i] + block_pos[i];
-
-      if (img_pos[0] < 1) {
-        img_pos[0] = 1;
-      }
 
       if (img_pos[i] < 0) {
         img_pos[i] = 0;
@@ -84,7 +121,10 @@ int main(void) {
       else if (img_pos[i] >= static_cast<int64_t>(input_dims[i])) {
         img_pos[i] = input_dims[i] - 1;
       }
+    }
 
+    size_t img_idx {};
+    for (size_t i { 0 }; i < D; i++) {
       img_idx += img_pos[i] * input_strides[i];
     }
 
@@ -98,9 +138,12 @@ int main(void) {
 
   predict_direction<BS, D>(predicted_block, direction, inputF);
 
-  for (size_t y = 0; y < BS; y++) {
-    for (size_t x = 0; x < BS; x++) {
-      std::cout << std::setw(4) << std::fixed << std::setprecision(1) << predicted_block[y * BS + x];
+  for (size_t z = 0; z < 1; z++) {
+    for (size_t y = 0; y < BS; y++) {
+      for (size_t x = 0; x < BS; x++) {
+        std::cout << std::setw(6) << std::fixed << std::setprecision(2) << predicted_block[(z * BS + y) * BS + x];
+      }
+      std::cout << '\n';
     }
     std::cout << '\n';
   }

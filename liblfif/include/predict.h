@@ -197,6 +197,9 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
   });
 }
 
+#include <iostream>
+#include <iomanip>
+
 template <size_t BS, size_t D, typename F>
 void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D], F &&inputF) {
   Block<INPUTUNIT, BS * 2 + 1, D - 1> ref {};
@@ -228,7 +231,17 @@ void predict_direction(Block<INPUTUNIT, BS, D> &output, const int8_t direction[D
   }
 
   project_neighbours_to_main_ref<BS, D>(ref, direction, main_ref_idx, ref_offsets, inputF);
-  low_pass_filter<BS, D>(ref);
+
+  for (size_t y = 0; y < 1; y++) {
+    for (size_t x = 0; x < BS * 2 + 1; x++) {
+      std::cerr << std::setw(4) << ref[y * (BS * 2 + 1) + x];
+    }
+    std::cerr << "\n";
+  }
+  std::cerr << "\n";
+
+
+  //low_pass_filter<BS, D>(ref);
   predict_from_main_ref<BS, D>(output, direction, ref, main_ref_idx, ref_offsets);
 }
 
