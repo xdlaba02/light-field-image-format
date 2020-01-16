@@ -162,6 +162,7 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
 }
 
 #include <iostream>
+#include <iomanip>
 
 /**
 * @brief Function which performs arbitrary scan of an image. This function prepares a block into the encoding structure buffers.
@@ -191,9 +192,9 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &pos_block) {
 
       for (size_t d = 0; d < D; d++) {
-        std::cerr << pos_block[d] << " ";
+        std::cerr <<  std::setw(3) << std::fixed << pos_block[d];
       }
-      std::cerr << "\n";
+      std::cerr << ": ";
 
       getBlock<BS, D>(inputF, pos_block, enc.img_dims_unaligned, outputF);
 
@@ -374,6 +375,9 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
   bitstream.flush();
 }
 
+#include <iostream>
+#include <iomanip>
+
 /**
 * @brief Function which encodes the image to the stream with CABAC.
 * @param enc The encoder structure.
@@ -488,6 +492,28 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     if (channel == 0) {
       prediction_type = find_best_prediction_type<BS, D>(enc.input_block, predInputF);
       encodePredictionType(prediction_type, cabac, contexts[0]);
+
+      if (prediction_type == 0) {
+        std::cerr << "NO PREDICTION\n";
+      }
+      else if (prediction_type == 1) {
+        std::cerr << "DC PREDICTION\n";
+      }
+      else if (prediction_type == 2) {
+        std::cerr << "PLANAR PREDICTION\n";
+      }
+      else if (prediction_type >= 3) {
+        size_t dir = prediction_type - 3;
+        int8_t direction[D] {};
+
+        std::cerr << "[";
+        for (size_t d { 0 }; d < D; d++) {
+          direction[d] = dir % constpow(2 * BS + 1, d + 1) / constpow(2 * BS + 1, d);
+          direction[d] -= BS;
+          std::cerr << std::setw(3) << std::fixed << (int)direction[d];
+        }
+        std::cerr << "]\n";
+      }
     }
 
                            predict<BS, D>(prediction_block,    prediction_type,      predInputF);
