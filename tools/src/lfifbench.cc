@@ -51,15 +51,14 @@ double PSNR(double mse, size_t max) {
 }
 
 template <size_t D>
-int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output, const char *tmp_filename) {
+int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output) {
   LfifDecoder<BS, D> *decoder = new LfifDecoder<BS, D> {};
 
   size_t image_pixels          {};
   size_t compressed_image_size {};
   double mse                   {};
 
-  ofstream output {};
-  ifstream input  {};
+  stringstream io {};
 
   uint16_t max_rgb_value = pow(2, encoder->color_depth) - 1;
 
@@ -100,21 +99,8 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     mse += (inputF0(2, index) - B) * (inputF0(2, index) - B);
   };
 
-  size_t last_slash_pos = string(tmp_filename).find_last_of('/');
-  if (last_slash_pos != string::npos) {
-    string command = "mkdir -p " + string(tmp_filename).substr(0, last_slash_pos);
-    system(command.c_str());
-  }
-
-
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
     mse = 0;
-
-    output.open(tmp_filename, ios::binary);
-    if (!output) {
-      cerr << "ERROR: UNABLE TO OPEN FILE \"" << tmp_filename << "\" FOR WRITITNG" << endl;
-      return -1;
-    }
 
     initEncoder(*encoder);
     constructQuantizationTables(*encoder, qtabletype, quality);
@@ -126,29 +112,21 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
       constructTraversalTables(*encoder, zztabletype);
       huffmanScan(*encoder, inputF);
       constructHuffmanTables(*encoder);
-      writeHeader(*encoder, output);
-      outputScanHuffman_RUNLENGTH(*encoder, inputF, output);
+      writeHeader(*encoder, io);
+      outputScanHuffman_RUNLENGTH(*encoder, inputF, io);
     }
     else if (nopredict) {
-      writeHeader(*encoder, output);
-      outputScanCABAC_DIAGONAL(*encoder, inputF, output);
+      writeHeader(*encoder, io);
+      outputScanCABAC_DIAGONAL(*encoder, inputF, io);
     }
     else {
-      writeHeader(*encoder, output);
-      outputScanCABAC_DIAGONAL(*encoder, inputF, output);
+      writeHeader(*encoder, io);
+      outputScanCABAC_DIAGONAL(*encoder, inputF, io);
     }
 
-    compressed_image_size = output.tellp();
+    compressed_image_size = io.tellp();
 
-    output.close();
-
-    input.open(tmp_filename, ios::binary);
-    if (!input) {
-      cerr << "ERROR: CANNON OPEN " << tmp_filename << " FOR READING\n";
-      return -2;
-    }
-
-    if (readHeader(*decoder, input)) {
+    if (readHeader(*decoder, io)) {
       cerr << "ERROR: IMAGE HEADER INVALID\n";
       return -3;
     }
@@ -156,16 +134,14 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     initDecoder(*decoder);
 
     if (huffman) {
-      decodeScanHuffman(*decoder, input, outputF);
+      decodeScanHuffman(*decoder, io, outputF);
     }
     if (nopredict) {
-      decodeScanCABAC(*decoder, input, outputF);
+      decodeScanCABAC(*decoder, io, outputF);
     }
     else {
-      decodeScanCABAC(*decoder, input, outputF);
+      decodeScanCABAC(*decoder, io, outputF);
     }
-
-    input.close();
 
     double psnr = PSNR(mse / (image_pixels * 3), max_rgb_value);
     double bpp = compressed_image_size * 8.0 / image_pixels;
@@ -386,10 +362,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder2D, rgb_data, quality_interval, outputs[0], "/tmp/lfifbench.lf2d");
+        doTest(encoder2D, rgb_data, quality_interval, outputs[0]);
       }
       else {
-        threads.emplace_back(doTest<2>, encoder2D, ref(rgb_data), ref(quality_interval), ref(outputs[0]), "/tmp/lfifbench.lf2d");
+        threads.emplace_back(doTest<2>, encoder2D, ref(rgb_data), ref(quality_interval), ref(outputs[0]));
       }
     }
   }
@@ -419,10 +395,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder3D, rgb_data, quality_interval, outputs[1], "/tmp/lfifbench.lf3d");
+        doTest(encoder3D, rgb_data, quality_interval, outputs[1]);
       }
       else {
-        threads.emplace_back(doTest<3>, encoder3D, ref(rgb_data), ref(quality_interval), ref(outputs[1]), "/tmp/lfifbench.lf3d");
+        threads.emplace_back(doTest<3>, encoder3D, ref(rgb_data), ref(quality_interval), ref(outputs[1]));
       }
     }
   }
@@ -453,10 +429,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder4D, rgb_data, quality_interval, outputs[2], "/tmp/lfifbench.lf4d");
+        doTest(encoder4D, rgb_data, quality_interval, outputs[2]);
       }
       else {
-        threads.emplace_back(doTest<4>, encoder4D, ref(rgb_data), ref(quality_interval), ref(outputs[2]), "/tmp/lfifbench.lf4d");
+        threads.emplace_back(doTest<4>, encoder4D, ref(rgb_data), ref(quality_interval), ref(outputs[2]));
       }
     }
   }
