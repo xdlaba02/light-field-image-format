@@ -620,11 +620,11 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
     best_prediction_type = 2;
   }
 
-  iterate_cube<5, D>([&](const std::array<size_t, D> &pos) {
+  iterate_cube<2 * BS + 1, D>([&](const std::array<size_t, D> &pos) {
     int8_t direction[D] {};
 
     for (size_t i { 0 }; i < D; i++) {
-      direction[i] = pos[i] - 2;
+      direction[i] = pos[i] - BS;
     }
 
     auto have_positive = [&]() {
@@ -636,7 +636,16 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
       return false;
     };
 
-    if (!have_positive()) {
+    auto have_eight = [&]() {
+      for (size_t d { 0 }; d < D; d++) {
+        if (std::abs(direction[d]) == BS) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (!have_positive() || !have_eight()) {
       return;
     }
 
@@ -645,7 +654,7 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
     sae = SAE<BS, D>(input_block, prediction_block);
     if (sae < lowest_sae) {
       lowest_sae = sae;
-      best_prediction_type = get_index<5, D>(pos) + 3;
+      best_prediction_type = get_index<2 * BS + 1, D>(pos) + 3;
     }
   });
 
@@ -667,8 +676,8 @@ void predict(Block<INPUTUNIT, BS, D> &prediction_block, uint64_t prediction_type
     int8_t direction[D] {};
 
     for (size_t d { 0 }; d < D; d++) {
-      direction[d] = dir % constpow(5, d + 1) / constpow(5, d);
-      direction[d] -= 2;
+      direction[d] = dir % constpow(2 * BS + 1, d + 1) / constpow(2 * BS + 1, d);
+      direction[d] -= BS;
     }
 
     predict_direction<BS, D>(prediction_block, direction, inputF);
