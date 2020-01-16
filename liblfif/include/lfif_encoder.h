@@ -508,8 +508,8 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
 
         std::cerr << "[";
         for (size_t d { 0 }; d < D; d++) {
-          direction[d] = dir % constpow(2 * BS + 1, d + 1) / constpow(2 * BS + 1, d);
-          direction[d] -= BS;
+          direction[d] = dir % constpow(5, d + 1) / constpow(5, d);
+          direction[d] -= 2;
           std::cerr << std::setw(3) << std::fixed << (int)direction[d];
         }
         std::cerr << "]\n";
