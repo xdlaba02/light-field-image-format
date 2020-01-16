@@ -38,7 +38,7 @@ struct CABACContextsDIAGONAL {
   std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_one_ctx;
   std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_two_ctx;
   std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_abs_level_ctx;
-  std::array<CABAC::ContextModel, constpow(5, D) + 3> prediction_ctx;
+  std::array<CABAC::ContextModel, constpow(2 * BS + 1, D) + 3> prediction_ctx;
 };
 
 template<size_t BS, size_t D>
