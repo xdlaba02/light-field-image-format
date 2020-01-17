@@ -74,7 +74,7 @@ constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
   std::fill(std::begin(dims), std::end(dims), BSIN);
 
   std::array<size_t, D> pos {};
-  getBlock<BSOUT, D>(inputF, pos, dims, outputF);
+  getBlock<D>(get_cube_dims_array<D>(BSOUT), inputF, pos, dims, outputF);
 
   return output;
 }

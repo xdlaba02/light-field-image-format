@@ -16,7 +16,7 @@
 /**
 * @brief Struct for block extraction which wraps static parameters for partial specialization.
 */
-template<size_t BS, size_t D>
+template<size_t D>
 struct getBlock {
 
   /**
@@ -27,9 +27,9 @@ struct getBlock {
    * @param output The output callback function with signature void output(size_t index, T value), where T is type of extracted sample.
    */
   template <typename IF, typename OF>
-  getBlock(IF &&input, const std::array<size_t, D> &pos_block, const std::array<size_t, D> &img_dims, OF &&output) {
-    for (size_t block_y = 0; block_y < BS; block_y++) {
-      size_t img_y = pos_block[D - 1] * BS + block_y;
+  getBlock(const size_t BS[D], IF &&input, const std::array<size_t, D> &pos_block, const std::array<size_t, D> &img_dims, OF &&output) {
+    for (size_t block_y = 0; block_y < BS[D - 1]; block_y++) {
+      size_t img_y = pos_block[D - 1] * BS[D - 1] + block_y;
 
       if (img_y >= img_dims[D - 1]) {
         img_y = img_dims[D - 1] - 1;
@@ -65,7 +65,7 @@ struct getBlock {
          new_img_dims[i] =  img_dims[i];
       }
 
-      getBlock<BS, D - 1>(inputF, new_pos_block, new_img_dims, outputF);
+      getBlock<D - 1>(BS, inputF, new_pos_block, new_img_dims, outputF);
     }
   }
 };
@@ -74,15 +74,15 @@ struct getBlock {
  * @brief The parital specialization for getting one sample.
  * @see getBlock<BS, D>
  */
-template<size_t BS>
-struct getBlock<BS, 0> {
+template<>
+struct getBlock<0> {
 
   /**
    * @brief The parital specialization for getting one sample.
    * @see getBlock<BS, D>::getBlock
    */
   template <typename IF, typename OF>
-  getBlock(IF &&input, const std::array<size_t, 0> &, const std::array<size_t, 0> &, OF &&output) {
+  getBlock(const size_t *, IF &&input, const std::array<size_t, 0> &, const std::array<size_t, 0> &, OF &&output) {
     output({}, input({}));
   }
 };
@@ -90,7 +90,7 @@ struct getBlock<BS, 0> {
 /**
 * @brief Struct for block insertion which wraps static parameters for partial specialization.
 */
-template<size_t BS, size_t D>
+template<size_t D>
 struct putBlock {
 
   /**
@@ -101,9 +101,9 @@ struct putBlock {
    * @param output The output callback function with signature void output(size_t index, T value), where T is type of inserted sample.
    */
   template <typename IF, typename OF>
-  putBlock(IF &&input, const std::array<size_t, D> &pos_block, const std::array<size_t, D> &img_dims, OF &&output) {
-    for (size_t block_y = 0; block_y < BS; block_y++) {
-      size_t img_y = pos_block[D - 1] * BS + block_y;
+  putBlock(const size_t BS[D], IF &&input, const std::array<size_t, D> &pos_block, const std::array<size_t, D> &img_dims, OF &&output) {
+    for (size_t block_y = 0; block_y < BS[D - 1]; block_y++) {
+      size_t img_y = pos_block[D - 1] * BS[D - 1] + block_y;
 
       if (img_y >= img_dims[D - 1]) {
         break;
@@ -139,7 +139,7 @@ struct putBlock {
          new_img_dims[i] =  img_dims[i];
       }
 
-      putBlock<BS, D - 1>(inputF, new_pos_block, new_img_dims, outputF);
+      putBlock<D - 1>(BS, inputF, new_pos_block, new_img_dims, outputF);
     }
   }
 };
@@ -148,15 +148,15 @@ struct putBlock {
  * @brief The parital specialization for putting one sample.
  * @see putBlock<BS, D>
  */
-template<size_t BS>
-struct putBlock<BS, 0> {
+template<>
+struct putBlock<0> {
 
   /**
    * @brief The parital specialization for putting one sample.
    * @see putBlock<BS, D>::getBlock
    */
   template <typename IF, typename OF>
-  putBlock(IF &&input, const std::array<size_t, 0> &, const std::array<size_t, 0> &, OF &&output) {
+  putBlock(const size_t *, IF &&input, const std::array<size_t, 0> &, const std::array<size_t, 0> &, OF &&output) {
     output({}, input({}));
   }
 };

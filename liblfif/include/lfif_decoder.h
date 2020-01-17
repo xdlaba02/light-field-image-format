@@ -193,7 +193,7 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
         output(img_index, value);
       };
 
-      putBlock<BS, D>(inputF, block, dec.img_dims_unaligned, outputF);
+      putBlock<D>(get_cube_dims_array<D>(BS), inputF, block, dec.img_dims_unaligned, outputF);
     });
   }
 }
@@ -335,14 +335,14 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
                             dequantize<BS, D>(dec.quantized_block, dec.dct_block,                 *dec.quant_table_ptr[channel]  );
         inverseDiscreteCosineTransform<BS, D>(dec.dct_block,       dec.output_block                                              );
                       disusePrediction<BS, D>(dec.output_block,    prediction_block                                              );
-        //                      putBlock<BS, D>(inputFP,             block,                          dec.img_dims_aligned, outputFP);
+        //                        putBlock<D>(get_cube_dims_array<D>(BS), inputFP,             block,                          dec.img_dims_aligned, outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
           dec.current_block[i][channel] = dec.output_block[i];
         }
       }
 
-      putBlock<BS, D>(inputF, block, dec.img_dims_unaligned, outputF);
+      putBlock<D>(get_cube_dims_array<D>(BS), inputF, block, dec.img_dims_unaligned, outputF);
     });
   }
 

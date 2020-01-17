@@ -190,7 +190,7 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &pos_block) {
-      getBlock<BS, D>(inputF, pos_block, enc.img_dims_unaligned, outputF);
+      getBlock<D>(get_cube_dims_array<D>(BS), inputF, pos_block, enc.img_dims_unaligned, outputF);
 
       for (size_t channel = 0; channel < 3; channel++) {
         for (size_t i = 0; i < constpow(BS, D); i++) {
@@ -524,7 +524,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
     //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
     //inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
     //              disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
-    //                      putBlock<BS, D>(inputF,              block,                enc.img_dims_aligned,   outputF              );
+    //                          putBlock<D>(get_cube_dims_array<D>(BS), inputF,              block,                enc.img_dims_aligned,   outputF              );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
   };
 

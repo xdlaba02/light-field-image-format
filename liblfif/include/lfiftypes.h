@@ -17,6 +17,7 @@
 #include <array>
 #include <vector>
 #include <fstream>
+#include <iterator>
 
 using RGBUNIT   = uint16_t; /**< @brief Unit which is intended to containt RGB data.*/
 using QDATAUNIT = int64_t;  /**< @brief Unit which is intended to containt quantized DCT coefficients.*/
@@ -32,16 +33,41 @@ using Block = std::array<T, static_cast<size_t>(constpow(BS, D))>;
 
 template<typename T, size_t D>
 class DynamicBlock {
-  std::vector<T> m_data {};
+  std::array<size_t, D> m_size {};
+  std::vector<T>        m_data {};
 public:
-  DynamicBlock(size_t BS): m_data(pow(BS, D)) {}
-  DynamicBlock(const size_t *BS): m_data(get_stride<D>(BS)) {}
+
+  DynamicBlock(size_t BS): m_data(pow(BS, D)) {
+    std::fill(std::begin(m_size), std::end(m_size), BS);
+  }
+
+  DynamicBlock(const size_t BS[D]): m_data(get_stride<D>(BS)) {
+    std::copy(BS, BS + D, std::begin(m_size));
+  }
 
   T &operator[](size_t index) {
     return m_data[index];
   }
 
   const T &operator[](size_t index) const {
+    return m_data[index];
+  }
+
+  T &operator[](const std::array<size_t, D> &pos) {
+    size_t index {};
+    for (size_t i { 1 }; i <= D; i++) {
+      index *= m_size[D - i];
+      index += pos[D - i];
+    }
+    return m_data[index];
+  }
+
+  const T &operator[](const std::array<size_t, D> &pos) const {
+    size_t index {};
+    for (size_t i { 1 }; i <= D; i++) {
+      index *= m_size[D - i];
+      index += pos[D - i];
+    }
     return m_data[index];
   }
 
