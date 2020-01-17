@@ -164,7 +164,7 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
   bitstream.open(&input);
 
   auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.current_block[get_index<BS, D>(pos)];
+    return dec.current_block[make_cube_index<BS, D>(pos)];
   };
 
   for (size_t img = 0; img < dec.img_dims[D]; img++) {
@@ -233,11 +233,11 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
   cabac.init(bitstream);
 
   auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.current_block[get_index<BS, D>(pos)];
+    return dec.current_block[make_cube_index<BS, D>(pos)];
   };
 
   auto inputFP = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.output_block[get_index<BS, D>(pos)];
+    return dec.output_block[make_cube_index<BS, D>(pos)];
   };
 
   for (size_t img = 0; img < dec.img_dims[D]; img++) {

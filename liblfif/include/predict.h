@@ -31,7 +31,7 @@ void putSlice(Block<T, BS, D> &block, const Block<T, BS, D - 1> &slice, size_t d
       dir_pos[idx] = pos[i];
     }
 
-    block[get_index<BS, D>(dir_pos) + index * constpow(BS, direction)] = slice[get_index<BS, D - 1>(pos)];
+    block[make_cube_index<BS, D>(dir_pos) + index * constpow(BS, direction)] = slice[make_cube_index<BS, D - 1>(pos)];
   });
 }
 
@@ -181,7 +181,7 @@ void project_neighbours_to_main_ref(Block<INPUTUNIT, BS * 2 + 1, D - 1> &main_re
       }
     }
 
-    main_ref[get_index<BS * 2 + 1, D - 1>(pos)] = inputF(position);
+    main_ref[make_cube_index<BS * 2 + 1, D - 1>(pos)] = inputF(position);
   });
 }
 
@@ -210,7 +210,7 @@ void predict_from_main_ref(Block<INPUTUNIT, BS, D> &output, const int8_t directi
       return main_ref[index];
     };
 
-    interpolate<BS * 2 + 1, D - 1>(inputF, main_ref_pos, direction[main_ref_idx], output[get_index<BS, D>(pos)]);
+    interpolate<BS * 2 + 1, D - 1>(inputF, main_ref_pos, direction[main_ref_idx], output[make_cube_index<BS, D>(pos)]);
   });
 }
 

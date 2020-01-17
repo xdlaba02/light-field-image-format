@@ -173,7 +173,7 @@ int constructQuantizationTables(LfifEncoder<BS, D> &enc, const std::string &tabl
 template<size_t BS, size_t D, typename INPUTF, typename PERFF>
 void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
   auto outputF = [&](const std::array<size_t, D> &block_pos, const auto &value) {
-    enc.current_block[get_index<BS, D>(block_pos)] = value;
+    enc.current_block[make_cube_index<BS, D>(block_pos)] = value;
   };
 
   for (size_t img = 0; img < enc.img_dims[D]; img++) {
@@ -415,7 +415,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
   uint64_t prediction_type {};
 
   auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return enc.input_block[get_index<BS, D>(pos)];
+    return enc.input_block[make_cube_index<BS, D>(pos)];
   };
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &block) {

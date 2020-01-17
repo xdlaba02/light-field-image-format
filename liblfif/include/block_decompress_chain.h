@@ -263,7 +263,7 @@ void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, 
     return output_block[index];
   };
 
-  idct<BS, D>(inputF, outputF);
+  idct<D>(get_cube_dims_array<D>(BS), inputF, outputF);
 }
 
 template <size_t BS, size_t D>

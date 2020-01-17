@@ -43,7 +43,7 @@ void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &input_block, 
     return transformed_block[index];
   };
 
-  fdct<BS, D>(inputF, outputF);
+  fdct<D>(get_cube_dims_array<D>(BS), inputF, outputF);
 }
 
 /**
@@ -654,7 +654,7 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
     sae = SAE<BS, D>(input_block, prediction_block);
     if (sae < lowest_sae) {
       lowest_sae = sae;
-      best_prediction_type = get_index<5, D>(pos) + 3;
+      best_prediction_type = make_cube_index<5, D>(pos) + 3;
     }
   });
 

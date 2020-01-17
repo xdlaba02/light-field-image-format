@@ -63,11 +63,11 @@ constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
   QuantTable<BSOUT, D> output {};
 
   auto inputF = [&](const std::array<size_t, D> &pos) {
-    return input[get_index<BSIN, D>(pos)];
+    return input[make_cube_index<BSIN, D>(pos)];
   };
 
   auto outputF = [&](const std::array<size_t, D> &pos, const auto &value) {
-    output[get_index<BSOUT, D>(pos)] = value;
+    output[make_cube_index<BSOUT, D>(pos)] = value;
   };
 
   std::array<size_t, D> dims {};
@@ -98,7 +98,7 @@ constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
     return input_coefs[index];
   };
 
-  fdct<BSIN, D>(finputF, foutputF);
+  fdct<D>(get_cube_dims_array<D>(BSIN), finputF, foutputF);
 
   auto iinputF = [&](size_t index) -> DCTDATAUNIT {
     size_t real_index = 0;
@@ -121,7 +121,7 @@ constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
     return output_coefs[index];
   };
 
-  idct<BSOUT, D>(iinputF, ioutputF);
+  idct<D>(get_cube_dims_array<D>(BSOUT), iinputF, ioutputF);
 
   for (size_t i = 0; i < constpow(BSOUT, D); i++) {
     output[i] = std::round(output_coefs[i]);

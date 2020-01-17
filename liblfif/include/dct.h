@@ -23,9 +23,8 @@ using DCTDATAUNIT = float;
 * @brief  Function which initializes the DCT matrix.
 * @return The DCT matrix.
 */
-template <size_t BS>
-constexpr Block<DCTDATAUNIT, BS, 2> init_coefs() {
-  Block<DCTDATAUNIT, BS, 2> coefs {};
+DynamicBlock<DCTDATAUNIT, 2> init_coefs(size_t BS) {
+  DynamicBlock<DCTDATAUNIT, 2> coefs(BS);
 
   for(size_t u = 0; u < BS; ++u) {
     for(size_t x = 0; x < BS; ++x) {
@@ -39,7 +38,7 @@ constexpr Block<DCTDATAUNIT, BS, 2> init_coefs() {
 /**
 * @brief Struct for the FDCT which wraps static parameters for partial specialization.
 */
-template <size_t BS, size_t D>
+template <size_t D>
 struct fdct {
 
   /**
@@ -48,31 +47,31 @@ struct fdct {
   * @param output callback function for writing DCT coefficients. Signature is DCTDATAUNIT &output(size_t index).
   */
   template <typename IF, typename OF>
-  fdct(IF &&input, OF &&output) {
-    Block<DCTDATAUNIT, BS, D> tmp {};
+  fdct(const size_t BS[D], IF &&input, OF &&output) {
+    DynamicBlock<DCTDATAUNIT, D> tmp(BS);
 
-    for (size_t slice = 0; slice < BS; slice++) {
+    for (size_t slice = 0; slice < BS[D - 1]; slice++) {
       auto inputF = [&](size_t index) {
-        return input(slice * constpow(BS, D - 1) + index);
+        return input(slice * get_stride<D - 1>(BS) + index);
       };
 
       auto outputF = [&](size_t index) -> auto & {
-        return tmp[slice * constpow(BS, D - 1) + index];
+        return tmp[slice * get_stride<D - 1>(BS) + index];
       };
 
-      fdct<BS, D - 1>(inputF, outputF);
+      fdct<D - 1>(BS, inputF, outputF);
     }
 
-    for (size_t noodle = 0; noodle < constpow(BS, D - 1); noodle++) {
+    for (size_t noodle = 0; noodle < get_stride<D - 1>(BS); noodle++) {
       auto inputF = [&](size_t index) {
-        return tmp[index * constpow(BS, D - 1) + noodle];
+        return tmp[index * get_stride<D - 1>(BS) + noodle];
       };
 
       auto outputF = [&](size_t index) -> auto & {
-        return output(index * constpow(BS, D - 1) + noodle);
+        return output(index * get_stride<D - 1>(BS) + noodle);
       };
 
-      fdct<BS, 1>(inputF, outputF);
+      fdct<1>(&BS[D - 1], inputF, outputF);
     }
   }
 };
@@ -81,20 +80,20 @@ struct fdct {
  * @brief The parital specialization for putting one dimensional fdct.
  * @see fdct<BS, D>
  */
-template <size_t BS>
-struct fdct<BS, 1> {
+template <>
+struct fdct<1> {
 
   /**
    * @brief The parital specialization for putting one dimensional fdct.
    * @see fdct<BS, D>::fdct
    */
   template <typename IF, typename OF>
-  fdct(IF &&input, OF &&output) {
-    static constexpr Block<DCTDATAUNIT, BS, 2> coefs = init_coefs<BS>();
+  fdct(const size_t BS[1], IF &&input, OF &&output) {
+    static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]);
 
-    for (size_t u = 0; u < BS; u++) {
-      for (size_t x = 0; x < BS; x++) {
-        output(u) += input(x) * coefs[u * BS + x];
+    for (size_t u = 0; u < BS[0]; u++) {
+      for (size_t x = 0; x < BS[0]; x++) {
+        output(u) += input(x) * coefs[u * BS[0] + x];
       }
     }
   }
@@ -103,7 +102,7 @@ struct fdct<BS, 1> {
 /**
 * @brief Struct for the IDCT which wraps static parameters for partial specialization.
 */
-template <size_t BS, size_t D>
+template <size_t D>
 struct idct {
 
   /**
@@ -112,31 +111,31 @@ struct idct {
   * @param output callback function for writing output samples. Signature is DCTDATAUNIT &output(size_t index).
   */
   template <typename IF, typename OF>
-  idct(IF &&input, OF &&output) {
-    Block<DCTDATAUNIT, BS, D> tmp {};
+  idct(const size_t BS[D], IF &&input, OF &&output) {
+    DynamicBlock<DCTDATAUNIT, D> tmp(BS);
 
-    for (size_t slice = 0; slice < BS; slice++) {
+    for (size_t slice = 0; slice < BS[0]; slice++) {
       auto inputF = [&](size_t index) {
-        return input(slice * constpow(BS, D - 1) + index);
+        return input(slice * get_stride<D - 1>(BS) + index);
       };
 
       auto outputF = [&](size_t index) -> auto & {
-        return tmp[slice * constpow(BS, D - 1) + index];
+        return tmp[slice * get_stride<D - 1>(BS) + index];
       };
 
-      idct<BS, D - 1>(inputF, outputF);
+      idct<D - 1>(BS, inputF, outputF);
     }
 
-    for (size_t noodle = 0; noodle < constpow(BS, D - 1); noodle++) {
+    for (size_t noodle = 0; noodle < get_stride<D - 1>(BS); noodle++) {
       auto inputF = [&](size_t index) {
-        return tmp[index * constpow(BS, D - 1) + noodle];
+        return tmp[index * get_stride<D - 1>(BS) + noodle];
       };
 
       auto outputF = [&](size_t index) -> auto & {
-        return output(index * constpow(BS, D - 1) + noodle);
+        return output(index * get_stride<D - 1>(BS) + noodle);
       };
 
-      idct<BS, 1>(inputF, outputF);
+      idct<1>(&BS[D - 1], inputF, outputF);
     }
   }
 };
@@ -145,20 +144,20 @@ struct idct {
  * @brief The parital specialization for putting one dimensional idct.
  * @see idct<BS, D>
  */
-template <size_t BS>
-struct idct<BS, 1> {
+template <>
+struct idct<1> {
 
   /**
    * @brief The parital specialization for putting one dimensional idct.
    * @see idct<BS, D>::idct
    */
   template <typename IF, typename OF>
-  idct(IF &&input, OF &&output) {
-    static constexpr Block<DCTDATAUNIT, BS, 2> coefs = init_coefs<BS>();
+  idct(const size_t BS[1], IF &&input, OF &&output) {
+    static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]);
 
-    for (size_t x = 0; x < BS; x++) {
-      for (size_t u = 0; u < BS; u++) {
-        output(x) += input(u) * coefs[u * BS + x];
+    for (size_t x = 0; x < BS[0]; x++) {
+      for (size_t u = 0; u < BS[0]; u++) {
+        output(x) += input(u) * coefs[u * BS[0] + x];
       }
     }
   }
