@@ -206,13 +206,13 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
 */
 template<size_t BS, size_t D, typename F>
 void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
-  std::array<std::vector<size_t>,          D * (BS - 1) + 1> scan_table  {};
-  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts    {};
-  std::array<std::vector<INPUTUNIT>, 3>                      decoded     {};
-  IBitstream                                                 bitstream   {};
-  CABACDecoder                                               cabac       {};
-  size_t                                                     threshold   {};
-  Block<INPUTUNIT,     BS, D>                                prediction_block {};
+  std::array<std::vector<size_t>,      D * (BS - 1) + 1> scan_table       {};
+  std::array<CABACContextsDIAGONAL<D>, 2>                contexts         { CABACContextsDIAGONAL<D>(BS), CABACContextsDIAGONAL<D>(BS) };
+  std::array<std::vector<INPUTUNIT>,   3>                decoded          {};
+  IBitstream                                             bitstream        {};
+  CABACDecoder                                           cabac            {};
+  size_t                                                 threshold        {};
+  Block<INPUTUNIT,     BS, D>                            prediction_block {};
 
   threshold = (D * (BS - 1) + 1) / 2;
 
@@ -328,14 +328,14 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
         };
 
         if (channel == 0) {
-          decodePredictionType(prediction_type, cabac, contexts[0]);
+          //decodePredictionType<BS, D>(prediction_type, cabac, contexts[0]);
         }
-                               predict<BS, D>(prediction_block,    prediction_type,                predInputF                    );
+        //                       predict<BS, D>(prediction_block,    prediction_type,                predInputF                    );
                   decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0],  threshold, scan_table         );
                             dequantize<BS, D>(dec.quantized_block, dec.dct_block,                 *dec.quant_table_ptr[channel]  );
         inverseDiscreteCosineTransform<BS, D>(dec.dct_block,       dec.output_block                                              );
                       disusePrediction<BS, D>(dec.output_block,    prediction_block                                              );
-                              putBlock<BS, D>(inputFP,             block,                          dec.img_dims_aligned, outputFP);
+        //                      putBlock<BS, D>(inputFP,             block,                          dec.img_dims_aligned, outputFP);
 
         for (size_t i = 0; i < constpow(BS, D); i++) {
           dec.current_block[i][channel] = dec.output_block[i];

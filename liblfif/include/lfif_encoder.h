@@ -190,12 +190,6 @@ void performScan(LfifEncoder<BS, D> &enc, INPUTF &&input, PERFF &&func) {
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &pos_block) {
-
-      for (size_t d = 0; d < D; d++) {
-        std::cerr <<  std::setw(3) << std::fixed << pos_block[d];
-      }
-      std::cerr << ": ";
-
       getBlock<BS, D>(inputF, pos_block, enc.img_dims_unaligned, outputF);
 
       for (size_t channel = 0; channel < 3; channel++) {
@@ -386,13 +380,13 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<BS, D> &enc, F &&input, std::ostrea
 */
 template<size_t BS, size_t D, typename F>
 void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &output) {
-  std::array<         std::vector<size_t>, D * (BS - 1) + 1> scan_table {};
-  std::array<CABACContextsDIAGONAL<BS, D>, 2>                contexts   {};
-  std::array<      std::vector<INPUTUNIT>, 3>                decoded    {};
-  OBitstream                                                 bitstream  {};
-  CABACEncoder                                               cabac      {};
-  size_t                                                     threshold  {};
-  Block<INPUTUNIT,     BS, D>                                prediction_block {};
+  std::array<std::vector<size_t>,      D * (BS - 1) + 1> scan_table {};
+  std::array<CABACContextsDIAGONAL<D>, 2>                contexts   { CABACContextsDIAGONAL<D>(BS), CABACContextsDIAGONAL<D>(BS) };
+  std::array<std::vector<INPUTUNIT>,   3>                decoded    {};
+  OBitstream                                             bitstream  {};
+  CABACEncoder                                           cabac      {};
+  size_t                                                 threshold  {};
+  Block<INPUTUNIT,     BS, D>                            prediction_block {};
 
   threshold = (D * (BS - 1) + 1) / 2;
 
@@ -489,9 +483,15 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
       return decoded[channel][img_idx];
     };
 
+    /*
     if (channel == 0) {
       prediction_type = find_best_prediction_type<BS, D>(enc.input_block, predInputF);
-      encodePredictionType(prediction_type, cabac, contexts[0]);
+      encodePredictionType<BS, D>(prediction_type, cabac, contexts[0]);
+
+      for (size_t d = 0; d < D; d++) {
+        std::cerr <<  std::setw(3) << std::fixed << pos_block[d];
+      }
+      std::cerr << ": ";
 
       if (prediction_type == 0) {
         std::cerr << "NO PREDICTION\n";
@@ -515,15 +515,16 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<BS, D> &enc, F &&input, std::ostream &
         std::cerr << "]\n";
       }
     }
+    */
 
-                           predict<BS, D>(prediction_block,    prediction_type,      predInputF);
-                   applyPrediction<BS, D>(enc.input_block,     prediction_block                                                   );
+    //                       predict<BS, D>(prediction_block,    prediction_type,      predInputF);
+    //               applyPrediction<BS, D>(enc.input_block,     prediction_block                                                   );
     forwardDiscreteCosineTransform<BS, D>(enc.input_block,     enc.dct_block                                                      );
                           quantize<BS, D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]                    );
-                        dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
-    inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
-                  disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
-                          putBlock<BS, D>(inputF,              block,                enc.img_dims_aligned,   outputF              );
+    //                    dequantize<BS, D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]                    );
+    //inverseDiscreteCosineTransform<BS, D>(enc.dct_block,       enc.input_block                                                    );
+    //              disusePrediction<BS, D>(enc.input_block,     prediction_block                                                   );
+    //                      putBlock<BS, D>(inputF,              block,                enc.img_dims_aligned,   outputF              );
               encodeCABAC_DIAGONAL<BS, D>(enc.quantized_block, cabac,                contexts[channel != 0], threshold, scan_table);
   };
 

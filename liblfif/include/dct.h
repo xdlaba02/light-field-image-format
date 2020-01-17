@@ -9,6 +9,7 @@
 #ifndef DCT_H
 #define DCT_H
 
+#include "lfiftypes.h"
 #include "meta.h"
 
 #include <cmath>
@@ -114,7 +115,7 @@ struct idct {
   idct(const size_t BS[D], IF &&input, OF &&output) {
     DynamicBlock<DCTDATAUNIT, D> tmp(BS);
 
-    for (size_t slice = 0; slice < BS[0]; slice++) {
+    for (size_t slice = 0; slice < BS[D - 1]; slice++) {
       auto inputF = [&](size_t index) {
         return input(slice * get_stride<D - 1>(BS) + index);
       };

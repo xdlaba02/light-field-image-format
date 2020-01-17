@@ -42,7 +42,7 @@ void decodeHuffman_RUNLENGTH(IBitstream &bitstream, Block<RunLengthPair, BS, D> 
 }
 
 template <size_t BS, size_t D>
-void decodePredictionType(uint64_t &prediction_type, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts) {
+void decodePredictionType(uint64_t &prediction_type, CABACDecoder &decoder, CABACContextsDIAGONAL<D> &contexts) {
   prediction_type = 0;
   while (decoder.decodeBit(contexts.prediction_ctx[prediction_type])) {
     prediction_type++;
@@ -50,7 +50,7 @@ void decodePredictionType(uint64_t &prediction_type, CABACDecoder &decoder, CABA
 }
 
 template <size_t BS, size_t D>
-void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
+void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
   diff_encoded_block.fill(0);
 
   std::array<bool, D * (BS - 1) + 1> nonzero_diags {};

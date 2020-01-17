@@ -120,10 +120,15 @@ $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
 $(BINDIR)/xvc_decompress: $(OBJDIR)/xvc_decompress.o $(PLENO)
 	$(CC) -L../xvc/build/src/ -L/usr/local/lib/ -lm -lpthread -lswscale $^ -l:libxvcdec.a -o $@
 
+
+
 $(BINDIR)/cabac_test: $(OBJDIR)/cabac_test.o ../liblfif/bin/liblfif.a
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/predict_test: $(OBJDIR)/predict_test.o ../liblfif/bin/liblfif.a
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/dynamic_test: $(OBJDIR)/dynamic_test.o ../liblfif/bin/liblfif.a
 	$(CC) -lm $^ -o $@
 
 

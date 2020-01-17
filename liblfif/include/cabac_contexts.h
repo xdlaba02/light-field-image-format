@@ -29,16 +29,45 @@ struct CABACContextsJPEG {
   std::vector<CABAC::ContextModel> AC_ctxs;
 };
 
-template <size_t BS, size_t D>
+template <size_t D>
+size_t num_diagonals(const size_t BS[D]) {
+  size_t diagonals_cnt {};
+
+  for (size_t i {}; i < D; i++) {
+    diagonals_cnt += BS[i] - 1;
+  }
+
+  return diagonals_cnt + 1;
+}
+
+template <size_t D>
 struct CABACContextsDIAGONAL {
-  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coded_diag_flag_ctx;
-  std::array<CABAC::ContextModel, D * (BS - 1) + 1> last_coded_diag_flag_ctx;
-  std::array<CABAC::ContextModel, D + 1>            significant_coef_flag_high_ctx;
-  std::array<CABAC::ContextModel, D + 1>            significant_coef_flag_low_ctx;
-  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_one_ctx;
-  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_greater_two_ctx;
-  std::array<CABAC::ContextModel, D * (BS - 1) + 1> coef_abs_level_ctx;
-  std::array<CABAC::ContextModel, constpow(5, D) + 3> prediction_ctx;
+  std::vector<CABAC::ContextModel> coded_diag_flag_ctx;
+  std::vector<CABAC::ContextModel> last_coded_diag_flag_ctx;
+  std::vector<CABAC::ContextModel> significant_coef_flag_high_ctx;
+  std::vector<CABAC::ContextModel> significant_coef_flag_low_ctx;
+  std::vector<CABAC::ContextModel> coef_greater_one_ctx;
+  std::vector<CABAC::ContextModel> coef_greater_two_ctx;
+  std::vector<CABAC::ContextModel> coef_abs_level_ctx;
+  std::vector<CABAC::ContextModel> prediction_ctx;
+
+  CABACContextsDIAGONAL(size_t BS):            coded_diag_flag_ctx(D * (BS - 1) + 1),
+                                          last_coded_diag_flag_ctx(D * (BS - 1) + 1),
+                                    significant_coef_flag_high_ctx(D + 1),
+                                     significant_coef_flag_low_ctx(D + 1),
+                                              coef_greater_one_ctx(D * (BS - 1) + 1),
+                                              coef_greater_two_ctx(D * (BS - 1) + 1),
+                                                coef_abs_level_ctx(D * (BS - 1) + 1),
+                                                    prediction_ctx(pow(5, D) + 3) {}
+
+  CABACContextsDIAGONAL(const size_t BS[D]):            coded_diag_flag_ctx(num_diagonals<D>(BS)),
+                                                   last_coded_diag_flag_ctx(num_diagonals<D>(BS)),
+                                             significant_coef_flag_high_ctx(D + 1),
+                                              significant_coef_flag_low_ctx(D + 1),
+                                                       coef_greater_one_ctx(num_diagonals<D>(BS)),
+                                                       coef_greater_two_ctx(num_diagonals<D>(BS)),
+                                                         coef_abs_level_ctx(num_diagonals<D>(BS)),
+                                                            prediction_ctx(pow(5, D) + 3) {}
 };
 
 template<size_t BS, size_t D>

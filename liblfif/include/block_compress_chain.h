@@ -352,7 +352,7 @@ void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
 }
 
 template <size_t BS, size_t D>
-void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts) {
+void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABACContextsDIAGONAL<D> &contexts) {
   size_t i {};
   for (i = 0; i < prediction_type; i++) {
     encoder.encodeBit(contexts.prediction_ctx[i], 1);
@@ -367,7 +367,7 @@ void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABAC
  * @param contexts Contexts for block encoding.
  */
 template <size_t BS, size_t D>
-void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<BS, D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
+void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
   std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
   size_t diags_cnt { 0 };
 
