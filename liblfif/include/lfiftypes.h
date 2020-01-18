@@ -33,8 +33,8 @@ using Block = std::array<T, static_cast<size_t>(constpow(BS, D))>;
 
 template<typename T, size_t D>
 class DynamicBlock {
-  std::array<size_t, D> m_size {};
-  std::vector<T>        m_data {};
+  size_t         m_size[D] {};
+  std::vector<T> m_data    {};
 public:
 
   DynamicBlock(size_t BS): m_data(pow(BS, D)) {
@@ -69,6 +69,23 @@ public:
       index += pos[D - i];
     }
     return m_data[index];
+  }
+
+  const size_t *size() const {
+    return m_size;
+  }
+
+  size_t stride(size_t depth) const {
+    if (depth == 0) {
+      return 1;
+    }
+    else {
+      return m_size[depth - 1] * stride(depth - 1);
+    }
+  }
+
+  void fill(T value) {
+    std::fill(std::begin(m_data), std::end(m_data), value);
   }
 
 };

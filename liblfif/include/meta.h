@@ -10,7 +10,6 @@
 #define META_H
 
 #include <cstddef>
-
 #include <array>
 
 /**
@@ -116,8 +115,8 @@ size_t get_stride(const size_t BS[D]) {
 }
 
 template<>
-size_t get_stride<1>(const size_t BS[1]) {
-  return BS[0];
+inline size_t get_stride<0>(const size_t *) {
+  return 1;
 }
 
 template<const size_t *BS, size_t D>

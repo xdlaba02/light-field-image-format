@@ -24,7 +24,7 @@ using DCTDATAUNIT = float;
 * @brief  Function which initializes the DCT matrix.
 * @return The DCT matrix.
 */
-DynamicBlock<DCTDATAUNIT, 2> init_coefs(size_t BS) {
+inline DynamicBlock<DCTDATAUNIT, 2> init_coefs(size_t BS) {
   DynamicBlock<DCTDATAUNIT, 2> coefs(BS);
 
   for(size_t u = 0; u < BS; ++u) {

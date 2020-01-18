@@ -596,25 +596,34 @@ T SAE(const Block<T, BS, D> &b1, const Block<T, BS, D> &b2) {
 
 template <size_t BS, size_t D, typename F>
 uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F &&inputF) {
-  Block<INPUTUNIT, BS, D> prediction_block     {};
-  uint64_t                best_prediction_type {};
+  DynamicBlock<INPUTUNIT, D> prediction_block(BS);
+  Block<INPUTUNIT, BS, D>    prediction_block_legacy {};
+  uint64_t                   best_prediction_type    {};
 
   INPUTUNIT lowest_sae {};
   INPUTUNIT sae {};
 
-  lowest_sae = SAE<BS, D>(input_block, prediction_block);
+  lowest_sae = SAE<BS, D>(input_block, prediction_block_legacy);
 
-  predict_DC<BS, D>(prediction_block, inputF);
+  predict_DC<D>(prediction_block, inputF);
 
-  sae = SAE<BS, D>(input_block, prediction_block);
+  for (size_t i {}; i < constpow(BS, D); i++) {
+    prediction_block_legacy[i] = prediction_block[i];
+  }
+
+  sae = SAE<BS, D>(input_block, prediction_block_legacy);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 1;
   }
 
-  predict_planar<BS, D>(prediction_block, inputF);
+  predict_planar<D>(prediction_block, inputF);
 
-  sae = SAE<BS, D>(input_block, prediction_block);
+  for (size_t i {}; i < constpow(BS, D); i++) {
+    prediction_block_legacy[i] = prediction_block[i];
+  }
+
+  sae = SAE<BS, D>(input_block, prediction_block_legacy);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 2;
@@ -649,9 +658,13 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
       return;
     }
 
-    predict_direction<BS, D>(prediction_block, direction, inputF);
+    predict_direction<D>(prediction_block, direction, inputF);
 
-    sae = SAE<BS, D>(input_block, prediction_block);
+    for (size_t i {}; i < constpow(BS, D); i++) {
+      prediction_block_legacy[i] = prediction_block[i];
+    }
+
+    sae = SAE<BS, D>(input_block, prediction_block_legacy);
     if (sae < lowest_sae) {
       lowest_sae = sae;
       best_prediction_type = make_cube_index<5, D>(pos) + 3;
@@ -663,13 +676,13 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
 
 template <size_t BS, size_t D, typename F>
 void predict(Block<INPUTUNIT, BS, D> &prediction_block, uint64_t prediction_type, F &&inputF) {
-  prediction_block.fill(0);
+  DynamicBlock<INPUTUNIT, D> prediction_block_new(BS);
 
   if (prediction_type == 1) {
-    predict_DC<BS, D>(prediction_block, inputF);
+    predict_DC<D>(prediction_block_new, inputF);
   }
   else if (prediction_type == 2) {
-    predict_planar<BS, D>(prediction_block, inputF);
+    predict_planar<D>(prediction_block_new, inputF);
   }
   else if (prediction_type >= 3) {
     size_t dir = prediction_type - 3;
@@ -680,7 +693,11 @@ void predict(Block<INPUTUNIT, BS, D> &prediction_block, uint64_t prediction_type
       direction[d] -= 2;
     }
 
-    predict_direction<BS, D>(prediction_block, direction, inputF);
+    predict_direction<D>(prediction_block_new, direction, inputF);
+  }
+
+  for (size_t i {}; i < constpow(BS, D); i++) {
+    prediction_block[i] = prediction_block_new[i];
   }
 }
 
