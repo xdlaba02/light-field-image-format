@@ -112,12 +112,12 @@ void project_neighbours_to_main_ref(const size_t BS[D], DynamicBlock<INPUTUNIT, 
   iterate_dimensions<D - 1>(main_ref_dimensions, [&](const std::array<size_t, D - 1> &pos) {
     std::array<int64_t, D> position {};
 
-    for (size_t d { 0 }; d < D - 1; d++) {
-      size_t idx = d < main_ref_idx ? d : d + 1;
-      position[idx] = pos[d];
+    for (size_t i {}; i < D - 1; i++) {
+      size_t idx = i < main_ref_idx ? i : i + 1;
+      position[idx] = pos[i];
 
       if (direction[idx] >= 0) {
-        position[idx] -= BS[idx];
+        position[idx] -= BS[main_ref_idx];
       }
       if (direction[idx] <= 0) {
         position[idx] -= 1;
@@ -180,15 +180,15 @@ void predict_from_main_ref(DynamicBlock<INPUTUNIT, D> &output, const int8_t dire
       main_ref_pos[i]  = pos[idx] + 1; //zjisti souradnici z indexu
 
       if (direction[idx] >= 0) {
-        main_ref_pos[i] += BS[idx];
+        main_ref_pos[i] += BS[main_ref_idx];
       }
 
       main_ref_pos[i] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo konvertovat do floating point
       main_ref_pos[i] -= direction[idx] * (pos[main_ref_idx] + 1); //vytvori projekci souradnice na hlavni referencni rovinu
 
 
-      if (main_ref_pos[i] > static_cast<int64_t>(BS[idx]) * direction[main_ref_idx] * 2) {
-        main_ref_pos[i] = BS[idx] * direction[main_ref_idx] * 2;
+      if (main_ref_pos[i] > static_cast<int64_t>(BS[idx] + BS[main_ref_idx]) * direction[main_ref_idx]) {
+        main_ref_pos[i] = (BS[idx] + BS[main_ref_idx]) * direction[main_ref_idx];
       }
     }
 
@@ -219,7 +219,7 @@ void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t directio
 
   for (size_t i {}; i < D - 1; i++) {
     size_t idx = i < main_ref_idx ? i : i + 1;
-    ref_size[i] = output.size()[idx] * 2 + 1;
+    ref_size[i] = output.size()[idx] + output.size()[main_ref_idx] + 1;
   }
 
   DynamicBlock<INPUTUNIT, D - 1> ref(ref_size);

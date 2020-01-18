@@ -132,6 +132,18 @@ size_t make_index(const std::array<size_t, D> &pos) {
 }
 
 template<size_t D>
+size_t make_index(const size_t BS[D], const std::array<size_t, D> &pos) {
+  size_t index {};
+
+  for (size_t i { 1 }; i <= D; i++) {
+    index *= BS[D - i];
+    index += pos[D - i];
+  }
+
+  return index;
+}
+
+template<size_t D>
 const size_t *get_cube_dims_array(size_t BS) {
   static size_t array[D] {};
 
