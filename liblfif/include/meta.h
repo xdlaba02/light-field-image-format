@@ -37,12 +37,7 @@ inline constexpr std::array<size_t, D> make_cube() {
 template<size_t D>
 struct iterate_dimensions {
   template<typename F>
-  iterate_dimensions(const std::array<size_t, D> &range, F &&callback) {
-    std::array<size_t, D - 1> new_range {};
-    for (size_t i { 0 }; i < D - 1; i++) {
-      new_range[i] = range[i];
-    }
-
+  iterate_dimensions(const size_t range[D], F &&callback) {
     for (size_t i { 0 }; i < range[D - 1]; i++) {
       auto new_callback = [&](const std::array<size_t, D - 1> &indices) {
         std::array<size_t, D> new_indices {};
@@ -55,15 +50,18 @@ struct iterate_dimensions {
         callback(new_indices);
       };
 
-      iterate_dimensions<D - 1>(new_range, new_callback);
+      iterate_dimensions<D - 1>(range, new_callback);
     }
   }
+
+  template<typename F>
+  iterate_dimensions(const std::array<size_t, D> &range, F &&callback): iterate_dimensions<D>(range.data(), callback) {}
 };
 
 template<>
 struct iterate_dimensions<0> {
   template<typename F>
-  iterate_dimensions(const std::array<size_t, 0> &, F &&callback) {
+  iterate_dimensions(const size_t *, F &&callback) {
     callback({});
   }
 };
@@ -119,6 +117,15 @@ inline size_t get_stride<0>(const size_t *) {
   return 1;
 }
 
+inline size_t get_stride(const size_t *BS, size_t D) {
+  if (D == 0) {
+    return 1;
+  }
+  else {
+    return get_stride(BS, D - 1) * BS[D - 1];
+  }
+}
+
 template<const size_t *BS, size_t D>
 size_t make_index(const std::array<size_t, D> &pos) {
   size_t index {};
@@ -152,6 +159,17 @@ const size_t *get_cube_dims_array(size_t BS) {
   }
 
   return array;
+}
+
+template <size_t D>
+size_t num_diagonals(const size_t BS[D]) {
+  size_t diagonals_cnt {};
+
+  for (size_t i {}; i < D; i++) {
+    diagonals_cnt += BS[i] - 1;
+  }
+
+  return diagonals_cnt + 1;
 }
 
 #endif

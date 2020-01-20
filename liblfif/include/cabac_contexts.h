@@ -30,17 +30,6 @@ struct CABACContextsJPEG {
 };
 
 template <size_t D>
-size_t num_diagonals(const size_t BS[D]) {
-  size_t diagonals_cnt {};
-
-  for (size_t i {}; i < D; i++) {
-    diagonals_cnt += BS[i] - 1;
-  }
-
-  return diagonals_cnt + 1;
-}
-
-template <size_t D>
 struct CABACContextsDIAGONAL {
   std::vector<CABAC::ContextModel> coded_diag_flag_ctx;
   std::vector<CABAC::ContextModel> last_coded_diag_flag_ctx;
