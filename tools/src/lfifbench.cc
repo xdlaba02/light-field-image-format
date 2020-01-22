@@ -18,12 +18,6 @@
 #include <vector>
 #include <fstream>
 
-#ifdef BLOCK_SIZE
-const size_t BS = BLOCK_SIZE;
-#else
-const size_t BS = 8;
-#endif
-
 using namespace std;
 
 const char *input_file_mask {};
@@ -35,6 +29,10 @@ const char *quality_first   {};
 const char *quality_last    {};
 const char *qtabletype  = "DEFAULT";
 const char *zztabletype = "DEFAULT";
+
+std::array<size_t, 2> block_size_2D {};
+std::array<size_t, 3> block_size_3D {};
+std::array<size_t, 4> block_size_4D {};
 
 bool nothreads              {};
 bool append                 {};
@@ -51,8 +49,8 @@ double PSNR(double mse, size_t max) {
 }
 
 template <size_t D>
-int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output) {
-  LfifDecoder<BS, D> *decoder = new LfifDecoder<BS, D> {};
+int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output) {
+  LfifDecoder<D> decoder {};
 
   size_t image_pixels          {};
   size_t compressed_image_size {};
@@ -60,12 +58,12 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
 
   stringstream io {};
 
-  uint16_t max_rgb_value = pow(2, encoder->color_depth) - 1;
+  uint16_t max_rgb_value = pow(2, encoder.color_depth) - 1;
 
-  image_pixels = original.size() / ((encoder->color_depth > 8) ? 6 : 3);
+  image_pixels = original.size() / ((encoder.color_depth > 8) ? 6 : 3);
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
-    if (encoder->color_depth > 8) {
+    if (encoder.color_depth > 8) {
       return reinterpret_cast<const uint16_t *>(original.data())[index * 3 + channel];
     }
     else {
@@ -102,45 +100,45 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
     mse = 0;
 
-    initEncoder(*encoder);
-    constructQuantizationTables(*encoder, qtabletype, quality);
+    initEncoder(encoder);
+    constructQuantizationTables(encoder, qtabletype, quality);
 
     if (huffman) {
       if (std::string { zztabletype } == "REFERENCE") {
-        referenceScan(*encoder, inputF);
+        referenceScan(encoder, inputF);
       }
-      constructTraversalTables(*encoder, zztabletype);
-      huffmanScan(*encoder, inputF);
-      constructHuffmanTables(*encoder);
-      writeHeader(*encoder, io);
-      outputScanHuffman_RUNLENGTH(*encoder, inputF, io);
+      constructTraversalTables(encoder, zztabletype);
+      huffmanScan(encoder, inputF);
+      constructHuffmanTables(encoder);
+      writeHeader(encoder, io);
+      outputScanHuffman_RUNLENGTH(encoder, inputF, io);
     }
     else if (nopredict) {
-      writeHeader(*encoder, io);
-      outputScanCABAC_DIAGONAL(*encoder, inputF, io);
+      writeHeader(encoder, io);
+      outputScanCABAC_DIAGONAL(encoder, inputF, io);
     }
     else {
-      writeHeader(*encoder, io);
-      outputScanCABAC_DIAGONAL(*encoder, inputF, io);
+      writeHeader(encoder, io);
+      outputScanCABAC_DIAGONAL(encoder, inputF, io);
     }
 
     compressed_image_size = io.tellp();
 
-    if (readHeader(*decoder, io)) {
+    if (readHeader(decoder, io)) {
       cerr << "ERROR: IMAGE HEADER INVALID\n";
       return -3;
     }
 
-    initDecoder(*decoder);
+    initDecoder(decoder);
 
     if (huffman) {
-      decodeScanHuffman(*decoder, io, outputF);
+      decodeScanHuffman(decoder, io, outputF);
     }
     if (nopredict) {
-      decodeScanCABAC(*decoder, io, outputF);
+      decodeScanCABAC(decoder, io, outputF);
     }
     else {
-      decodeScanCABAC(*decoder, io, outputF);
+      decodeScanCABAC(decoder, io, outputF);
     }
 
     double psnr = PSNR(mse / (image_pixels * 3), max_rgb_value);
@@ -149,13 +147,12 @@ int doTest(LfifEncoder<BS, D> *encoder, const vector<uint8_t> &original, const a
     data_output << quality  << " " << psnr << " " << bpp << endl;
   }
 
-  delete decoder;
   return 0;
 }
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name>] [-3 <output-file-name>] [-4 <output-file-name>] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h] [-p]" << endl;
+  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name> [<x> <y>]] [-3 <output-file-name> [<x> <y> <z>]] [-4 <output-file-name> [<x> <y> <z> <ž>]] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h] [-p]" << endl;
 }
 
 void parse_args(int argc, char *argv[]) {
@@ -193,6 +190,20 @@ void parse_args(int argc, char *argv[]) {
       case '2':
         if (!output_file_2D) {
           output_file_2D = optarg;
+
+          int tmp = atoi(argv[optind]);
+          if (tmp > 0) {
+            optind++;
+            block_size_2D[0] = tmp;
+            for (size_t i { 1 }; i < 2; i++) {
+              tmp = atoi(argv[optind++]);
+              if (tmp <= 0) {
+                break;
+              }
+              block_size_2D[i] = tmp;
+            }
+          }
+
           continue;
         }
       break;
@@ -200,6 +211,20 @@ void parse_args(int argc, char *argv[]) {
       case '3':
         if (!output_file_3D) {
           output_file_3D = optarg;
+
+          int tmp = atoi(argv[optind]);
+          if (tmp > 0) {
+            optind++;
+            block_size_3D[0] = tmp;
+            for (size_t i { 1 }; i < 3; i++) {
+              tmp = atoi(argv[optind++]);
+              if (tmp <= 0) {
+                break;
+              }
+              block_size_3D[i] = tmp;
+            }
+          }
+
           continue;
         }
       break;
@@ -207,6 +232,20 @@ void parse_args(int argc, char *argv[]) {
       case '4':
         if (!output_file_4D) {
           output_file_4D = optarg;
+
+          int tmp = atoi(argv[optind]);
+          if (tmp > 0) {
+            optind++;
+            block_size_4D[0] = tmp;
+            for (size_t i { 1 }; i < 4; i++) {
+              tmp = atoi(argv[optind++]);
+              if (tmp <= 0) {
+                break;
+              }
+              block_size_4D[i] = tmp;
+            }
+          }
+
           continue;
         }
       break;
@@ -315,9 +354,9 @@ int main(int argc, char *argv[]) {
 
   vector<thread> threads {};
 
-  LfifEncoder<BS, 2> *encoder2D {};
-  LfifEncoder<BS, 3> *encoder3D {};
-  LfifEncoder<BS, 4> *encoder4D {};
+  LfifEncoder<2> encoder2D {};
+  LfifEncoder<3> encoder3D {};
+  LfifEncoder<4> encoder4D {};
 
   parse_args(argc, argv);
 
@@ -329,6 +368,8 @@ int main(int argc, char *argv[]) {
   input_size *= (max_rgb_value > 255) ? 2 : 1;
   rgb_data.resize(input_size);
 
+  size_t block_size = sqrt(image_count);
+
   if (!loadPPMs(input_file_mask, rgb_data.data())) {
     return 3;
   }
@@ -339,12 +380,16 @@ int main(int argc, char *argv[]) {
   }
 
   if (output_file_2D) {
-    encoder2D = new LfifEncoder<BS, 2> {};
-    encoder2D->color_depth = ceil(log2(max_rgb_value + 1));
-    encoder2D->img_dims[0] = width;
-    encoder2D->img_dims[1] = height;
-    encoder2D->img_dims[2] = image_count;
-    encoder2D->use_huffman = huffman;
+    if (!block_size_2D[0] || !block_size_2D[1]) {
+      block_size_2D = { block_size, block_size };
+    }
+
+    encoder2D.block_size = block_size_2D;
+    encoder2D.color_depth = ceil(log2(max_rgb_value + 1));
+    encoder2D.img_dims[0] = width;
+    encoder2D.img_dims[1] = height;
+    encoder2D.img_dims[2] = image_count;
+    encoder2D.use_huffman = huffman;
 
     size_t last_slash_pos = string(output_file_2D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -365,19 +410,23 @@ int main(int argc, char *argv[]) {
         doTest(encoder2D, rgb_data, quality_interval, outputs[0]);
       }
       else {
-        threads.emplace_back(doTest<2>, encoder2D, ref(rgb_data), ref(quality_interval), ref(outputs[0]));
+        threads.emplace_back(doTest<2>, ref(encoder2D), ref(rgb_data), ref(quality_interval), ref(outputs[0]));
       }
     }
   }
 
   if (output_file_3D) {
-    encoder3D = new LfifEncoder<BS, 3> {};
-    encoder3D->color_depth = ceil(log2(max_rgb_value + 1));;
-    encoder3D->img_dims[0] = width;
-    encoder3D->img_dims[1] = height;
-    encoder3D->img_dims[2] = sqrt(image_count);
-    encoder3D->img_dims[3] = sqrt(image_count);
-    encoder3D->use_huffman = huffman;
+    if (!block_size_3D[0] || !block_size_3D[1] || !block_size_3D[2]) {
+      block_size_3D = { block_size, block_size, block_size };
+    }
+
+    encoder3D.block_size = block_size_3D;
+    encoder3D.color_depth = ceil(log2(max_rgb_value + 1));;
+    encoder3D.img_dims[0] = width;
+    encoder3D.img_dims[1] = height;
+    encoder3D.img_dims[2] = sqrt(image_count);
+    encoder3D.img_dims[3] = sqrt(image_count);
+    encoder3D.use_huffman = huffman;
 
     size_t last_slash_pos = string(output_file_3D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -398,20 +447,24 @@ int main(int argc, char *argv[]) {
         doTest(encoder3D, rgb_data, quality_interval, outputs[1]);
       }
       else {
-        threads.emplace_back(doTest<3>, encoder3D, ref(rgb_data), ref(quality_interval), ref(outputs[1]));
+        threads.emplace_back(doTest<3>, ref(encoder3D), ref(rgb_data), ref(quality_interval), ref(outputs[1]));
       }
     }
   }
 
   if (output_file_4D) {
-    encoder4D = new LfifEncoder<BS, 4> {};
-    encoder4D->color_depth = ceil(log2(max_rgb_value + 1));;
-    encoder4D->img_dims[0] = width;
-    encoder4D->img_dims[1] = height;
-    encoder4D->img_dims[2] = sqrt(image_count);
-    encoder4D->img_dims[3] = sqrt(image_count);
-    encoder4D->img_dims[4] = 1;
-    encoder4D->use_huffman = huffman;
+    if (!block_size_4D[0] || !block_size_4D[1] || !block_size_4D[2] || !block_size_4D[3]) {
+      block_size_4D = { block_size, block_size, block_size, block_size };
+    }
+
+    encoder4D.block_size = block_size_4D;
+    encoder4D.color_depth = ceil(log2(max_rgb_value + 1));;
+    encoder4D.img_dims[0] = width;
+    encoder4D.img_dims[1] = height;
+    encoder4D.img_dims[2] = sqrt(image_count);
+    encoder4D.img_dims[3] = sqrt(image_count);
+    encoder4D.img_dims[4] = 1;
+    encoder4D.use_huffman = huffman;
 
     size_t last_slash_pos = string(output_file_4D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -432,7 +485,7 @@ int main(int argc, char *argv[]) {
         doTest(encoder4D, rgb_data, quality_interval, outputs[2]);
       }
       else {
-        threads.emplace_back(doTest<4>, encoder4D, ref(rgb_data), ref(quality_interval), ref(outputs[2]));
+        threads.emplace_back(doTest<4>, ref(encoder4D), ref(rgb_data), ref(quality_interval), ref(outputs[2]));
       }
     }
   }
@@ -440,10 +493,6 @@ int main(int argc, char *argv[]) {
   for (auto &thread: threads) {
     thread.join();
   }
-
-  delete encoder2D;
-  delete encoder3D;
-  delete encoder4D;
 
   return 0;
 }
