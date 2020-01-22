@@ -70,11 +70,6 @@ int main(int argc, char *argv[]) {
 
   encoder.use_huffman = use_huffman;
 
-  std::cerr << encoder.block_size[0] << ' ' << encoder.block_size[1] << '\n';
-  std::cerr << encoder.img_dims[0] << ' ' << encoder.img_dims[1] << ' ' << encoder.img_dims[2] << '\n';
-  std::cerr << (int)encoder.color_depth << '\n';
-  std::cerr << encoder.use_huffman << '\n';
-
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     if (max_rgb_value < 256) {
       return reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel];

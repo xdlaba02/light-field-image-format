@@ -490,6 +490,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
       return decoded[channel][img_pos];
     };
 
+
     if (channel == 0) {
       prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
       encodePredictionType<D>(prediction_type, cabac, contexts[0]);
@@ -518,7 +519,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
           direction[d] -= 2;
           std::cerr << std::setw(3) << std::fixed << (int)direction[d];
         }
-        std::cerr << "]\n";
+        std::cerr << " ]\n";
       }
     }
 

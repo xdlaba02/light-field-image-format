@@ -41,11 +41,6 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  std::cerr << decoder.block_size[0] << ' ' << decoder.block_size[1] << '\n';
-  std::cerr << decoder.img_dims[0] << ' ' << decoder.img_dims[1] << ' ' << decoder.img_dims[2] << '\n';
-  std::cerr << (int)decoder.color_depth << '\n';
-  std::cerr << decoder.use_huffman << '\n';
-
   max_rgb_value = pow(2, decoder.color_depth) - 1;
 
   initDecoder(decoder);
