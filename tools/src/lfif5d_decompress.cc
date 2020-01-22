@@ -29,8 +29,8 @@ int main(int argc, char *argv[]) {
 
   vector<uint8_t> rgb_data     {};
 
-  LfifDecoder<BS, 5> *decoder  {};
-  ifstream            input    {};
+  LfifDecoder<5> decoder  {};
+  ifstream       input    {};
 
   uint16_t max_rgb_value       {};
 
@@ -44,22 +44,20 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  decoder = new LfifDecoder<BS, 5>;
-
-  if (readHeader(*decoder, input)) {
+  if (readHeader(decoder, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
     return 2;
   }
 
-  max_rgb_value = pow(2, decoder->color_depth) - 1;
+  max_rgb_value = pow(2, decoder.color_depth) - 1;
 
-  initDecoder(*decoder);
+  initDecoder(decoder);
 
-  size_t output_buffer_size = decoder->img_dims[0] * decoder->img_dims[1] * decoder->img_dims[2] * decoder->img_dims[3] * BLOCK_SIZE * 3;
-  output_buffer_size *= (decoder->color_depth > 8) ? 2 : 1;
+  size_t output_buffer_size = decoder.img_dims[0] * decoder.img_dims[1] * decoder.img_dims[2] * decoder.img_dims[3] * BLOCK_SIZE * 3;
+  output_buffer_size *= (decoder.color_depth > 8) ? 2 : 1;
   rgb_data.resize(output_buffer_size);
 
-  size_t views_count = decoder->img_dims[2] * decoder->img_dims[3];
+  size_t views_count = decoder.img_dims[2] * decoder.img_dims[3];
 
   auto flush_frames = [&](size_t first_frame_index) {
     cerr << "INFO: FLUSHING FRAMES " << first_frame_index << " - " << first_frame_index + BLOCK_SIZE - 1 << endl;
@@ -68,15 +66,15 @@ int main(int argc, char *argv[]) {
     Pixel *ppm_row               {};
     size_t flushed_frames_count  {};
 
-    ppm.width = decoder->img_dims[0];
-    ppm.height = decoder->img_dims[1];
+    ppm.width = decoder.img_dims[0];
+    ppm.height = decoder.img_dims[1];
     ppm.color_depth = max_rgb_value;
 
     ppm_row = allocPPMRow(ppm.width);
 
     size_t last_slash_pos = string(output_file_mask).find_last_of('/');
 
-    for (size_t frame = first_frame_index; (frame < decoder->img_dims[4]) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
+    for (size_t frame = first_frame_index; (frame < decoder.img_dims[4]) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
       cerr << "INFO: FLUSHING FRAME " << frame << ": " << get_name_from_mask(output_file_mask, '@', frame) << endl;
 
       for (size_t view = 0; view < views_count; view++) {
@@ -100,7 +98,7 @@ int main(int argc, char *argv[]) {
         }
 
         for (size_t row = 0; row < ppm.height; row++) {
-          if (decoder->color_depth > 8) {
+          if (decoder.color_depth > 8) {
             for (size_t col = 0; col < ppm.width; col++) {
               const uint16_t *data_ptr = reinterpret_cast<const uint16_t *>(rgb_data.data());
               ppm_row[col].r = data_ptr[(((flushed_frames_count * views_count + view) * ppm.height + row) * ppm.width + col) * 3 + 0];
@@ -137,14 +135,14 @@ int main(int argc, char *argv[]) {
 
   auto outputF0 = [&](size_t channel, size_t index, RGBUNIT value) {
 
-    size_t indexed_fifth_dimension_block_index = index / (decoder->img_dims[0] * decoder->img_dims[1] * decoder->img_dims[2] * decoder->img_dims[3] * BLOCK_SIZE);
+    size_t indexed_fifth_dimension_block_index = index / (decoder.img_dims[0] * decoder.img_dims[1] * decoder.img_dims[2] * decoder.img_dims[3] * BLOCK_SIZE);
 
     if (indexed_fifth_dimension_block_index != decoded_fifth_dimension_block_index) {
       flush_frames(decoded_fifth_dimension_block_index * BLOCK_SIZE);
       decoded_fifth_dimension_block_index = indexed_fifth_dimension_block_index;
     }
 
-    if (decoder->color_depth > 8) {
+    if (decoder.color_depth > 8) {
       reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = value;
     }
     else {
@@ -166,11 +164,9 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  decodeScanCABAC(*decoder, input, outputF);
+  decodeScanCABAC(decoder, input, outputF);
 
   flush_frames(decoded_fifth_dimension_block_index * BLOCK_SIZE);
-
-  delete decoder;
 
   return 0;
 }

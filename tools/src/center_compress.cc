@@ -15,12 +15,6 @@
 #include <iostream>
 #include <vector>
 
-#ifdef BLOCK_SIZE
-const size_t BS = BLOCK_SIZE;
-#else
-const size_t BS = 8;
-#endif
-
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -38,12 +32,12 @@ int main(int argc, char *argv[]) {
   uint64_t image_count          {};
   uint32_t max_rgb_value        {};
 
-  LfifEncoder<BS, 2> *encoder2D {};
-  LfifDecoder<BS, 2> *decoder2D {};
-  ifstream            input     {};
+  LfifEncoder<2> encoder2D {};
+  LfifDecoder<2> decoder2D {};
+  ifstream       input     {};
 
-  LfifEncoder<BS, 4> *encoder4D {};
-  ofstream            output    {};
+  LfifEncoder<4> encoder4D {};
+  ofstream       output    {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman)) {
     return 1;
@@ -80,16 +74,12 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  encoder2D = new LfifEncoder<BS, 2>;
-  decoder2D = new LfifDecoder<BS, 2>;
-  encoder4D = new LfifEncoder<BS, 4>;
-
   cerr << "INFO: ENCODING CENTER VIEW" << endl;
 
-  encoder2D->img_dims[0] = width;
-  encoder2D->img_dims[1] = height;
-  encoder2D->img_dims[2] = 1;
-  encoder2D->color_depth = ceil(log2(max_rgb_value + 1));
+  encoder2D.img_dims[0] = width;
+  encoder2D.img_dims[1] = height;
+  encoder2D.img_dims[2] = 1;
+  encoder2D.color_depth = ceil(log2(max_rgb_value + 1));
 
   auto inputF02D = [&](size_t channel, size_t index) -> RGBUNIT {
     size_t center_image_index = image_count / 2;
@@ -113,11 +103,11 @@ int main(int argc, char *argv[]) {
     return {Y, Cb, Cr};
   };
 
-  initEncoder(*encoder2D);
-  constructQuantizationTables(*encoder2D, "DEFAULT", quality);
-  constructTraversalTables(*encoder2D, "DEFAULT");
-  writeHeader(*encoder2D, output);
-  outputScanCABAC_DIAGONAL(*encoder2D, inputF2D, output);
+  initEncoder(encoder2D);
+  constructQuantizationTables(encoder2D, "DEFAULT", quality);
+  constructTraversalTables(encoder2D, "DEFAULT");
+  writeHeader(encoder2D, output);
+  outputScanCABAC_DIAGONAL(encoder2D, inputF2D, output);
 
   output.flush();
 
@@ -130,15 +120,15 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (readHeader(*decoder2D, input)) {
+  if (readHeader(decoder2D, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
     return 2;
   }
 
-  initDecoder(*decoder2D);
+  initDecoder(decoder2D);
 
   auto outputF02D = [&](size_t channel, size_t index, RGBUNIT value) {
-    if (decoder2D->color_depth > 8) {
+    if (decoder2D.color_depth > 8) {
       reinterpret_cast<uint16_t *>(prediction.data())[index * 3 + channel] = value;
     }
     else {
@@ -160,16 +150,16 @@ int main(int argc, char *argv[]) {
     outputF02D(2, index, B);
   };
 
-  decodeScanCABAC(*decoder2D, input, outputF2D);
+  decodeScanCABAC(decoder2D, input, outputF2D);
 
   cerr << "INFO: ENCODING RESIDUUM" << endl;
 
-  encoder4D->img_dims[0] = width;
-  encoder4D->img_dims[1] = height;
-  encoder4D->img_dims[2] = sqrt(image_count);
-  encoder4D->img_dims[3] = sqrt(image_count);
-  encoder4D->img_dims[4] = 1;
-  encoder4D->color_depth = ceil(log2(max_rgb_value + 1)) + 1;
+  encoder4D.img_dims[0] = width;
+  encoder4D.img_dims[1] = height;
+  encoder4D.img_dims[2] = sqrt(image_count);
+  encoder4D.img_dims[3] = sqrt(image_count);
+  encoder4D.img_dims[4] = 1;
+  encoder4D.color_depth = ceil(log2(max_rgb_value + 1)) + 1;
 
   auto inputF0 = [&](size_t channel, size_t index) -> INPUTUNIT {
     if (max_rgb_value < 256) {
@@ -192,15 +182,11 @@ int main(int argc, char *argv[]) {
     return {Y, Cb, Cr};
   };
 
-  initEncoder(*encoder4D);
-  constructQuantizationTables(*encoder4D, "DEFAULT", quality);
-  constructTraversalTables(*encoder4D, "DEFAULT");
-  writeHeader(*encoder4D, output);
-  outputScanCABAC_DIAGONAL(*encoder4D, inputF, output); //THIRD IMAGE SCAN
-
-  delete encoder4D;
-  delete decoder2D;
-  delete encoder2D;
+  initEncoder(encoder4D);
+  constructQuantizationTables(encoder4D, "DEFAULT", quality);
+  constructTraversalTables(encoder4D, "DEFAULT");
+  writeHeader(encoder4D, output);
+  outputScanCABAC_DIAGONAL(encoder4D, inputF, output); //THIRD IMAGE SCAN
 
   return 0;
 }

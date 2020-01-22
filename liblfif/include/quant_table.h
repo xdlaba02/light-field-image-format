@@ -22,13 +22,13 @@ using QTABLEUNIT = uint64_t; /**< @brief Unit which is intended to containt quan
 /**
  * @brief Quantization matrix type.
  */
-template <size_t BS, size_t D>
-using QuantTable = Block<QTABLEUNIT, BS, D>;
+template <size_t D>
+using QuantTable = DynamicBlock<QTABLEUNIT, D>;
 
 /**
  * @brief Base luma matrix used in libjpeg implementation. Values corresponds to quality of 50.
  */
-static constexpr QuantTable<8, 2> base_luma = {
+static constexpr std::array<QTABLEUNIT, 64> base_luma {
   16,  11,  10,  16,  24,  40,  51,  61,
   12,  12,  14,  19,  26,  58,  60,  55,
   14,  13,  16,  24,  40,  57,  69,  56,
@@ -42,7 +42,7 @@ static constexpr QuantTable<8, 2> base_luma = {
 /**
  * @brief Base chroma matrix used in libjpeg implementation. Values corresponds to quality of 50.
  */
-static constexpr QuantTable<8, 2> base_chroma = {
+static constexpr std::array<QTABLEUNIT, 64> base_chroma {
   17, 18, 24, 47, 99, 99, 99, 99,
   18, 21, 26, 66, 99, 99, 99, 99,
   24, 26, 56, 99, 99, 99, 99, 99,
@@ -53,30 +53,39 @@ static constexpr QuantTable<8, 2> base_chroma = {
   99, 99, 99, 99, 99, 99, 99, 99
 };
 
+inline QuantTable<2> baseLuma() {
+  QuantTable<2> output({8, 8});
+  for (size_t i {}; i < 64; i++) {
+    output[i] = base_luma[i];
+  }
+  return output;
+}
+
+inline QuantTable<2> baseChroma() {
+  QuantTable<2> output({8, 8});
+  for (size_t i {}; i < 64; i++) {
+    output[i] = base_chroma[i];
+  }
+  return output;
+}
+
 /**
  * @brief Function used to scale quantization matrix to specific size by filling values by the nearests.
  * @param input The matrix to be scaled.
  * @return Scaled matrix.
  */
-template <size_t BSIN, size_t D, size_t BSOUT>
-constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
-  QuantTable<BSOUT, D> output {};
-
+template <size_t D>
+constexpr void scaleFillNear(const QuantTable<D> &input, QuantTable<D> &output) {
   auto inputF = [&](const std::array<size_t, D> &pos) {
-    return input[make_cube_index<BSIN, D>(pos)];
+    return input[pos];
   };
 
   auto outputF = [&](const std::array<size_t, D> &pos, const auto &value) {
-    output[make_cube_index<BSOUT, D>(pos)] = value;
+    output[pos] = value;
   };
 
-  std::array<size_t, D> dims {};
-  std::fill(std::begin(dims), std::end(dims), BSIN);
-
   std::array<size_t, D> pos {};
-  getBlock<D>(get_cube_dims_array<D>(BSOUT), inputF, pos, dims, outputF);
-
-  return output;
+  getBlock<D>(output.size().data(), inputF, pos, input.size(), outputF);
 }
 
 /**
@@ -84,50 +93,47 @@ constexpr QuantTable<BSOUT, D> scaleFillNear(const QuantTable<BSIN, D> &input) {
  * @param input The matrix to be scaled.
  * @return Scaled matrix.
  */
-template <size_t BSIN, size_t D, size_t BSOUT>
-constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
-  Block<DCTDATAUNIT, BSIN, D>  input_coefs  {};
-  Block<DCTDATAUNIT, BSOUT, D> output_coefs {};
-  QuantTable<BSOUT, D>         output       {};
+template <size_t D>
+constexpr void scaleByDCT(const QuantTable<D> &input, QuantTable<D> &output) {
+  DynamicBlock<DCTDATAUNIT, D> input_coefs(input.size());
+  DynamicBlock<DCTDATAUNIT, D> output_coefs(output.size());
 
-  auto finputF = [&](size_t index) -> DCTDATAUNIT {
+  auto fInputF = [&](size_t index) -> DCTDATAUNIT {
     return input[index];
   };
 
-  auto foutputF = [&](size_t index) -> DCTDATAUNIT & {
+  auto fOutputF = [&](size_t index) -> DCTDATAUNIT & {
     return input_coefs[index];
   };
 
-  fdct<D>(get_cube_dims_array<D>(BSIN), finputF, foutputF);
+  fdct<D>(input.size().data(), fInputF, fOutputF);
 
-  auto iinputF = [&](size_t index) -> DCTDATAUNIT {
-    size_t real_index = 0;
+  auto iInputF = [&](size_t index) -> DCTDATAUNIT {
+    size_t real_index {};
 
-    for (size_t j = D; j > 0; j--) {
-      size_t ii = (index % constpow(BSOUT, j)) / constpow(BSOUT, j - 1);
-      if (ii >= BSIN) {
+    for (size_t i { 1 }; i <= D; i++) {
+      size_t dim = index % output.stride(D - i + 1) / output.stride(D - i);
+      if (dim >= input.size()[D - i]) {
         return 0;
       }
       else {
-        real_index *= BSIN;
-        real_index += ii;
+        real_index *= input.size()[D - i];
+        real_index += dim;
       }
     }
 
     return input_coefs[real_index];
   };
 
-  auto ioutputF = [&](size_t index) -> DCTDATAUNIT & {
+  auto iOutputF = [&](size_t index) -> DCTDATAUNIT & {
     return output_coefs[index];
   };
 
-  idct<D>(get_cube_dims_array<D>(BSOUT), iinputF, ioutputF);
+  idct<D>(output.size().data(), iInputF, iOutputF);
 
-  for (size_t i = 0; i < constpow(BSOUT, D); i++) {
+  for (size_t i = 0; i < output.stride(D); i++) {
     output[i] = std::round(output_coefs[i]);
   }
-
-  return output;
 }
 
 /**
@@ -136,12 +142,11 @@ constexpr QuantTable<BSOUT, D> scaleByDCT(const QuantTable<BSIN, D> &input) {
  * @param scale_coef The scaling coefficient.
  * @return Scaled matrix.
  */
-template <size_t BS, size_t D>
-QuantTable<BS, D> applyQualityCoefficient(QuantTable<BS, D> table, float scale_coef) {
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+template <size_t D>
+void applyQualityCoefficient(QuantTable<D> &table, float scale_coef) {
+  for (size_t i = 0; i < table.stride(D); i++) {
     table[i] = std::round(table[i] * scale_coef);
   }
-  return table;
 }
 
 /**
@@ -150,10 +155,10 @@ QuantTable<BS, D> applyQualityCoefficient(QuantTable<BS, D> table, float scale_c
  * @param quality The desired quality between 1.0 and 100.0.
  * @return Scaled matrix.
  */
-template <size_t BS, size_t D>
-QuantTable<BS, D> applyQuality(const QuantTable<BS, D> &input, float quality) {
+template <size_t D>
+void applyQuality(QuantTable<D> &input, float quality) {
   float scale_coef = quality < 50 ? (50.0 / quality) : (200.0 - 2 * quality) / 100;
-  return applyQualityCoefficient<BS, D>(input, scale_coef);
+  applyQualityCoefficient<D>(input, scale_coef);
 }
 
 /**
@@ -161,11 +166,9 @@ QuantTable<BS, D> applyQuality(const QuantTable<BS, D> &input, float quality) {
  * @param value The uniform value.
  * @return Uniform matrix.
  */
-template <size_t BS, size_t D>
-QuantTable<BS, D> uniformTable(QTABLEUNIT value) {
-  QuantTable<BS, D> output {};
+template <size_t D>
+void uniformTable(QTABLEUNIT value, QuantTable<D> &output) {
   output.fill(value);
-  return output;
 }
 
 /**
@@ -173,19 +176,13 @@ QuantTable<BS, D> uniformTable(QTABLEUNIT value) {
  * @param input The matrix to be extended.
  * @return Extended matrix.
  */
-template <size_t BS, size_t DIN, size_t DOUT>
-QuantTable<BS, DOUT> copyTable(const QuantTable<BS, DIN> &input) {
-  QuantTable<BS, DOUT> output {};
-
+template <size_t DIN, size_t DOUT>
+void copyTable(const QuantTable<DIN> &input, QuantTable<DOUT> &output) {
   static_assert(DIN <= DOUT);
 
-  for (size_t y = 0; y < constpow(BS, DOUT - DIN); y++) {
-    for (size_t x = 0; x < constpow(BS, DIN); x++) {
-      output[y * constpow(BS, DIN) + x] = input[x];
-    }
+  for (size_t i {}; i < output.stride(DOUT); i++) {
+    output[i] = input[i % input.stride(DIN)];
   }
-
-  return output;
 }
 
 /**
@@ -193,36 +190,33 @@ QuantTable<BS, DOUT> copyTable(const QuantTable<BS, DIN> &input) {
  * @param input The matrix to be extended.
  * @return Extended matrix.
  */
-template <size_t BS, size_t DIN, size_t DOUT>
-QuantTable<BS, DOUT> averageDiagonalTable(const QuantTable<BS, DIN> &input) {
-  double diagonals_sum[DIN * (BS - 1) + 1]   {};
-  size_t diagonals_cnt[DIN * (BS - 1) + 1]   {};
-  QuantTable<BS, DOUT> output {};
+template <size_t DIN, size_t DOUT>
+void averageDiagonalTable(const QuantTable<DIN> &input, QuantTable<DOUT> &output) {
+  std::vector<double> diagonals_sum(num_diagonals<DIN>(input.size()));
+  std::vector<size_t> diagonals_cnt(num_diagonals<DIN>(input.size()));
 
-  for (size_t i = 0; i < constpow(BS, DIN); i++) {
-    size_t diagonal = 0;
-    for (size_t j = 0; j < DIN; j++) {
-      diagonal += (i % constpow(BS, j + 1)) / constpow(BS, j);
+  iterate_dimensions<DIN>(input.size(), [&](const std::array<size_t, DIN> &pos) {
+    size_t diagonal {};
+    for (size_t i = 0; i < DIN; i++) {
+      diagonal += pos[i];
     }
 
-    diagonals_sum[diagonal] += input[i];
+    diagonals_sum[diagonal] += input[pos];
     diagonals_cnt[diagonal]++;
-  }
+  });
 
-  for (size_t i = 0; i < constpow(BS, DOUT); i++) {
-    size_t diagonal = 0;
-    for (size_t j = 0; j < DOUT; j++) {
-      diagonal += (i % constpow(BS, j + 1)) / constpow(BS, j);
+  iterate_dimensions<DOUT>(output.size(), [&](const std::array<size_t, DOUT> &pos) {
+    size_t diagonal {};
+    for (size_t i = 0; i < DIN; i++) {
+      diagonal += pos[i];
     }
 
-    if (diagonal >= DIN * (BS - 1) + 1) {
-      diagonal = DIN * (BS - 1) + 1 - 1;
+    if (diagonal >= num_diagonals<DIN>(input.size())) {
+      diagonal = num_diagonals<DIN>(input.size()) - 1;
     }
 
-    output[i] = std::round(diagonals_sum[diagonal] / diagonals_cnt[diagonal]);
-  }
-
-  return output;
+    output[pos] = std::round(diagonals_sum[diagonal] / diagonals_cnt[diagonal]);
+  });
 }
 
 /**
@@ -232,12 +226,11 @@ QuantTable<BS, DOUT> averageDiagonalTable(const QuantTable<BS, DIN> &input) {
  * @param max Maximum clamped value.
  * @return Clamped matrix.
  */
-template <size_t BS, size_t D>
-QuantTable<BS, D> clampTable(QuantTable<BS, D> table, float min, float max) {
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+template <size_t D>
+void clampTable(QuantTable<D> &table, float min, float max) {
+  for (size_t i {}; i < table.stride(D); i++) {
     table[i] = std::clamp<float>(table[i], min, max);
   }
-  return table;
 }
 
 /**
@@ -245,9 +238,9 @@ QuantTable<BS, D> clampTable(QuantTable<BS, D> table, float min, float max) {
  * @param table The matrix to be written.
  * @param stream The stream to which the matrix shall be written.
  */
-template <size_t BS, size_t D>
-void writeToStream(const QuantTable<BS, D> &table, std::ostream &stream) {
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+template <size_t D>
+void writeQuantToStream(const QuantTable<D> &table, std::ostream &stream) {
+  for (size_t i {}; i < table.stride(D); i++) {
     writeValueToStream<uint8_t>(table[i], stream);
   }
 }
@@ -257,13 +250,13 @@ void writeToStream(const QuantTable<BS, D> &table, std::ostream &stream) {
  * @param stream The stream from which the matrix shall be read.
  * @return The read matrix.
  */
-template <size_t BS, size_t D>
-QuantTable<BS, D> readFromStream(std::istream &stream) {
-  QuantTable<BS, D> output {};
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    output[i] = readValueFromStream<uint8_t>(stream);
+template <size_t D>
+QuantTable<D> readQuantFromStream(const std::array<size_t, D> &BS, std::istream &stream) {
+  QuantTable<D> table(BS);
+  for (size_t i {}; i < table.stride(D); i++) {
+    table[i] = readValueFromStream<uint8_t>(stream);
   }
-  return output;
+  return table;
 }
 
 

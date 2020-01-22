@@ -12,7 +12,7 @@ BINDIR = bin
 BS			 = 8
 CC 			 = g++
 INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/xvc_enc_lib -I../xvc/src/xvc_dec_lib
-CFLAGS   = $(INC) -O3 -std=c++2a -Wall -Wextra -pedantic -Wfatal-errors -DBLOCK_SIZE=$(BS)
+CFLAGS   = $(INC) -O3 -std=c++2a -Wall -Wextra -pedantic -Wfatal-errors
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
@@ -55,42 +55,42 @@ others: $(FOLDERS) \
 				$(BINDIR)/predict_test \
 
 
-$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif5d_compress: $(OBJDIR)/lfif5d_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/lfif5d_compress: $(OBJDIR)/lfif5d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/center_compress: $(OBJDIR)/center_compress$(BS).o $(OBJDIR)/compress.o $(LFIF)
+$(BINDIR)/center_compress: $(OBJDIR)/center_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+$(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+$(BINDIR)/lfif3d_decompress: $(OBJDIR)/lfif3d_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+$(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/lfif5d_decompress: $(OBJDIR)/lfif5d_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
+$(BINDIR)/lfif5d_decompress: $(OBJDIR)/lfif5d_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/center_decompress: $(OBJDIR)/center_decompress$(BS).o $(OBJDIR)/decompress.o $(LFIF)
-	$(CC) -lm $^ -o $@
-
-
-$(BINDIR)/lf_psnr: $(OBJDIR)/lf_psnr$(BS).o $(PLENO)
+$(BINDIR)/center_decompress: $(OBJDIR)/center_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
 
-$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench$(BS).o $(LFIF)
+$(BINDIR)/lf_psnr: $(OBJDIR)/lf_psnr.o $(PLENO)
+	$(CC) -lm $^ -o $@
+
+
+$(BINDIR)/lfifbench: $(OBJDIR)/lfifbench.o $(LFIF)
 	$(CC) -lm -pthread $^ -o $@
 
 $(BINDIR)/mozbench: $(OBJDIR)/mozbench.o $(PLENO)
@@ -108,10 +108,10 @@ $(BINDIR)/x265bench: $(OBJDIR)/x265bench.o $(PLENO)
 $(BINDIR)/xvcbench: $(OBJDIR)/xvcbench.o $(PLENO)
 	$(CC) -lm -lpthread $^ /usr/local/lib/libxvcenc.a /usr/local/lib/libxvcdec.a -o $@
 
-$(BINDIR)/hevc_compress: $(OBJDIR)/hevc_compress$(BS).o $(PLENO)
+$(BINDIR)/hevc_compress: $(OBJDIR)/hevc_compress.o $(PLENO)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
-$(BINDIR)/hevc_decompress: $(OBJDIR)/hevc_decompress$(BS).o $(PLENO)
+$(BINDIR)/hevc_decompress: $(OBJDIR)/hevc_decompress.o $(PLENO)
 	$(CC) -lm -lavutil -lavformat -lavcodec -lswscale $^ -o $@
 
 $(BINDIR)/xvc_compress: $(OBJDIR)/xvc_compress.o $(PLENO)
@@ -138,7 +138,7 @@ $(BINDIR)/dynamic_test: $(OBJDIR)/dynamic_test.o ../liblfif/bin/liblfif.a
 ../liblfif/bin/liblfif.a:
 		$(MAKE) -C ../liblfif/
 
-$(OBJDIR)/%$(BS).o: $(SRCDIR)/%.cc
+$(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
 	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 

@@ -31,8 +31,10 @@
  * @param input_block The block to be transformed.
  * @param transformed_block The transformed block.
  */
-template <size_t BS, size_t D>
-void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &input_block, Block<DCTDATAUNIT, BS, D> &transformed_block) {
+template <size_t D>
+void forwardDiscreteCosineTransform(const DynamicBlock<INPUTUNIT, D> &input_block, DynamicBlock<DCTDATAUNIT, D> &transformed_block) {
+  assert(input_block.size() == transformed_block.size());
+
   transformed_block.fill(0);
 
   auto inputF = [&](size_t index) {
@@ -43,7 +45,7 @@ void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &input_block, 
     return transformed_block[index];
   };
 
-  fdct<D>(get_cube_dims_array<D>(BS), inputF, outputF);
+  fdct<D>(input_block.size().data(), inputF, outputF);
 }
 
 /**
@@ -52,9 +54,12 @@ void forwardDiscreteCosineTransform(const Block<INPUTUNIT, BS, D> &input_block, 
  * @param quantized_block The quantized block.
  * @param quant_table The quantization matrix.
  */
-template <size_t BS, size_t D>
-void quantize(const Block<DCTDATAUNIT, BS, D> &transformed_block, Block<QDATAUNIT, BS, D> &quantized_block, const QuantTable<BS, D> &quant_table) {
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+template <size_t D>
+void quantize(const DynamicBlock<DCTDATAUNIT, D> &transformed_block, DynamicBlock<QDATAUNIT, D> &quantized_block, const QuantTable<D> &quant_table) {
+  assert(transformed_block.size() == quantized_block.size());
+  assert(quantized_block.size() == quant_table.size());
+
+  for (size_t i = 0; i < transformed_block.stride(D); i++) {
     quantized_block[i] = std::round(transformed_block[i] / quant_table[i]);
   }
 }
@@ -64,9 +69,11 @@ void quantize(const Block<DCTDATAUNIT, BS, D> &transformed_block, Block<QDATAUNI
  * @param quantized_block The quantized block to be added.
  * @param reference The block to which values should be added.
  */
-template <size_t BS, size_t D>
-void addToReferenceBlock(const Block<QDATAUNIT, BS, D> &quantized_block, ReferenceBlock<BS, D> &reference) {
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+template <size_t D>
+void addToReferenceBlock(const DynamicBlock<QDATAUNIT, D> &quantized_block, ReferenceBlock<D> &reference) {
+  assert(quantized_block.size() == reference.size());
+
+  for (size_t i = 0; i < quantized_block.stride(D); i++) {
     reference[i] += abs(quantized_block[i]);
   }
 }
@@ -76,8 +83,8 @@ void addToReferenceBlock(const Block<QDATAUNIT, BS, D> &quantized_block, Referen
  * @param quantized_block The quantized block to be DPCM encoded.
  * @param previous_DC Value of a previous DC coefficient.
  */
-template <size_t BS, size_t D>
-void diffEncodeDC(Block<QDATAUNIT, BS, D> &quantized_block, QDATAUNIT &previous_DC) {
+template <size_t D>
+void diffEncodeDC(DynamicBlock<QDATAUNIT, D> &quantized_block, QDATAUNIT &previous_DC) {
   QDATAUNIT current_DC = quantized_block[0];
   quantized_block[0] -= previous_DC;
   previous_DC = current_DC;
@@ -88,11 +95,13 @@ void diffEncodeDC(Block<QDATAUNIT, BS, D> &quantized_block, QDATAUNIT &previous_
  * @param diff_encoded_block The block to be traversed.
  * @param traversal_table The traversal matrix.
  */
-template <size_t BS, size_t D>
-void traverse(Block<QDATAUNIT, BS, D> &diff_encoded_block, const TraversalTable<BS, D> &traversal_table) {
-  Block<QDATAUNIT, BS, D> diff_encoded_copy(diff_encoded_block);
+template <size_t D>
+void traverse(DynamicBlock<QDATAUNIT, D> &diff_encoded_block, const TraversalTable<D> &traversal_table) {
+  assert(diff_encoded_block.size() == traversal_table.size());
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+  DynamicBlock<QDATAUNIT, D> diff_encoded_copy(diff_encoded_block);
+
+  for (size_t i = 0; i < diff_encoded_block.stride(D); i++) {
     diff_encoded_block[traversal_table[i]] = diff_encoded_copy[i];
   }
 }
@@ -103,11 +112,11 @@ void traverse(Block<QDATAUNIT, BS, D> &diff_encoded_block, const TraversalTable<
  * @param encoder CABAC Encoder.
  * @param contexts Contexts for block encoding.
  */
-template <size_t BS, size_t D>
-void encodeCABAC_H264(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsH264<BS, D> &contexts) {
+template <size_t D>
+void encodeCABAC_H264(const DynamicBlock<QDATAUNIT, D> &traversed_block, CABACEncoder &encoder, CABACContextsH264<D> &contexts) {
   size_t coef_cnt {};
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+  for (size_t i = 0; i < traversed_block.stride(D); i++) {
     if (traversed_block[i]) {
       coef_cnt++;
     }
@@ -116,7 +125,7 @@ void encodeCABAC_H264(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
   if (coef_cnt > 0) {
     encoder.encodeBit(contexts.coded_block_flag_ctx, 1);
 
-    for (size_t i = 0; i < constpow(BS, D) - 1; i++) {
+    for (size_t i = 0; i < traversed_block.stride(D) - 1; i++) {
       if (traversed_block[i] == 0) {
         encoder.encodeBit(contexts.significant_coef_flag_ctx[i], 0);
       }
@@ -137,8 +146,8 @@ void encodeCABAC_H264(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
     size_t numT1   {0};
     size_t numLgt1 {0};
 
-    for (size_t i = 1; i <= constpow(BS, D); i++) {
-      size_t ii = constpow(BS, D) - i;
+    for (size_t i = 1; i <= traversed_block.stride(D); i++) {
+      size_t ii = traversed_block.stride(D) - i;
 
       QDATAUNIT coef = traversed_block[ii];
 
@@ -189,8 +198,8 @@ void encodeCABAC_H264(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
  * @param encoder CABAC Encoder.
  * @param contexts Contexts for block encoding.
  */
-template <size_t BS, size_t D>
-void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncoder &encoder, CABACContextsJPEG<BS, D> &contexts, QDATAUNIT &previous_DC_diff, size_t amp_bits) {
+template <size_t D>
+void encodeCABAC_JPEG(const DynamicBlock<QDATAUNIT, D> &traversed_block, CABACEncoder &encoder, CABACContextsJPEG<D> &contexts, QDATAUNIT &previous_DC_diff, size_t amp_bits) {
   QDATAUNIT coef     {};
   size_t    S        {};
   size_t    coef_cnt { 0 };
@@ -213,7 +222,7 @@ void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
 
   previous_DC_diff = traversed_block[0];
 
-  for (size_t i = 1; i < constpow(BS, D); i++) {
+  for (size_t i = 1; i < traversed_block.stride(D); i++) {
     if (traversed_block[i]) {
       coef_cnt++;
     }
@@ -275,7 +284,7 @@ void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
     }
   }
 
-  for (size_t i = 1; i < constpow(BS, D); i++) {
+  for (size_t i = 1; i < traversed_block.stride(D); i++) {
     S = 3 * (i - 1);
     if (coef_cnt == 0) {
       encoder.encodeBit(contexts.AC_ctxs[S], 1);
@@ -311,7 +320,7 @@ void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
           encoder.encodeBit(contexts.AC_ctxs[S + 2], 1);
           M <<= 1;
 
-          S = 3 * (constpow(BS, D) - 1);
+          S = 3 * (traversed_block.stride(D) - 1);
           if (i > 32) {
             S += 2 * (amp_bits - 1);
           }
@@ -351,7 +360,7 @@ void encodeCABAC_JPEG(const Block<QDATAUNIT, BS, D> &traversed_block, CABACEncod
   }
 }
 
-template <size_t BS, size_t D>
+template <size_t D>
 void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABACContextsDIAGONAL<D> &contexts) {
   size_t i {};
   for (i = 0; i < prediction_type; i++) {
@@ -366,12 +375,12 @@ void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABAC
  * @param encoder CABAC Encoder.
  * @param contexts Contexts for block encoding.
  */
-template <size_t BS, size_t D>
-void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
-  std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
+template <size_t D>
+void encodeCABAC_DIAGONAL(const DynamicBlock<QDATAUNIT, D> &diff_encoded_block, CABACEncoder &encoder, CABACContextsDIAGONAL<D> &contexts, size_t &threshold, const std::vector<std::vector<size_t>> &scan_table) {
+  std::vector<bool> nonzero_diags(num_diagonals<D>(diff_encoded_block.size()));
   size_t diags_cnt { 0 };
 
-  for (size_t diag = 0; diag < D * (BS - 1) + 1; diag++) {
+  for (size_t diag = 0; diag < num_diagonals<D>(diff_encoded_block.size()); diag++) {
     for (auto &i: scan_table[diag]) {
       if (diff_encoded_block[i]) {
         nonzero_diags[diag] = true;
@@ -381,7 +390,7 @@ void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CAB
     }
   }
 
-  for (size_t diag = 0; diag < D * (BS - 1) + 1; diag++) {
+  for (size_t diag = 0; diag < num_diagonals<D>(diff_encoded_block.size()); diag++) {
     encoder.encodeBit(contexts.coded_diag_flag_ctx[diag], nonzero_diags[diag]);
 
     if (nonzero_diags[diag]) {
@@ -397,8 +406,8 @@ void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CAB
     }
   }
 
-  for (size_t d = 0; d < D * (BS - 1) + 1; d++) {
-    size_t diag = (D * (BS - 1)) - d;
+  for (size_t d { 1 }; d <= num_diagonals<D>(diff_encoded_block.size()); d++) {
+    size_t diag = num_diagonals<D>(diff_encoded_block.size()) - d;
     int64_t zero_coef_distr { 0 };
 
     if (nonzero_diags[diag]) {
@@ -408,8 +417,8 @@ void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CAB
         size_t nonzero_neighbours_cnt { 0 };
 
         for (size_t dim = 0; dim < D; dim++) {
-          size_t neighbour = i + constpow(BS, dim);
-          if ((i % constpow(BS, dim + 1)) < (neighbour % constpow(BS, dim + 1))) {
+          size_t neighbour = i + diff_encoded_block.stride(dim);
+          if ((i % diff_encoded_block.stride(dim + 1)) < (neighbour % diff_encoded_block.stride(dim + 1))) {
             nonzero_neighbours_cnt += (diff_encoded_block[neighbour] != 0);
           }
         }
@@ -467,12 +476,14 @@ void encodeCABAC_DIAGONAL(const Block<QDATAUNIT, BS, D> &diff_encoded_block, CAB
  * @param runlength The output block of run-length pairs, ended by EOB if not full.
  * @param max_zeroes Maximum number of zeroes in run-length.
  */
-template <size_t BS, size_t D>
-void runLengthEncode(const Block<QDATAUNIT, BS, D> &traversed_block, Block<RunLengthPair, BS, D> &runlength, size_t max_zeroes) {
-  auto pairs_it = std::begin(runlength);
+template <size_t D>
+void runLengthEncode(const DynamicBlock<QDATAUNIT, D> &traversed_block, DynamicBlock<RunLengthPair, D> &runlength, size_t max_zeroes) {
+  assert(traversed_block.size() == runlength.size());
+
+  auto pairs_it = &runlength[0];
 
   auto push_pair = [&](RunLengthPair &&pair) {
-    if (pairs_it != std::end(runlength)) {
+    if (pairs_it != &runlength[runlength.stride(D)]) {
       *pairs_it = pair;
       pairs_it++;
     }
@@ -481,7 +492,7 @@ void runLengthEncode(const Block<QDATAUNIT, BS, D> &traversed_block, Block<RunLe
   push_pair({0, traversed_block[0]});
 
   size_t zeroes = 0;
-  for (size_t i = 1; i < constpow(BS, D); i++) {
+  for (size_t i = 1; i < traversed_block.stride(D); i++) {
     if (traversed_block[i] == 0) {
       zeroes++;
     }
@@ -504,16 +515,16 @@ void runLengthEncode(const Block<QDATAUNIT, BS, D> &traversed_block, Block<RunLe
  * @param weights Two maps for huffman weighting. First is for DC coefficient, second for AC coefficients.
  * @param class_bits Number of bits for the second part of codeword.
  */
-template <size_t BS, size_t D>
-void huffmanAddWeights(const Block<RunLengthPair, BS, D> &runlength, HuffmanWeights weights[2], size_t class_bits) {
-  auto pairs_it = std::begin(runlength);
+template <size_t D>
+void huffmanAddWeights(const DynamicBlock<RunLengthPair, D> &runlength, HuffmanWeights weights[2], size_t class_bits) {
+  auto pairs_it = &runlength[0];
 
   pairs_it->addToWeights(weights[0], class_bits);
 
   do {
     pairs_it++;
     pairs_it->addToWeights(weights[1], class_bits);
-  } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
+  } while (!pairs_it->eob() && (pairs_it != (&runlength[runlength.stride(D)] - 1)));
 }
 
 /**
@@ -523,16 +534,16 @@ void huffmanAddWeights(const Block<RunLengthPair, BS, D> &runlength, HuffmanWeig
  * @param stream The output bitstream.
  * @param class_bits Number of bits for the second part of codeword.
  */
-template <size_t BS, size_t D>
-void encodeHuffman_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
-  auto pairs_it = std::begin(runlength);
+template <size_t D>
+void encodeHuffman_RUNLENGTH(const DynamicBlock<RunLengthPair, D> &runlength, const HuffmanEncoder encoder[2], OBitstream &stream, size_t class_bits) {
+  auto pairs_it = &runlength[0];
 
   pairs_it->huffmanEncodeToStream(encoder[0], stream, class_bits);
 
   do {
     pairs_it++;
     pairs_it->huffmanEncodeToStream(encoder[1], stream, class_bits);
-  } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
+  } while (!pairs_it->eob() && (pairs_it != (&runlength[runlength.stride(D)] - 1)));
 }
 
 /**
@@ -542,8 +553,8 @@ void encodeHuffman_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, const
  * @param models Contexts for every bit of run-length value, amplitude size and amplitude value.
  * @param class_bits Number of bits for the second part of codeword.
  */
-template <size_t BS, size_t D>
-void encodeCABAC_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, CABACEncoder &encoder, CABACContextsRUNLENGTH<BS, D> &contexts, size_t class_bits) {
+template <size_t D>
+void encodeCABAC_RUNLENGTH(const DynamicBlock<RunLengthPair, D> &runlength, CABACEncoder &encoder, CABACContextsRUNLENGTH<D> &contexts, size_t class_bits) {
   auto          pairs_it  { std::begin(runlength) };
   size_t        i         {};
   RLAMPUNIT     amp       {};
@@ -585,33 +596,28 @@ void encodeCABAC_RUNLENGTH(const Block<RunLengthPair, BS, D> &runlength, CABACEn
   } while (!pairs_it->eob() && (pairs_it != (std::end(runlength) - 1)));
 }
 
-template <size_t BS, size_t D, typename T>
-T SAE(const Block<T, BS, D> &b1, const Block<T, BS, D> &b2) {
+template <size_t D, typename T>
+T SAE(const DynamicBlock<T, D> &b1, const DynamicBlock<T, D> &b2) {
   T sae {};
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+  for (size_t i = 0; i < b1.stride(D); i++) {
     sae += std::abs(b1[i] - b2[i]);
   }
   return sae;
 }
 
-template <size_t BS, size_t D, typename F>
-uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F &&inputF) {
-  DynamicBlock<INPUTUNIT, D> prediction_block(BS);
-  Block<INPUTUNIT, BS, D>    prediction_block_legacy {};
+template <size_t D, typename F>
+uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block, F &&inputF) {
+  DynamicBlock<INPUTUNIT, D> prediction_block(input_block.size());
   uint64_t                   best_prediction_type    {};
 
   INPUTUNIT lowest_sae {};
   INPUTUNIT sae {};
 
-  lowest_sae = SAE<BS, D>(input_block, prediction_block_legacy);
+  lowest_sae = SAE<D>(input_block, prediction_block);
 
   predict_DC<D>(prediction_block, inputF);
 
-  for (size_t i {}; i < constpow(BS, D); i++) {
-    prediction_block_legacy[i] = prediction_block[i];
-  }
-
-  sae = SAE<BS, D>(input_block, prediction_block_legacy);
+  sae = SAE<D>(input_block, prediction_block);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 1;
@@ -619,11 +625,7 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
 
   predict_planar<D>(prediction_block, inputF);
 
-  for (size_t i {}; i < constpow(BS, D); i++) {
-    prediction_block_legacy[i] = prediction_block[i];
-  }
-
-  sae = SAE<BS, D>(input_block, prediction_block_legacy);
+  sae = SAE<D>(input_block, prediction_block);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 2;
@@ -660,11 +662,7 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
 
     predict_direction<D>(prediction_block, direction, inputF);
 
-    for (size_t i {}; i < constpow(BS, D); i++) {
-      prediction_block_legacy[i] = prediction_block[i];
-    }
-
-    sae = SAE<BS, D>(input_block, prediction_block_legacy);
+    sae = SAE<D>(input_block, prediction_block);
     if (sae < lowest_sae) {
       lowest_sae = sae;
       best_prediction_type = make_cube_index<5, D>(pos) + 3;
@@ -674,15 +672,14 @@ uint64_t find_best_prediction_type(const Block<INPUTUNIT, BS, D> &input_block, F
   return best_prediction_type;
 }
 
-template <size_t BS, size_t D, typename F>
-void predict(Block<INPUTUNIT, BS, D> &prediction_block, uint64_t prediction_type, F &&inputF) {
-  DynamicBlock<INPUTUNIT, D> prediction_block_new(BS);
+template <size_t D, typename F>
+void predict(DynamicBlock<INPUTUNIT, D> &prediction_block, uint64_t prediction_type, F &&inputF) {
 
   if (prediction_type == 1) {
-    predict_DC<D>(prediction_block_new, inputF);
+    predict_DC<D>(prediction_block, inputF);
   }
   else if (prediction_type == 2) {
-    predict_planar<D>(prediction_block_new, inputF);
+    predict_planar<D>(prediction_block, inputF);
   }
   else if (prediction_type >= 3) {
     size_t dir = prediction_type - 3;
@@ -693,19 +690,17 @@ void predict(Block<INPUTUNIT, BS, D> &prediction_block, uint64_t prediction_type
       direction[d] -= 2;
     }
 
-    predict_direction<D>(prediction_block_new, direction, inputF);
-  }
-
-  for (size_t i {}; i < constpow(BS, D); i++) {
-    prediction_block[i] = prediction_block_new[i];
+    predict_direction<D>(prediction_block, direction, inputF);
   }
 }
 
-template <size_t BS, size_t D>
-void applyPrediction(Block<INPUTUNIT, BS, D> &input_block, const Block<INPUTUNIT, BS, D> &prediction_block) {
-  for (size_t i { 0 }; i < constpow(BS, D); i++) {
-    input_block[i] -= prediction_block[i];
-  }
+template <size_t D>
+void applyPrediction(DynamicBlock<INPUTUNIT, D> &input_block, const DynamicBlock<INPUTUNIT, D> &prediction_block) {
+  assert(input_block.size() == prediction_block.size());
+
+  iterate_dimensions<D>(input_block.size(), [&](const auto &pos) {
+    input_block[pos] -= prediction_block[pos];
+  });
 }
 
 #endif

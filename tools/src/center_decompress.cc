@@ -14,12 +14,6 @@
 #include <iostream>
 #include <vector>
 
-#ifdef BLOCK_SIZE
-const size_t BS = BLOCK_SIZE;
-#else
-const size_t BS = 8;
-#endif
-
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -29,9 +23,9 @@ int main(int argc, char *argv[]) {
   vector<uint8_t> rgb_data      {};
   vector<uint8_t> prediction    {};
 
-  LfifDecoder<BS, 2> *decoder2D {};
-  LfifDecoder<BS, 4> *decoder4D {};
-  ifstream            input     {};
+  LfifDecoder<2> decoder2D {};
+  LfifDecoder<4> decoder4D {};
+  ifstream       input     {};
 
   uint16_t max_rgb_value     {};
 
@@ -45,24 +39,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  decoder2D = new LfifDecoder<BS, 2>;
-  decoder4D = new LfifDecoder<BS, 4>;
-
-  if (readHeader(*decoder2D, input)) {
+  if (readHeader(decoder2D, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
     return 2;
   }
 
-  max_rgb_value = pow(2, decoder2D->color_depth) - 1;
+  max_rgb_value = pow(2, decoder2D.color_depth) - 1;
 
-  initDecoder(*decoder2D);
+  initDecoder(decoder2D);
 
-  size_t prediction_size = decoder2D->img_stride_unaligned[2] * decoder2D->img_dims[2] * 3;
-  prediction_size *= (decoder2D->color_depth > 8) ? 2 : 1;
+  size_t prediction_size = decoder2D.img_stride_unaligned[2] * decoder2D.img_dims[2] * 3;
+  prediction_size *= (decoder2D.color_depth > 8) ? 2 : 1;
   prediction.resize(prediction_size);
 
   auto outputF02D = [&](size_t channel, size_t index, RGBUNIT value) {
-    if (decoder2D->color_depth > 8) {
+    if (decoder2D.color_depth > 8) {
       reinterpret_cast<uint16_t *>(prediction.data())[index * 3 + channel] = value;
     }
     else {
@@ -84,25 +75,25 @@ int main(int argc, char *argv[]) {
     outputF02D(2, index, B);
   };
 
-  decodeScanCABAC(*decoder2D, input, outputF2D);
+  decodeScanCABAC(decoder2D, input, outputF2D);
 
-  if (readHeader(*decoder4D, input)) {
+  if (readHeader(decoder4D, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
     return 2;
   }
 
-  initDecoder(*decoder4D);
+  initDecoder(decoder4D);
 
-  size_t output_size = decoder4D->img_stride_unaligned[4] * decoder4D->img_dims[4] * 3;
-  output_size *= (decoder4D->color_depth > 8) ? 2 : 1;
+  size_t output_size = decoder4D.img_stride_unaligned[4] * decoder4D.img_dims[4] * 3;
+  output_size *= (decoder4D.color_depth > 8) ? 2 : 1;
   rgb_data.resize(output_size);
 
   auto outputF0 = [&](size_t channel, size_t index, INPUTUNIT value) {
     if (max_rgb_value < 256) {
-      reinterpret_cast<uint8_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint8_t *>(prediction.data())[(index % decoder2D->img_stride_unaligned[2]) * 3 + channel] - max_rgb_value), 0, max_rgb_value);
+      reinterpret_cast<uint8_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint8_t *>(prediction.data())[(index % decoder2D.img_stride_unaligned[2]) * 3 + channel] - max_rgb_value), 0, max_rgb_value);
     }
     else {
-      reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint16_t *>(prediction.data())[(index % decoder2D->img_stride_unaligned[2]) * 3 + channel] - max_rgb_value) , 0, max_rgb_value);
+      reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = clamp<INPUTUNIT>(round(value + reinterpret_cast<const uint16_t *>(prediction.data())[(index % decoder2D.img_stride_unaligned[2]) * 3 + channel] - max_rgb_value) , 0, max_rgb_value);
     }
   };
 
@@ -120,14 +111,11 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  decodeScanCABAC(*decoder4D, input, outputF);
+  decodeScanCABAC(decoder4D, input, outputF);
 
-  if (!savePPMs(output_file_mask, rgb_data.data(), decoder4D->img_dims[0], decoder4D->img_dims[1], max_rgb_value, decoder4D->img_dims[2] * decoder4D->img_dims[3] * decoder4D->img_dims[4])) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), decoder4D.img_dims[0], decoder4D.img_dims[1], max_rgb_value, decoder4D.img_dims[2] * decoder4D.img_dims[3] * decoder4D.img_dims[4])) {
     return 3;
   }
-
-  delete decoder4D;
-  delete decoder2D;
 
   return 0;
 }

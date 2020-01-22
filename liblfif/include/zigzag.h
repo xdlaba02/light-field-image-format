@@ -17,113 +17,390 @@
 #include <numeric>
 
 /**
- * @brief Function which rotates the input block clockwise.
- * @param table A block which shall be rotated.
+ * @brief Function which shuffles the block.
+ * @param table A block which shall be shuffled.
  */
-template <size_t BS, size_t D>
-void rotate(size_t table[constpow(BS, D)]) {
-  Block<size_t, BS, D> tmp {};
+template <size_t D>
+DynamicBlock<size_t, D> shuffle(const DynamicBlock<size_t, D> &block, const size_t shuffle_idxs[D]) {
+  std::array<size_t, D> shuffled_size {};
 
-  for (size_t y = 0; y < BS; y++) {
-    for (size_t x = 0; x < constpow(BS, D-1); x++) {
-      tmp[x * BS + y] = table[y * constpow(BS, D - 1) + x];
-    }
+  for (size_t i {}; i < D; i++) {
+     shuffled_size[i] = block.size(shuffle_idxs[i]);
   }
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    table[i] = tmp[i];
+  DynamicBlock<size_t, D> shuffled_block(shuffled_size);
+
+  iterate_dimensions<D>(block.size(), [&](const std::array<size_t, D> &pos) {
+    std::array<size_t, D> shuffled_pos {};
+
+    for (size_t i {}; i < D; i++) {
+      shuffled_pos[i] = pos[shuffle_idxs[i]];
+    }
+
+    shuffled_block[shuffled_pos] = block[pos];
+  });
+
+  return shuffled_block;
+}
+
+template <size_t D>
+void zigzagCore(DynamicBlock<size_t, D> &block, std::array<size_t, D> &pos, size_t &index, size_t depth) {
+  if (depth > 1) {
+    auto move = [&]() {
+      for (size_t i { 2 }; i <= depth; i++) {
+        if ((pos[depth - i] > 0) && (pos[depth - 1] < block.size()[depth - 1] - 1)) {
+          pos[depth - i]--;
+          pos[depth - 1]++;
+          return true;
+        }
+      }
+      return false;
+    };
+
+    do {
+      zigzagCore<D>(block, pos, index, depth - 1);
+    } while (move());
+
+    size_t shuffle_idxs[D] {};
+    for (size_t i { 1 }; i <= depth; i++) {
+      shuffle_idxs[i % depth] = i - 1;
+    }
+
+    for (size_t i { depth }; i < D; i++) {
+      shuffle_idxs[i] = i;
+    }
+
+    std::array<size_t, D> shuffled_pos {};
+    for (size_t i {}; i < D; i++) {
+      shuffled_pos[i] = pos[shuffle_idxs[i]];
+    }
+
+    pos   = shuffled_pos;
+    block = shuffle<D>(block, shuffle_idxs);
+  }
+  else {
+    block[pos] = index++;
   }
 }
 
-/**
- * @brief Structure which wraps the function for easy partial specialization.
- */
-template <size_t BS, size_t D>
-struct zigzagCore {
+template <size_t D>
+DynamicBlock<size_t, D> zigzagTable(const std::array<size_t, D> &size) {
+  DynamicBlock<size_t, D> block(size);
+  std::array<size_t, D>   pos   {};
+  size_t                  index {};
 
-  /**
-   * @brief Core function for zig-zag matrix generation. The function performs set of less dimensional zig-zag traversals in combination with rotations.
-   * @param put   A callback function with internal counter which takes index in a block and puts traversal index in that place.
-   * @param dims  Current position of a traversal pointer. Every call has its own copy.
-   * @param table Pointer to (part of) traversal table for rotations.
-   * @param depth The call depth which is important for rotating whole block and not only part of it.
-   */
-  template <typename F>
-  zigzagCore(F &put, std::array<size_t, D> dims, size_t *table, size_t depth) {
-    while ((dims[D-1] < BS) && (std::accumulate(dims.begin(), dims.end() - 1, 0) >= 0)) {
-      std::array<size_t, D - 1> dims_new {};
-      for (size_t i = 0; i < D - 1; i++) {
-        dims_new[i] = dims[i];
+  auto move = [&]() {
+    for (size_t i { 0 }; i < D; i++) {
+      if (pos[i] < block.size()[i] - 1) {
+        pos[i]++;
+        return true;
       }
+    }
+    return false;
+  };
 
-      auto put_new = [&](size_t i) {
-        put(dims[D-1] * constpow(BS, D-1) + i);
-      };
+  do {
+    zigzagCore<D>(block, pos, index, D);
+  } while (move());
 
-      zigzagCore<BS, D-1>(put_new, dims_new, table, depth + 1);
+  auto correct_shuffle = [&](const size_t shuffle_idxs[D]) {
+    for (size_t i { 0 }; i < D; i++) {
+      if (size[i] != block.size()[shuffle_idxs[i]]) {
+        return false;
+      }
+    }
+    return true;
+  };
 
-      for (int64_t i = D - 2; i >= 0; i--) {
-        if ((dims[i] > 0) || (i == 0)) {
-          dims[i]--;
+  size_t shuffle_idxs[D] {};
+  for (size_t i { 0 }; i < D; i++) {
+    shuffle_idxs[i] = i;
+  }
+
+  while (!correct_shuffle(shuffle_idxs)) {
+    std::next_permutation(std::begin(shuffle_idxs), std::end(shuffle_idxs));
+  }
+
+  return shuffle<D>(block, shuffle_idxs);
+}
+
+[[deprecated]]
+DynamicBlock<size_t, 2> generateZigzagTable2D(const std::array<size_t, 2> &size) {
+  DynamicBlock<size_t, 2> block(size);
+  size_t                  index {};
+  std::array<size_t, 2>   pos   {};
+
+  while (true) {
+    while (true) {
+      block[pos] = index++;
+      if (pos[0] > 0 && pos[1] < block.size()[1] - 1) {
+        pos[0]--;
+        pos[1]++;
+      }
+      else {
+        break;
+      }
+    }
+
+    size_t shuffle_idxs[2] {};
+    shuffle_idxs[0] = 1;
+    shuffle_idxs[1] = 0;
+
+    std::array<size_t, 2> shuffled_pos   {};
+    for (size_t i {}; i < 2; i++) {
+      shuffled_pos[i] = pos[shuffle_idxs[i]];
+    }
+    pos   = shuffled_pos;
+    block = shuffle<2>(block, shuffle_idxs);
+
+    if (pos[0] < block.size()[0] - 1) {
+      pos[0]++;
+    }
+    else if (pos[1] < block.size()[1] - 1){
+      pos[1]++;
+    }
+    else {
+      break;
+    }
+  }
+
+  auto correct_shuffle = [&](const size_t shuffle_idxs[2]) {
+    for (size_t i { 0 }; i < 2; i++) {
+      if (size[i] != block.size()[shuffle_idxs[i]]) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  size_t shuffle_idxs[2] {};
+  for (size_t i { 0 }; i < 2; i++) {
+    shuffle_idxs[i] = i;
+  }
+
+  while (!correct_shuffle(shuffle_idxs)) {
+    std::next_permutation(std::begin(shuffle_idxs), std::end(shuffle_idxs));
+  }
+
+  return shuffle<2>(block, shuffle_idxs);
+}
+
+[[deprecated]]
+DynamicBlock<size_t, 3> generateZigzagTable3D(const std::array<size_t, 3> &size) {
+  DynamicBlock<size_t, 3> block(size);
+  size_t                  index {};
+  std::array<size_t, 3>   pos   {};
+
+  while (true) {
+    while (true) {
+      while (true) {
+        block[pos] = index++;
+        if (pos[0] > 0 && pos[1] < block.size()[1] - 1) {
+          pos[0]--;
+          pos[1]++;
+        }
+        else {
           break;
         }
       }
 
-      dims[D-1]++;
-    }
+      size_t shuffle_idxs[3] {};
+      shuffle_idxs[0] = 1;
+      shuffle_idxs[1] = 0;
+      shuffle_idxs[2] = 2;
 
-    for (size_t i = 0; i < constpow(BS, depth); i++) {
-      rotate<BS, D>(&table[i * constpow(BS, D)]);
-    }
-  }
-};
+      std::array<size_t, 3> shuffled_pos {};
+      for (size_t i {}; i < 3; i++) {
+        shuffled_pos[i] = pos[shuffle_idxs[i]];
+      }
+      pos   = shuffled_pos;
+      block = shuffle<3>(block, shuffle_idxs);
 
-/**
- * @brief The partial specialization for one-dimensional zig-zag.
- * @see ZigzagCore<BS,D>
- */
-template <size_t BS>
-struct zigzagCore<BS, 1> {
-
-  /**
-   * @brief The partial specialization for one-dimensional zig-zag.
-   * @see ZigzagCore<BS,D>::ZigzagCore
-   */
-  template <typename F>
-  zigzagCore(F &put, std::array<size_t, 1> dims, size_t *, size_t) {
-    put(dims[0]);
-  }
-};
-
-/**
- * @brief Function which generates and returns the matrix.
- * @return The zig-zag matrix.
- */
-template <size_t BS, size_t D>
-Block<size_t, BS, D> generateZigzagTable() {
-  Block<size_t, BS, D> table {};
-
-  size_t index = 0;
-
-  std::array<size_t, D> dims {};
-
-  while (std::accumulate(dims.begin(), dims.end(), size_t{} ) <= ((BS - 1) * D)) {
-    auto put = [&](size_t i) {
-      table[i] = index++;
-    };
-
-    zigzagCore<BS, D>(put, dims, table.data(), 0);
-
-    for (size_t i = 0; i < D; i++) {
-      if ((dims[i] < BS - 1) || (i == D - 1)) {
-        dims[i]++;
+      if (pos[1] > 0 && pos[2] < block.size()[2] - 1) {
+        pos[1]--;
+        pos[2]++;
+      }
+      else if (pos[0] > 0 && pos[2] < block.size()[2] - 1) {
+        pos[0]--;
+        pos[2]++;
+      }
+      else {
         break;
       }
     }
+
+    size_t shuffle_idxs[3] {};
+    shuffle_idxs[0] = 2;
+    shuffle_idxs[1] = 0;
+    shuffle_idxs[2] = 1;
+
+    std::array<size_t, 3> shuffled_pos {};
+    for (size_t i {}; i < 3; i++) {
+      shuffled_pos[i] = pos[shuffle_idxs[i]];
+    }
+    pos   = shuffled_pos;
+    block = shuffle<3>(block, shuffle_idxs);
+
+    if (pos[0] < block.size()[0] - 1) {
+      pos[0]++;
+    }
+    else if (pos[1] < block.size()[1] - 1) {
+      pos[1]++;
+    }
+    else if (pos[2] < block.size()[2] - 1){
+      pos[2]++;
+    }
+    else {
+      break;
+    }
   }
 
-  return table;
+  auto correct_shuffle = [&](const size_t shuffle_idxs[3]) {
+    for (size_t i { 0 }; i < 3; i++) {
+      if (size[i] != block.size()[shuffle_idxs[i]]) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  size_t shuffle_idxs[3] {};
+  for (size_t i { 0 }; i < 3; i++) {
+    shuffle_idxs[i] = i;
+  }
+
+  while (!correct_shuffle(shuffle_idxs)) {
+    std::next_permutation(std::begin(shuffle_idxs), std::end(shuffle_idxs));
+  }
+
+  return shuffle<3>(block, shuffle_idxs);
 }
 
+[[deprecated]]
+DynamicBlock<size_t, 4> generateZigzagTable4D(const std::array<size_t, 4> &size) {
+  DynamicBlock<size_t, 4> block(size);
+  size_t                  index {};
+  std::array<size_t, 4>   pos   {};
+
+  while (true) {
+    while (true) {
+      while (true) {
+        while (true) {
+          block[pos] = index++;
+          if (pos[0] > 0 && pos[1] < block.size()[1] - 1) {
+            pos[0]--;
+            pos[1]++;
+          }
+          else {
+            break;
+          }
+        }
+
+        size_t shuffle_idxs[4] {};
+        shuffle_idxs[0] = 1;
+        shuffle_idxs[1] = 0;
+        shuffle_idxs[2] = 2;
+        shuffle_idxs[3] = 3;
+
+        std::array<size_t, 4> shuffled_pos {};
+        for (size_t i {}; i < 4; i++) {
+          shuffled_pos[i] = pos[shuffle_idxs[i]];
+        }
+        pos   = shuffled_pos;
+        block = shuffle<4>(block, shuffle_idxs);
+
+        if (pos[1] > 0 && pos[2] < block.size()[2] - 1) {
+          pos[1]--;
+          pos[2]++;
+        }
+        else if (pos[0] > 0 && pos[2] < block.size()[2] - 1) {
+          pos[0]--;
+          pos[2]++;
+        }
+        else {
+          break;
+        }
+      }
+
+      size_t shuffle_idxs[4] {};
+      shuffle_idxs[0] = 2;
+      shuffle_idxs[1] = 0;
+      shuffle_idxs[2] = 1;
+      shuffle_idxs[3] = 3;
+
+      std::array<size_t, 4> shuffled_pos {};
+      for (size_t i {}; i < 4; i++) {
+        shuffled_pos[i] = pos[shuffle_idxs[i]];
+      }
+      pos   = shuffled_pos;
+      block = shuffle<4>(block, shuffle_idxs);
+
+      if (pos[2] > 0 && pos[3] < block.size()[3] - 1) {
+        pos[2]--;
+        pos[3]++;
+      }
+      else if (pos[1] > 0 && pos[3] < block.size()[3] - 1) {
+        pos[1]--;
+        pos[3]++;
+      }
+      else if (pos[0] > 0 && pos[3] < block.size()[3] - 1) {
+        pos[0]--;
+        pos[3]++;
+      }
+      else {
+        break;
+      }
+    }
+
+    size_t shuffle_idxs[4] {};
+    shuffle_idxs[0] = 3;
+    shuffle_idxs[1] = 0;
+    shuffle_idxs[2] = 1;
+    shuffle_idxs[3] = 2;
+
+    std::array<size_t, 4> shuffled_pos {};
+    for (size_t i {}; i < 4; i++) {
+      shuffled_pos[i] = pos[shuffle_idxs[i]];
+    }
+    pos   = shuffled_pos;
+    block = shuffle<4>(block, shuffle_idxs);
+
+    if (pos[0] < block.size()[0] - 1) {
+      pos[0]++;
+    }
+    else if (pos[1] < block.size()[1] - 1) {
+      pos[1]++;
+    }
+    else if (pos[2] < block.size()[2] - 1){
+      pos[2]++;
+    }
+    else if (pos[3] < block.size()[3] - 1){
+      pos[3]++;
+    }
+    else {
+      break;
+    }
+  }
+
+  auto correct_shuffle = [&](const size_t shuffle_idxs[4]) {
+    for (size_t i { 0 }; i < 4; i++) {
+      if (size[i] != block.size()[shuffle_idxs[i]]) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  size_t shuffle_idxs[4] {};
+  for (size_t i { 0 }; i < 4; i++) {
+    shuffle_idxs[i] = i;
+  }
+
+  while (!correct_shuffle(shuffle_idxs)) {
+    std::next_permutation(std::begin(shuffle_idxs), std::end(shuffle_idxs));
+  }
+
+  return shuffle<4>(block, shuffle_idxs);
+}
 
 #endif

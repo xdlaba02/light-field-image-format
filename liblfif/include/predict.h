@@ -97,7 +97,7 @@ void low_pass_filter(DynamicBlock<INPUTUNIT, D> &main_ref) {
     return main_ref[index];
   };
 
-  low_pass_sum<D>(main_ref.size(), inputF);
+  low_pass_sum<D>(main_ref.size().data(), inputF);
 
   for (size_t i { 0 }; i < get_stride<D>(main_ref.size()); i++) {
     main_ref[i] /= constpow(4, D);
@@ -105,11 +105,8 @@ void low_pass_filter(DynamicBlock<INPUTUNIT, D> &main_ref) {
 }
 
 template <size_t D, typename F>
-void project_neighbours_to_main_ref(const size_t BS[D], DynamicBlock<INPUTUNIT, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, F &&inputF) {
-  std::array<size_t, D - 1> main_ref_dimensions {};
-  std::copy(main_ref.size(), main_ref.size() + D - 1, std::begin(main_ref_dimensions));
-
-  iterate_dimensions<D - 1>(main_ref_dimensions, [&](const std::array<size_t, D - 1> &pos) {
+void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBlock<INPUTUNIT, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, F &&inputF) {
+  iterate_dimensions<D - 1>(main_ref.size(), [&](const std::array<size_t, D - 1> &pos) {
     std::array<int64_t, D> position {};
 
     for (size_t i {}; i < D - 1; i++) {
@@ -170,25 +167,22 @@ void project_neighbours_to_main_ref(const size_t BS[D], DynamicBlock<INPUTUNIT, 
 
 template <size_t D>
 void predict_from_main_ref(DynamicBlock<INPUTUNIT, D> &output, const int8_t direction[D], const DynamicBlock<INPUTUNIT, D - 1> &main_ref, size_t main_ref_idx) {
-  std::array<size_t, D> BS {};
-  std::copy(output.size(), output.size() + D, std::begin(BS));
-
-  iterate_dimensions<D>(BS, [&](std::array<size_t, D> &pos) {
+  iterate_dimensions<D>(output.size(), [&](std::array<size_t, D> &pos) {
     int64_t main_ref_pos[D - 1] {};
     for (size_t i { 0 }; i < D - 1; i++) {
       size_t idx = i < main_ref_idx ? i : i + 1;
       main_ref_pos[i]  = pos[idx] + 1; //zjisti souradnici z indexu
 
       if (direction[idx] >= 0) {
-        main_ref_pos[i] += BS[main_ref_idx];
+        main_ref_pos[i] += output.size(main_ref_idx);
       }
 
       main_ref_pos[i] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo konvertovat do floating point
       main_ref_pos[i] -= direction[idx] * (pos[main_ref_idx] + 1); //vytvori projekci souradnice na hlavni referencni rovinu
 
 
-      if (main_ref_pos[i] > static_cast<int64_t>(BS[idx] + BS[main_ref_idx]) * direction[main_ref_idx]) {
-        main_ref_pos[i] = (BS[idx] + BS[main_ref_idx]) * direction[main_ref_idx];
+      if (main_ref_pos[i] > static_cast<int64_t>(output.size(idx) + output.size(main_ref_idx)) * direction[main_ref_idx]) {
+        main_ref_pos[i] = (output.size(idx) + output.size(main_ref_idx)) * direction[main_ref_idx];
       }
     }
 
@@ -196,7 +190,7 @@ void predict_from_main_ref(DynamicBlock<INPUTUNIT, D> &output, const int8_t dire
       return main_ref[index];
     };
 
-    interpolate<D - 1>(main_ref.size(), inputF, main_ref_pos, direction[main_ref_idx], output[pos]);
+    interpolate<D - 1>(main_ref.size().data(), inputF, main_ref_pos, direction[main_ref_idx], output[pos]);
   });
 }
 
@@ -219,7 +213,7 @@ void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t directio
 
   for (size_t i {}; i < D - 1; i++) {
     size_t idx = i < main_ref_idx ? i : i + 1;
-    ref_size[i] = output.size()[idx] + output.size()[main_ref_idx] + 1;
+    ref_size[i] = output.size(idx) + output.size(main_ref_idx) + 1;
   }
 
   DynamicBlock<INPUTUNIT, D - 1> ref(ref_size);

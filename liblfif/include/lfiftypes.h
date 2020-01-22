@@ -33,16 +33,25 @@ using Block = std::array<T, static_cast<size_t>(constpow(BS, D))>;
 
 template<typename T, size_t D>
 class DynamicBlock {
-  size_t         m_size[D] {};
-  std::vector<T> m_data    {};
+  std::array<size_t, D> m_size {};
+  std::vector<T>        m_data {};
+
 public:
+  DynamicBlock() = default;
 
   DynamicBlock(size_t BS): m_data(pow(BS, D)) {
     std::fill(std::begin(m_size), std::end(m_size), BS);
   }
 
-  DynamicBlock(const size_t BS[D]): m_data(get_stride<D>(BS)) {
-    std::copy(BS, BS + D, std::begin(m_size));
+  DynamicBlock(const size_t size[D]): m_size{}, m_data(get_stride<D>(size)) {
+    std::copy(size, size + D, std::begin(m_size));
+  }
+
+  DynamicBlock(const std::array<size_t, D> &size): DynamicBlock(size.data()) {}
+
+  void resize(const std::array<size_t, D> &size) {
+    m_size = size;
+    m_data.resize(get_stride<D>(size));
   }
 
   T &operator[](size_t index) {
@@ -71,8 +80,12 @@ public:
     return m_data[index];
   }
 
-  const size_t *size() const {
+  const std::array<size_t, D> &size() const {
     return m_size;
+  }
+
+  size_t size(size_t i) const {
+    return m_size[i];
   }
 
   size_t stride(size_t depth) const {

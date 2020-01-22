@@ -16,211 +16,154 @@
 #include <iosfwd>
 
 using REFBLOCKUNIT = double; /**< @brief Type intended to be used in reference block.*/
-using TTABLEUNIT = size_t;   /**< @brief Type intended to be used in traversal matrix.*/
 
 /**
  * @brief Reference block type.
  */
-template<size_t BS, size_t D>
-using ReferenceBlock = Block<REFBLOCKUNIT, BS, D>;
+template<size_t D>
+using ReferenceBlock = DynamicBlock<REFBLOCKUNIT, D>;
 
-/**
- * @brief Traversal table class.
- */
-template <size_t BS, size_t D>
-class TraversalTable {
-public:
+template <size_t D>
+using TraversalTable = DynamicBlock<size_t, D>;
 
-  /**
-   * @brief Method which constructs traversal matrix by reference block.
-   * @param reference_block The block from which the matrix shall be constructed.
-   */
-  void constructByReference(const ReferenceBlock<BS, D> &reference_block);
+template <size_t D>
+void constructByReference(const ReferenceBlock<D> &reference, TraversalTable<D> &output) {
+  DynamicBlock<std::pair<double, size_t>, D> srt(reference.size());
 
-  /**
-   * @brief Method which constructs traversal matrix from quantization matrix.
-   * @param quant_table The quantization matrix from which the matrix shall be constructed.
-   */
-  void constructByQuantTable(const QuantTable<BS, D> &quant_table);
-
-  /**
-   * @brief Method which constructs traversal matrix by Eucleidian distance from the DC coefficient.
-   */
-  void constructByRadius();
-
-  /**
-   * @brief Method which constructs traversal matrix by manhattan distance from the DC coefficient.
-   */
-  void constructByDiagonals();
-
-  /**
-   * @brief Method which constructs traversal matrix by Eucleidian distance from the AC coefficient with highest frequency.
-   */
-  void constructByHyperboloid();
-
-  /**
-   * @brief Method which constructs zig-zag matrix.
-   */
-  void constructZigzag();
-
-  /**
-   * @brief Method which writes the matrix to stream.
-   * @param stream The stream to which the table shall be written.
-   */
-  void writeToStream(std::ostream &stream) const;
-
-  /**
-   * @brief Method which read the matrix from stream.
-   * @param stream The stream from which the table shall be read.
-   */
-  void readFromStream(std::istream &stream);
-
-  /**
-   * @brief Method used to index the internal matrix.
-   * @param index The index of a linearization index.
-   * @return Linearization index.
-   */
-  TTABLEUNIT operator [](size_t index) const {
-    return m_block[index];
-  }
-
-private:
-  Block<TTABLEUNIT, BS, D> m_block;
-};
-
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::constructByReference(const ReferenceBlock<BS, D> &reference_block) {
-  Block<std::pair<double, size_t>, BS, D> srt {};
-
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    srt[i].first += reference_block[i];
+  for (size_t i = 0; i < reference.stride(D); i++) {
+    srt[i].first += reference[i];
     srt[i].second = i;
   }
 
   //do NOT sort DC coefficient, thus +1 at the begining.
-  stable_sort(srt.begin() + 1, srt.end(), [](auto &left, auto &right) {
+  stable_sort(&srt[0] + 1, &srt[srt.stride(D)], [](auto &left, auto &right) {
     return left.first > right.first;
   });
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    m_block[srt[i].second] = i;
+  for (size_t i = 0; i < reference.stride(D); i++) {
+    output[srt[i].second] = i;
   }
 }
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::constructByQuantTable(const QuantTable<BS, D> &quant_table) {
-  ReferenceBlock<BS, D> dummy {};
+template <size_t D>
+void constructByQuantTable(const QuantTable<D> &quant_table, TraversalTable<D> &output) {
+  ReferenceBlock<D> dummy(output.size());
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+  for (size_t i = 0; i < dummy.stride(D); i++) {
     dummy[i] = quant_table[i];
     dummy[i] *= -1;
   }
 
-  constructByReference(dummy);
+  constructByReference(dummy, output);
 }
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::constructByRadius() {
-  ReferenceBlock<BS, D> dummy {};
+template <size_t D>
+void constructByRadius(TraversalTable<D> &output) {
+  ReferenceBlock<D> dummy(output.size());
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    for (size_t j = 1; j <= D; j++) {
-      size_t coord = (i % constpow(BS, j)) / constpow(BS, j-1);
-      dummy[i] += coord * coord;
+  iterate_dimensions<D>(output.size(), [&](const std::array<size_t, D> &pos) {
+    for (size_t i {}; i < D; i++) {
+      dummy[pos] += pos[i] * pos[i];
     }
-    dummy[i] *= -1;
-  }
 
-  constructByReference(dummy);
+    dummy[pos] *= -1;
+  });
+
+  constructByReference(dummy, output);
 }
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::constructByDiagonals() {
-  ReferenceBlock<BS, D> dummy {};
+template <size_t D>
+void constructByDiagonals(TraversalTable<D> &output) {
+  ReferenceBlock<D> dummy(output.size());
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    for (size_t j = 1; j <= D; j++) {
-      dummy[i] += (i % constpow(BS, j)) / constpow(BS, j-1);
+  iterate_dimensions<D>(output.size(), [&](const std::array<size_t, D> &pos) {
+    for (size_t i {}; i < D; i++) {
+      dummy[pos] += pos[i];
     }
-    dummy[i] *= -1;
-  }
 
-  constructByReference(dummy);
+    dummy[pos] *= -1;
+  });
+
+  constructByReference(dummy, output);
 }
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::constructByHyperboloid() {
-  ReferenceBlock<BS, D> dummy {};
+template <size_t D>
+void constructByHyperboloid(TraversalTable<D> &output) {
+  ReferenceBlock<D> dummy(output.size());
 
   dummy.fill(1);
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    for (size_t j = 1; j <= D; j++) {
-      size_t coord = (i % constpow(BS, j)) / constpow(BS, j-1);
-      dummy[i] *= (coord + 1);
+  iterate_dimensions<D>(output.size(), [&](const std::array<size_t, D> &pos) {
+    for (size_t i {}; i < D; i++) {
+      dummy[pos] *= pos[i] + 1;
     }
-    dummy[i] *= -1;
-  }
 
-  constructByReference(dummy);
+    dummy[pos] *= -1;
+  });
+
+  constructByReference(dummy, output);
 }
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::constructZigzag() {
-  m_block = generateZigzagTable<BS, D>();
+template <size_t D>
+void constructZigzag(TraversalTable<D> &output) {
+  output = zigzagTable<D>(output.size());
 }
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::writeToStream(std::ostream &stream) const {
-  size_t max_bits = ceil(log2(constpow(BS, D)));
+template <size_t D>
+void writeTraversalToStream(const TraversalTable<D> &input, std::ostream &stream) {
+  size_t max_bits = ceil(log2(input.stride(D)));
 
   if (max_bits <= 8) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      writeValueToStream<uint8_t>(m_block[i], stream);
+    for (size_t i = 0; i < input.stride(D); i++) {
+      writeValueToStream<uint8_t>(input[i], stream);
     }
   }
   else if (max_bits <= 16) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      writeValueToStream<uint16_t>(m_block[i], stream);
+    for (size_t i = 0; i < input.stride(D); i++) {
+      writeValueToStream<uint16_t>(input[i], stream);
     }
   }
   else if (max_bits <= 32) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      writeValueToStream<uint32_t>(m_block[i], stream);
+    for (size_t i = 0; i < input.stride(D); i++) {
+      writeValueToStream<uint32_t>(input[i], stream);
     }
   }
   else if (max_bits <= 64) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      writeValueToStream<uint64_t>(m_block[i], stream);
+    for (size_t i = 0; i < input.stride(D); i++) {
+      writeValueToStream<uint64_t>(input[i], stream);
     }
   }
 }
 
 
-template <size_t BS, size_t D>
-void TraversalTable<BS, D>::readFromStream(std::istream &stream) {
-  size_t max_bits = ceil(log2(constpow(BS, D)));
+template <size_t D>
+TraversalTable<D> readTraversalFromStream(const std::array<size_t, D> &BS, std::istream &stream) {
+  TraversalTable<D> table(BS);
+
+  size_t max_bits = ceil(log2(table.stride(D)));
 
   if (max_bits <= 8) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      m_block[i] = readValueFromStream<uint8_t>(stream);
+    for (size_t i = 0; i < table.stride(D); i++) {
+      table[i] = readValueFromStream<uint8_t>(stream);
     }
   }
   else if (max_bits <= 16) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      m_block[i] = readValueFromStream<uint16_t>(stream);
+    for (size_t i = 0; i < table.stride(D); i++) {
+      table[i] = readValueFromStream<uint16_t>(stream);
     }
   }
   else if (max_bits <= 32) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      m_block[i] = readValueFromStream<uint32_t>(stream);
+    for (size_t i = 0; i < table.stride(D); i++) {
+      table[i] = readValueFromStream<uint32_t>(stream);
     }
   }
   else if (max_bits <= 64) {
-    for (size_t i = 0; i < constpow(BS, D); i++) {
-      m_block[i] = readValueFromStream<uint64_t>(stream);
+    for (size_t i = 0; i < table.stride(D); i++) {
+      table[i] = readValueFromStream<uint64_t>(stream);
     }
   }
+
+  return table;
 }
 
 #endif

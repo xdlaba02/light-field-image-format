@@ -29,19 +29,19 @@
  * @param huffman_decoders Two huffman decoders. First is for DC coefficient, second for AC coefficients.
  * @param class_bits       Number of bits for the second part of codeword.
  */
-template <size_t BS, size_t D>
-void decodeHuffman_RUNLENGTH(IBitstream &bitstream, Block<RunLengthPair, BS, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
-  auto pairs_it = std::begin(runlength);
+template <size_t D>
+void decodeHuffman_RUNLENGTH(IBitstream &bitstream, DynamicBlock<RunLengthPair, D> &runlength, const HuffmanDecoder huffman_decoders[2], size_t class_bits) {
+  auto pairs_it = &runlength[0];
 
   pairs_it->huffmanDecodeFromStream(huffman_decoders[0], bitstream, class_bits);
 
   do {
     pairs_it++;
     pairs_it->huffmanDecodeFromStream(huffman_decoders[1], bitstream, class_bits);
-  } while ((pairs_it != (std::end(runlength) - 1)) && (!pairs_it->eob()));
+  } while ((pairs_it != (&runlength[runlength.size()] - 1)) && (!pairs_it->eob()));
 }
 
-template <size_t BS, size_t D>
+template <size_t D>
 void decodePredictionType(uint64_t &prediction_type, CABACDecoder &decoder, CABACContextsDIAGONAL<D> &contexts) {
   prediction_type = 0;
   while (decoder.decodeBit(contexts.prediction_ctx[prediction_type])) {
@@ -49,13 +49,13 @@ void decodePredictionType(uint64_t &prediction_type, CABACDecoder &decoder, CABA
   }
 }
 
-template <size_t BS, size_t D>
-void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<D> &contexts, size_t &threshold, const std::array<std::vector<size_t>, D * (BS - 1) + 1> &scan_table) {
+template <size_t D>
+void decodeCABAC_DIAGONAL(DynamicBlock<QDATAUNIT, D> &diff_encoded_block, CABACDecoder &decoder, CABACContextsDIAGONAL<D> &contexts, size_t &threshold, const std::vector<std::vector<size_t>> &scan_table) {
   diff_encoded_block.fill(0);
 
-  std::array<bool, D * (BS - 1) + 1> nonzero_diags {};
+  std::vector<bool> nonzero_diags(num_diagonals<D>(diff_encoded_block.size()));
 
-  for (size_t diag = 0; diag < D * (BS - 1) + 1; diag++) {
+  for (size_t diag = 0; diag < num_diagonals<D>(diff_encoded_block.size()); diag++) {
     nonzero_diags[diag] = decoder.decodeBit(contexts.coded_diag_flag_ctx[diag]);
 
     if (nonzero_diags[diag]) {
@@ -66,8 +66,8 @@ void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDeco
   }
 
 
-  for (size_t d = 0; d < D * (BS - 1) + 1; d++) {
-    size_t diag = (D * (BS - 1)) - d;
+  for (size_t d { 1 }; d <= num_diagonals<D>(diff_encoded_block.size()); d++) {
+    size_t diag = num_diagonals<D>(diff_encoded_block.size()) - d;
     int64_t zero_coef_distr { 0 };
 
     if (nonzero_diags[diag]) {
@@ -77,8 +77,8 @@ void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDeco
         size_t nonzero_neighbours_cnt { 0 };
 
         for (size_t dim = 0; dim < D; dim++) {
-          size_t neighbour = i + constpow(BS, dim);
-          if ((i % constpow(BS, dim + 1)) < (neighbour % constpow(BS, dim + 1))) {
+          size_t neighbour = i + diff_encoded_block.stride(dim);
+          if ((i % diff_encoded_block.stride(dim + 1)) < (neighbour % diff_encoded_block.stride(dim + 1))) {
             nonzero_neighbours_cnt += (diff_encoded_block[neighbour] != 0);
           }
         }
@@ -130,12 +130,14 @@ void decodeCABAC_DIAGONAL(Block<QDATAUNIT, BS, D> &diff_encoded_block, CABACDeco
  * @param runlength       The input block of run-length pairs.
  * @param traversed_block The output block of coefficients which are traversed in memory.
  */
-template <size_t BS, size_t D>
-void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUNIT, BS, D> &traversed_block) {
+template <size_t D>
+void runLengthDecode(const DynamicBlock<RunLengthPair, D> &runlength, DynamicBlock<QDATAUNIT, D> &traversed_block) {
+  assert(runlength.size() == traversed_block.size());
+
   traversed_block.fill(0);
 
-  auto block_it = std::begin(traversed_block);
-  auto pairs_it = std::begin(runlength);
+  auto block_it = &traversed_block[0];
+  auto pairs_it = &runlength[0];
 
   do {
     block_it += pairs_it->zeroes;
@@ -143,7 +145,7 @@ void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUN
 
     block_it++;
     pairs_it++;
-  } while ((pairs_it != std::end(runlength)) && (!pairs_it->eob()) && (block_it != std::end(traversed_block)));
+  } while ((pairs_it != &runlength[runlength.size()]) && (!pairs_it->eob()) && (block_it != &traversed_block[traversed_block.size()]));
 }
 
 /**
@@ -152,14 +154,14 @@ void runLengthDecode(const Block<RunLengthPair, BS, D> &runlength, Block<QDATAUN
  * @param decoder    CABAC decoder.
  * @param contexts Contexts for block decoding.
  */
-template <size_t BS, size_t D>
-void decodeCABAC_H264(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &decoder, CABACContextsH264<BS, D> &contexts) {
+template <size_t D>
+void decodeCABAC_H264(DynamicBlock<QDATAUNIT, D> &traversed_block, CABACDecoder &decoder, CABACContextsH264<D> &contexts) {
   traversed_block.fill(0);
 
   if (decoder.decodeBit(contexts.coded_block_flag_ctx)) {
     bool no_last_sig_coef_flag { true };
 
-    for (size_t i = 0; i < constpow(BS, D) - 1; i++) {
+    for (size_t i = 0; i < traversed_block.stride(D) - 1; i++) {
       if (decoder.decodeBit(contexts.significant_coef_flag_ctx[i])) {
         traversed_block[i] = 1;
 
@@ -174,14 +176,14 @@ void decodeCABAC_H264(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &de
     }
 
     if (no_last_sig_coef_flag) {
-      traversed_block[constpow(BS, D) - 1] = 1;
+      traversed_block[traversed_block.stride(D) - 1] = 1;
     }
 
     size_t numT1   {0};
     size_t numLgt1 {0};
 
-    for (size_t i = 1; i <= constpow(BS, D); i++) {
-      size_t ii = constpow(BS, D) - i;
+    for (size_t i = 1; i <= traversed_block.stride(D); i++) {
+      size_t ii = traversed_block.stride(D) - i;
 
       QDATAUNIT coef = traversed_block[ii];
 
@@ -213,11 +215,13 @@ void decodeCABAC_H264(Block<QDATAUNIT, BS, D> &traversed_block, CABACDecoder &de
  * @param traversed_block The input block of coefficients which are traversed in memory.
  * @param traversal_table The traversal matrix.
  */
-template <size_t BS, size_t D>
-void detraverse(Block<QDATAUNIT, BS, D> &traversed_block, const TraversalTable<BS, D> &traversal_table) {
-  Block<QDATAUNIT, BS, D> traversed_block_copy(traversed_block);
+template <size_t D>
+void detraverse(DynamicBlock<QDATAUNIT, D> &traversed_block, const TraversalTable<D> &traversal_table) {
+  assert(traversed_block.size() == traversal_table.size());
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+  DynamicBlock<QDATAUNIT, D> traversed_block_copy(traversed_block);
+
+  for (size_t i = 0; i < traversed_block.stride(D); i++) {
     traversed_block[i] = traversed_block_copy[traversal_table[i]];
   }
 }
@@ -227,8 +231,8 @@ void detraverse(Block<QDATAUNIT, BS, D> &traversed_block, const TraversalTable<B
  * @param diff_encoded_block The block which is DPCM encoded.
  * @param previous_DC Reference to value of previous DC coefficient.
  */
-template <size_t BS, size_t D>
-void diffDecodeDC(Block<QDATAUNIT, BS, D> &diff_encoded_block, QDATAUNIT &previous_DC) {
+template <size_t D>
+void diffDecodeDC(DynamicBlock<QDATAUNIT, D> &diff_encoded_block, QDATAUNIT &previous_DC) {
   diff_encoded_block[0] += previous_DC;
   previous_DC = diff_encoded_block[0];
 }
@@ -239,9 +243,12 @@ void diffDecodeDC(Block<QDATAUNIT, BS, D> &diff_encoded_block, QDATAUNIT &previo
  * @param dct_block       The output block of the DCT coefficients.
  * @param quant_table     The quantization matrix.
  */
-template <size_t BS, size_t D>
-void dequantize(const Block<QDATAUNIT, BS, D> &quantized_block, Block<DCTDATAUNIT, BS, D> &dct_block, const QuantTable<BS, D> &quant_table) {
-  for (size_t i = 0; i < constpow(BS, D); i++) {
+template <size_t D>
+void dequantize(const DynamicBlock<QDATAUNIT, D> &quantized_block, DynamicBlock<DCTDATAUNIT, D> &dct_block, const QuantTable<D> &quant_table) {
+  assert(quantized_block.size() == dct_block.size());
+  assert(dct_block.size() == quant_table.size());
+
+  for (size_t i = 0; i < quantized_block.stride(D); i++) {
     dct_block[i] = static_cast<DCTDATAUNIT>(quantized_block[i]) * quant_table[i];
   }
 }
@@ -251,8 +258,10 @@ void dequantize(const Block<QDATAUNIT, BS, D> &quantized_block, Block<DCTDATAUNI
  * @param dct_block    The input block of the DCT coefficients.
  * @param output_block The output block of image samples.
  */
-template <size_t BS, size_t D>
-void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, Block<INPUTUNIT, BS, D> &output_block) {
+template <size_t D>
+void inverseDiscreteCosineTransform(const DynamicBlock<DCTDATAUNIT, D> &dct_block, DynamicBlock<INPUTUNIT, D> &output_block) {
+  assert(dct_block.size() == output_block.size());
+
   output_block.fill(0);
 
   auto inputF = [&](size_t index) {
@@ -263,14 +272,16 @@ void inverseDiscreteCosineTransform(const Block<DCTDATAUNIT, BS, D> &dct_block, 
     return output_block[index];
   };
 
-  idct<D>(get_cube_dims_array<D>(BS), inputF, outputF);
+  idct<D>(dct_block.size().data(), inputF, outputF);
 }
 
-template <size_t BS, size_t D>
-void disusePrediction(Block<INPUTUNIT, BS, D> &input_block, const Block<INPUTUNIT, BS, D> &prediction_block) {
-  for (size_t i { 0 }; i < constpow(BS, D); i++) {
-    input_block[i] += prediction_block[i];
-  }
+template <size_t D>
+void disusePrediction(DynamicBlock<INPUTUNIT, D> &input_block, const DynamicBlock<INPUTUNIT, D> &prediction_block) {
+  assert(input_block.size() == prediction_block.size());
+
+  iterate_dimensions<D>(input_block.size(), [&](const auto &pos) {
+    input_block[pos] += prediction_block[pos];
+  });
 }
 
 #endif

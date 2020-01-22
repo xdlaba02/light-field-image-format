@@ -14,12 +14,6 @@
 #include <iostream>
 #include <vector>
 
-#ifdef BLOCK_SIZE
-const size_t BS = BLOCK_SIZE;
-#else
-const size_t BS = 8;
-#endif
-
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -36,8 +30,8 @@ int main(int argc, char *argv[]) {
   uint64_t image_count         {};
   uint32_t max_rgb_value       {};
 
-  LfifEncoder<BS, 2> *encoder  {};
-  ofstream            output   {};
+  LfifEncoder<2> encoder {};
+  ofstream       output  {};
 
   if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman)) {
     return 1;
@@ -67,14 +61,19 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  encoder = new LfifEncoder<BS, 2>;
+  encoder.block_size = {8, 8};
 
-  encoder->img_dims[0] = width;
-  encoder->img_dims[1] = height;
-  encoder->img_dims[2] = image_count;
-  encoder->color_depth = ceil(log2(max_rgb_value + 1));
+  encoder.img_dims[0] = width;
+  encoder.img_dims[1] = height;
+  encoder.img_dims[2] = image_count;
+  encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
-  encoder->use_huffman = use_huffman;
+  encoder.use_huffman = use_huffman;
+
+  std::cerr << encoder.block_size[0] << ' ' << encoder.block_size[1] << '\n';
+  std::cerr << encoder.img_dims[0] << ' ' << encoder.img_dims[1] << ' ' << encoder.img_dims[2] << '\n';
+  std::cerr << (int)encoder.color_depth << '\n';
+  std::cerr << encoder.use_huffman << '\n';
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     if (max_rgb_value < 256) {
@@ -97,23 +96,21 @@ int main(int argc, char *argv[]) {
     return {Y, Cb, Cr};
   };
 
-  initEncoder(*encoder);
-  constructQuantizationTables(*encoder, "DEFAULT", quality);
+  initEncoder(encoder);
+  constructQuantizationTables(encoder, "DEFAULT", quality);
 
   if (use_huffman) {
-    //referenceScan(*encoder, inputF);
-    constructTraversalTables(*encoder, "DEFAULT");
-    huffmanScan(*encoder, inputF);
-    constructHuffmanTables(*encoder);
-    writeHeader(*encoder, output);
-    outputScanHuffman_RUNLENGTH(*encoder, inputF, output);
+    //referenceScan(encoder, inputF);
+    constructTraversalTables(encoder, "DEFAULT");
+    huffmanScan(encoder, inputF);
+    constructHuffmanTables(encoder);
+    writeHeader(encoder, output);
+    outputScanHuffman_RUNLENGTH(encoder, inputF, output);
   }
   else {
-    writeHeader(*encoder, output);
-    outputScanCABAC_DIAGONAL(*encoder, inputF, output);
+    writeHeader(encoder, output);
+    outputScanCABAC_DIAGONAL(encoder, inputF, output);
   }
-
-  delete encoder;
 
   return 0;
 }

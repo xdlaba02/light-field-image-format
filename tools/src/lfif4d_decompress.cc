@@ -14,12 +14,6 @@
 #include <iostream>
 #include <vector>
 
-#ifdef BLOCK_SIZE
-const size_t BS = BLOCK_SIZE;
-#else
-const size_t BS = 8;
-#endif
-
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -28,8 +22,8 @@ int main(int argc, char *argv[]) {
 
   vector<uint8_t> rgb_data     {};
 
-  LfifDecoder<BS, 4> *decoder  {};
-  ifstream            input    {};
+  LfifDecoder<4> decoder  {};
+  ifstream       input    {};
 
   uint16_t max_rgb_value       {};
 
@@ -43,24 +37,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  decoder = new LfifDecoder<BS, 4>;
-
-
-  if (readHeader(*decoder, input)) {
+  if (readHeader(decoder, input)) {
     cerr << "ERROR: IMAGE HEADER INVALID\n";
     return 2;
   }
 
-  max_rgb_value = pow(2, decoder->color_depth) - 1;
+  max_rgb_value = pow(2, decoder.color_depth) - 1;
 
-  initDecoder(*decoder);
+  initDecoder(decoder);
 
-  size_t output_size = decoder->img_stride_unaligned[4] * decoder->img_dims[4] * 3;
-  output_size *= (decoder->color_depth > 8) ? 2 : 1;
+  size_t output_size = decoder.img_stride_unaligned[4] * decoder.img_dims[4] * 3;
+  output_size *= (decoder.color_depth > 8) ? 2 : 1;
   rgb_data.resize(output_size);
 
   auto outputF0 = [&](size_t channel, size_t index, RGBUNIT value) {
-    if (decoder->color_depth > 8) {
+    if (decoder.color_depth > 8) {
       reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = value;
     }
     else {
@@ -82,18 +73,16 @@ int main(int argc, char *argv[]) {
     outputF0(2, index, B);
   };
 
-  if (decoder->use_huffman) {
-    decodeScanHuffman(*decoder, input, outputF);
+  if (decoder.use_huffman) {
+    decodeScanHuffman(decoder, input, outputF);
   }
   else {
-    decodeScanCABAC(*decoder, input, outputF);
+    decodeScanCABAC(decoder, input, outputF);
   }
 
-  if (!savePPMs(output_file_mask, rgb_data.data(), decoder->img_dims[0], decoder->img_dims[1], max_rgb_value, decoder->img_dims[2] * decoder->img_dims[3] * decoder->img_dims[4])) {
+  if (!savePPMs(output_file_mask, rgb_data.data(), decoder.img_dims[0], decoder.img_dims[1], max_rgb_value, decoder.img_dims[2] * decoder.img_dims[3] * decoder.img_dims[4])) {
     return 3;
   }
-
-  delete decoder;
 
   return 0;
 }

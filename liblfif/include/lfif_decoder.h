@@ -20,9 +20,11 @@
 /**
 * @brief Base structure for decoding an image.
 */
-template<size_t BS, size_t D>
+template<size_t D>
 struct LfifDecoder {
   uint8_t color_depth;    /**< @brief Number of bits per sample used by each decoded channel.*/
+
+  std::array<uint64_t, D>     block_size;
   std::array<uint64_t, D + 1> img_dims; /**< @brief Dimensions of a decoded image + image count.*/
 
   std::array<uint64_t, D> img_dims_unaligned;
@@ -31,27 +33,27 @@ struct LfifDecoder {
   std::array<uint64_t, D + 1> img_stride_unaligned;
   std::array<uint64_t, D + 1> img_stride_aligned;
 
-  std::array<size_t, D> block_dims; /**< @brief Dimensions of an encoded image in blocks. The multiple of all values should be equal to number of blocks in encoded image.*/
+  std::array<size_t, D>     block_dims; /**< @brief Dimensions of an encoded image in blocks. The multiple of all values should be equal to number of blocks in encoded image.*/
   std::array<size_t, D + 1> block_stride;
 
   bool use_huffman; /**< @brief Huffman Encoding was used when this is true.*/
 
-  QuantTable<BS, D>       quant_table         [2];    /**< @brief Quantization matrices for luma and chroma.*/
-  TraversalTable<BS, D>   traversal_table     [2];    /**< @brief Traversal matrices for luma and chroma.*/
-  HuffmanDecoder          huffman_decoder     [2][2]; /**< @brief Huffman decoders for luma and chroma and also for the DC and AC coefficients.*/
+  QuantTable<D>      quant_table         [2];    /**< @brief Quantization matrices for luma and chroma.*/
+  TraversalTable<D>  traversal_table     [2];    /**< @brief Traversal matrices for luma and chroma.*/
+  HuffmanDecoder     huffman_decoder     [2][2]; /**< @brief Huffman decoders for luma and chroma and also for the DC and AC coefficients.*/
 
-  HuffmanDecoder         *huffman_decoders_ptr[3]; /**< @brief Pointer to Huffman decoders used by each channel.*/
-  TraversalTable<BS, D>  *traversal_table_ptr [3]; /**< @brief Pointer to traversal matrix used by each channel.*/
-  QuantTable<BS, D>      *quant_table_ptr     [3]; /**< @brief Pointer to quantization matrix used by each channel.*/
+  HuffmanDecoder    *huffman_decoders_ptr[3]; /**< @brief Pointer to Huffman decoders used by each channel.*/
+  TraversalTable<D> *traversal_table_ptr [3]; /**< @brief Pointer to traversal matrix used by each channel.*/
+  QuantTable<D>     *quant_table_ptr     [3]; /**< @brief Pointer to quantization matrix used by each channel.*/
 
   size_t amp_bits;   /**< @brief Number of bits sufficient to contain maximum DCT coefficient.*/
   size_t class_bits; /**< @brief Number of bits sufficient to contain number of bits of maximum DCT coefficient.*/
 
-  Block<INPUTTRIPLET,  BS, D> current_block;   /**< @brief Buffer for caching the block of pixels before returning to client.*/
-  Block<RunLengthPair, BS, D> runlength;       /**< @brief Buffer for caching the block of run-length pairs when decoding.*/
-  Block<QDATAUNIT,     BS, D> quantized_block; /**< @brief Buffer for caching the block of quantized coefficients.*/
-  Block<DCTDATAUNIT,   BS, D> dct_block;       /**< @brief Buffer for caching the block of DCT coefficients.*/
-  Block<INPUTUNIT,     BS, D> output_block;    /**< @brief Buffer for caching the block of samples.*/
+  DynamicBlock<INPUTTRIPLET,  D> current_block;   /**< @brief Buffer for caching the block of pixels before returning to client.*/
+  DynamicBlock<RunLengthPair, D> runlength;       /**< @brief Buffer for caching the block of run-length pairs when decoding.*/
+  DynamicBlock<QDATAUNIT,     D> quantized_block; /**< @brief Buffer for caching the block of quantized coefficients.*/
+  DynamicBlock<DCTDATAUNIT,   D> dct_block;       /**< @brief Buffer for caching the block of DCT coefficients.*/
+  DynamicBlock<INPUTUNIT,     D> output_block;    /**< @brief Buffer for caching the block of samples.*/
 };
 
 /**
@@ -60,29 +62,26 @@ struct LfifDecoder {
 * @param input The input stream.
 * @return Zero if the header was succesfully read, nonzero else.
 */
-template<size_t BS, size_t D>
-int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
+template<size_t D>
+int readHeader(LfifDecoder<D> &dec, std::istream &input) {
   std::string       magic_number     {};
   std::stringstream magic_number_cmp {};
 
-  std::string       block_size     {};
-  std::stringstream block_size_cmp {};
-
   magic_number_cmp << "LFIF-" << D << "D";
-  block_size_cmp   << BS;
 
   input >> magic_number;
-  input.ignore();
-  input >> block_size;
   input.ignore();
 
   if (magic_number != magic_number_cmp.str()) {
     return -1;
   }
 
-  if (block_size != block_size_cmp.str()) {
-    return -2;
+  std::string block_size {};
+  for (size_t i = 0; i < D; i++) {
+    input >> dec.block_size[i];
+    input.ignore();
   }
+  input.ignore();
 
   dec.color_depth = readValueFromStream<uint8_t>(input);
 
@@ -91,15 +90,14 @@ int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
   }
 
   for (size_t i = 0; i < 2; i++) {
-    dec.quant_table[i] = readFromStream<BS, D>(input);
+    dec.quant_table[i] = readQuantFromStream<D>(dec.block_size, input);
   }
 
   dec.use_huffman = readValueFromStream<uint8_t>(input);
 
   if (dec.use_huffman) {
     for (size_t i = 0; i < 2; i++) {
-      dec.traversal_table[i]
-      . readFromStream(input);
+      dec.traversal_table[i] = readTraversalFromStream(dec.block_size, input);
     }
 
     for (size_t y = 0; y < 2; y++) {
@@ -117,20 +115,26 @@ int readHeader(LfifDecoder<BS, D> &dec, std::istream &input) {
 * @brief Function which (re)initializes the decoder structure.
 * @param dec The decoder structure.
 */
-template<size_t BS, size_t D>
-void initDecoder(LfifDecoder<BS, D> &dec) {
+template<size_t D>
+void initDecoder(LfifDecoder<D> &dec) {
+  dec.current_block.resize(dec.block_size);
+  dec.output_block.resize(dec.block_size);
+  dec.dct_block.resize(dec.block_size);
+  dec.quantized_block.resize(dec.block_size);
+  dec.runlength.resize(dec.block_size);
+
   dec.img_stride_unaligned[0] = 1;
   dec.img_stride_aligned[0]   = 1;
   dec.block_stride[0]         = 1;
 
   for (size_t i = 0; i < D; i++) {
-    dec.block_dims[i]       = ceil(dec.img_dims[i] / static_cast<double>(BS));
+    dec.block_dims[i]       = ceil(dec.img_dims[i] / static_cast<double>(dec.block_size[i]));
     dec.block_stride[i + 1] = dec.block_stride[i] * dec.block_dims[i];
 
     dec.img_dims_unaligned[i]       = dec.img_dims[i];
     dec.img_stride_unaligned[i + 1] = dec.img_stride_unaligned[i] * dec.img_dims_unaligned[i];
 
-    dec.img_dims_aligned[i]       = ceil(dec.block_dims[i] * BS);
+    dec.img_dims_aligned[i]       = ceil(dec.block_dims[i] * dec.block_size[i]);
     dec.img_stride_aligned[i + 1] = dec.img_stride_aligned[i] * dec.img_dims_aligned[i];
   }
 
@@ -146,7 +150,7 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
   dec.quant_table_ptr[1]      = &dec.quant_table[1];
   dec.quant_table_ptr[2]      = &dec.quant_table[1];
 
-  dec.amp_bits = ceil(log2(constpow(BS, D))) + dec.color_depth - D - (D/2);
+  dec.amp_bits = ceil(log2(get_stride<D>(dec.block_size))) + dec.color_depth - D - (D/2);
   dec.class_bits = RunLengthPair::classBits(dec.amp_bits);
 }
 
@@ -156,28 +160,28 @@ void initDecoder(LfifDecoder<BS, D> &dec) {
 * @param input Input stream from which the image will be decoded.
 * @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
 */
-template<size_t BS, size_t D, typename F>
-void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
+template<size_t D, typename F>
+void decodeScanHuffman(LfifDecoder<D> &dec, std::istream &input, F &&output) {
   IBitstream bitstream       {};
   QDATAUNIT  previous_DC [3] {};
 
   bitstream.open(&input);
 
   auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.current_block[make_cube_index<BS, D>(pos)];
+    return dec.current_block[pos];
   };
 
   for (size_t img = 0; img < dec.img_dims[D]; img++) {
     iterate_dimensions<D>(dec.block_dims, [&](const std::array<size_t, D> &block) {
       for (size_t channel = 0; channel < 3; channel++) {
-               decodeHuffman_RUNLENGTH<BS, D>(bitstream,            dec.runlength, dec.huffman_decoders_ptr[channel], dec.class_bits);
-                       runLengthDecode<BS, D>(dec.runlength,        dec.quantized_block);
-                            detraverse<BS, D>(dec.quantized_block, *dec.traversal_table_ptr[channel]);
-                          diffDecodeDC<BS, D>(dec.quantized_block,  previous_DC[channel]);
-                            dequantize<BS, D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
-        inverseDiscreteCosineTransform<BS, D>(dec.dct_block,        dec.output_block);
+               decodeHuffman_RUNLENGTH<D>(bitstream,            dec.runlength, dec.huffman_decoders_ptr[channel], dec.class_bits);
+                       runLengthDecode<D>(dec.runlength,        dec.quantized_block);
+                            detraverse<D>(dec.quantized_block, *dec.traversal_table_ptr[channel]);
+                          diffDecodeDC<D>(dec.quantized_block,  previous_DC[channel]);
+                            dequantize<D>(dec.quantized_block,  dec.dct_block, *dec.quant_table_ptr[channel]);
+        inverseDiscreteCosineTransform<D>(dec.dct_block,        dec.output_block);
 
-        for (size_t i = 0; i < constpow(BS, D); i++) {
+        for (size_t i = 0; i < get_stride<D>(dec.block_size); i++) {
           dec.current_block[i][channel] = dec.output_block[i];
         }
       }
@@ -193,7 +197,7 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
         output(img_index, value);
       };
 
-      putBlock<D>(get_cube_dims_array<D>(BS), inputF, block, dec.img_dims_unaligned, outputF);
+      putBlock<D>(dec.block_size.data(), inputF, block, dec.img_dims_unaligned, outputF);
     });
   }
 }
@@ -204,40 +208,38 @@ void decodeScanHuffman(LfifDecoder<BS, D> &dec, std::istream &input, F &&output)
 * @param input Input stream from which the image will be decoded.
 * @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
 */
-template<size_t BS, size_t D, typename F>
-void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
-  std::array<std::vector<size_t>,      D * (BS - 1) + 1> scan_table       {};
-  std::array<CABACContextsDIAGONAL<D>, 2>                contexts         { CABACContextsDIAGONAL<D>(BS), CABACContextsDIAGONAL<D>(BS) };
-  std::array<std::vector<INPUTUNIT>,   3>                decoded          {};
-  IBitstream                                             bitstream        {};
-  CABACDecoder                                           cabac            {};
-  size_t                                                 threshold        {};
-  Block<INPUTUNIT,     BS, D>                            prediction_block {};
+template<size_t D, typename F>
+void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, F &&output) {
+  std::vector<std::vector<size_t>>        scan_table(num_diagonals<D>(dec.block_size));
+  std::array<CABACContextsDIAGONAL<D>, 2> contexts         {CABACContextsDIAGONAL<D>(dec.block_size), CABACContextsDIAGONAL<D>(dec.block_size)};
+  IBitstream                              bitstream        {};
+  CABACDecoder                            cabac            {};
+  size_t                                  threshold        {};
 
-  threshold = (D * (BS - 1) + 1) / 2;
+  std::array<DynamicBlock<INPUTUNIT, D>, 3> decoded    { DynamicBlock<INPUTUNIT, D>(dec.img_dims_aligned), DynamicBlock<INPUTUNIT, D>(dec.img_dims_aligned), DynamicBlock<INPUTUNIT, D>(dec.img_dims_aligned) };
 
-  for (size_t i = 0; i < constpow(BS, D); i++) {
-    size_t diagonal { 0 };
-    for (size_t j = i; j; j /= BS) {
-      diagonal += j % BS;
+  DynamicBlock<INPUTUNIT, D>              prediction_block(dec.block_size);
+
+  threshold = num_diagonals<D>(dec.block_size) / 2;
+
+  iterate_dimensions<D>(dec.block_size, [&](const auto &pos) {
+    size_t diagonal {};
+    for (size_t i = 0; i < D; i++) {
+      diagonal += pos[i];
     }
 
-    scan_table[diagonal].push_back(i);
-  }
-
-  for (size_t i = 0; i < 3; i++) {
-    decoded[i].resize(dec.img_stride_aligned[D]);
-  }
+    scan_table[diagonal].push_back(make_index(dec.block_size, pos));
+  });
 
   bitstream.open(&input);
   cabac.init(bitstream);
 
   auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.current_block[make_cube_index<BS, D>(pos)];
+    return dec.current_block[pos];
   };
 
   auto inputFP = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.output_block[make_cube_index<BS, D>(pos)];
+    return dec.output_block[pos];
   };
 
   for (size_t img = 0; img < dec.img_dims[D]; img++) {
@@ -269,8 +271,8 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
 
         auto predInputF = [&](std::array<int64_t, D> &block_pos) {
           for (size_t i { 1 }; i < D; i++) {
-            if (block_pos[i] >= static_cast<int64_t>(BS)) {
-              block_pos[i] = BS - 1;
+            if (block_pos[i] >= static_cast<int64_t>(dec.block_size[i])) {
+              block_pos[i] = dec.block_size[i] - 1;
             }
           }
 
@@ -301,48 +303,38 @@ void decodeScanCABAC(LfifDecoder<BS, D> &dec, std::istream &input, F &&output) {
             }
           }
 
-          size_t img_idx {};
+          std::array<size_t, D> img_pos {};
           for (size_t i { 0 }; i < D; i++) {
-            size_t img_pos {};
+            img_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
 
-            img_pos = block[i] * BS + block_pos[i];
-
-            if (img_pos >= dec.img_dims_aligned[i]) {
-              img_pos = dec.img_dims_aligned[i] - 1;
+            if (img_pos[i] >= dec.img_dims_aligned[i]) {
+              img_pos[i] = dec.img_dims_aligned[i] - 1;
             }
-
-            img_idx += img_pos * dec.img_stride_aligned[i];
           }
 
-          return decoded[channel][img_idx];
+          return decoded[channel][img_pos];
         };
 
         auto outputFP = [&](const std::array<size_t, D> &img_pos, const auto &value) {
-          size_t img_index {};
-
-          for (size_t i { 0 }; i < D; i++) {
-            img_index += img_pos[i] * dec.img_stride_aligned[i];
-          }
-
-          decoded[channel][img_index] = value;
+          decoded[channel][img_pos] = value;
         };
 
         if (channel == 0) {
-          decodePredictionType<BS, D>(prediction_type, cabac, contexts[0]);
+          decodePredictionType<D>(prediction_type, cabac, contexts[0]);
         }
-                               predict<BS, D>(prediction_block,    prediction_type,                predInputF                    );
-                  decodeCABAC_DIAGONAL<BS, D>(dec.quantized_block, cabac, contexts[channel != 0],  threshold, scan_table         );
-                            dequantize<BS, D>(dec.quantized_block, dec.dct_block,                 *dec.quant_table_ptr[channel]  );
-        inverseDiscreteCosineTransform<BS, D>(dec.dct_block,       dec.output_block                                              );
-                      disusePrediction<BS, D>(dec.output_block,    prediction_block                                              );
-                                putBlock<D>(get_cube_dims_array<D>(BS), inputFP,             block,                          dec.img_dims_aligned, outputFP);
+                               predict<D>(prediction_block,      prediction_type,                predInputF                    );
+                  decodeCABAC_DIAGONAL<D>(dec.quantized_block,   cabac, contexts[channel != 0],  threshold, scan_table         );
+                            dequantize<D>(dec.quantized_block,   dec.dct_block,                 *dec.quant_table_ptr[channel]  );
+        inverseDiscreteCosineTransform<D>(dec.dct_block,         dec.output_block                                              );
+                      disusePrediction<D>(dec.output_block,      prediction_block                                              );
+                              putBlock<D>(dec.block_size.data(), inputFP,             block,                          dec.img_dims_aligned, outputFP);
 
-        for (size_t i = 0; i < constpow(BS, D); i++) {
+        for (size_t i = 0; i < get_stride<D>(dec.block_size); i++) {
           dec.current_block[i][channel] = dec.output_block[i];
         }
       }
 
-      putBlock<D>(get_cube_dims_array<D>(BS), inputF, block, dec.img_dims_unaligned, outputF);
+      putBlock<D>(dec.block_size.data(), inputF, block, dec.img_dims_unaligned, outputF);
     });
   }
 

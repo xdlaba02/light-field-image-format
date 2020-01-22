@@ -17,12 +17,6 @@
 #include <iostream>
 #include <vector>
 
-#ifdef BLOCK_SIZE
-const size_t BS = BLOCK_SIZE;
-#else
-const size_t BS = 8;
-#endif
-
 using namespace std;
 
 bool is_square(uint64_t num) {
@@ -120,8 +114,8 @@ int main(int argc, char *argv[]) {
   uint64_t views_count         {};
   uint32_t max_rgb_value       {};
 
-  LfifEncoder<BS, 5> *encoder  {};
-  ofstream            output   {};
+  LfifEncoder<5> encoder  {};
+  ofstream       output   {};
 
   PPMFileStruct ppm {};
 
@@ -203,15 +197,15 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  encoder = new LfifEncoder<BS, 5>;
+  encoder.block_size = {8, 8, sqrt(views_count), sqrt(views_count), frames_count};
 
-  encoder->img_dims[0] = width;
-  encoder->img_dims[1] = height;
-  encoder->img_dims[2] = sqrt(views_count);
-  encoder->img_dims[3] = sqrt(views_count);
-  encoder->img_dims[4] = frames_count;
-  encoder->img_dims[5] = 1;
-  encoder->color_depth = ceil(log2(max_rgb_value + 1));
+  encoder.img_dims[0] = width;
+  encoder.img_dims[1] = height;
+  encoder.img_dims[2] = sqrt(views_count);
+  encoder.img_dims[3] = sqrt(views_count);
+  encoder.img_dims[4] = frames_count;
+  encoder.img_dims[5] = 1;
+  encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
   auto load_frames = [&](size_t first_frame_index) {
     cerr << "INFO: LOADING FRAMES " << first_frame_index << " - " << first_frame_index + BLOCK_SIZE - 1 << endl;
@@ -309,15 +303,13 @@ int main(int argc, char *argv[]) {
     return {Y, Cb, Cr};
   };
 
-  initEncoder(*encoder);
-  constructQuantizationTables(*encoder, "DEFAULT", quality);
-  constructTraversalTables(*encoder, "ZIGZAG");
+  initEncoder(encoder);
+  constructQuantizationTables(encoder, "DEFAULT", quality);
+  constructTraversalTables(encoder, "ZIGZAG");
 
-  writeHeader(*encoder, output);
+  writeHeader(encoder, output);
 
-  outputScanCABAC_DIAGONAL(*encoder, inputF, output);
-
-  delete encoder;
+  outputScanCABAC_DIAGONAL(encoder, inputF, output);
 
   return 0;
 }
