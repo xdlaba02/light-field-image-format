@@ -37,7 +37,7 @@ std::array<size_t, 4> block_size_4D {};
 bool nothreads              {};
 bool append                 {};
 bool huffman                {};
-bool nopredict              {};
+bool predict                {};
 
 array<float, 3> quality_interval {};
 
@@ -56,7 +56,6 @@ int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array
   size_t compressed_image_size {};
   double mse                   {};
 
-  stringstream io {};
 
   uint16_t max_rgb_value = pow(2, encoder.color_depth) - 1;
 
@@ -98,6 +97,8 @@ int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array
   };
 
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
+    stringstream io {};
+
     mse = 0;
 
     initEncoder(encoder);
@@ -286,8 +287,8 @@ void parse_args(int argc, char *argv[]) {
       break;
 
       case 'p':
-        if (!nopredict) {
-          nopredict = true;
+        if (!predict) {
+          predict = true;
           continue;
         }
       break;
@@ -390,6 +391,7 @@ int main(int argc, char *argv[]) {
     encoder2D.img_dims[1] = height;
     encoder2D.img_dims[2] = image_count;
     encoder2D.use_huffman = huffman;
+    encoder2D.use_prediction = predict;
 
     size_t last_slash_pos = string(output_file_2D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -427,6 +429,7 @@ int main(int argc, char *argv[]) {
     encoder3D.img_dims[2] = sqrt(image_count);
     encoder3D.img_dims[3] = sqrt(image_count);
     encoder3D.use_huffman = huffman;
+    encoder3D.use_prediction = predict;
 
     size_t last_slash_pos = string(output_file_3D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -465,6 +468,12 @@ int main(int argc, char *argv[]) {
     encoder4D.img_dims[3] = sqrt(image_count);
     encoder4D.img_dims[4] = 1;
     encoder4D.use_huffman = huffman;
+    encoder4D.use_prediction = predict;
+
+    for (size_t i {}; i < 4; i++) {
+      std::cerr << encoder4D.block_size[i] << ' ';
+    }
+    std::cerr << '\n';
 
     size_t last_slash_pos = string(output_file_4D).find_last_of('/');
     if (last_slash_pos != string::npos) {
