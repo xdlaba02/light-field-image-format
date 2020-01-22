@@ -37,7 +37,7 @@ std::array<size_t, 4> block_size_4D {};
 bool nothreads              {};
 bool append                 {};
 bool huffman                {};
-bool predict                {};
+bool use_prediction                {};
 
 array<float, 3> quality_interval {};
 
@@ -114,10 +114,6 @@ int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array
       writeHeader(encoder, io);
       outputScanHuffman_RUNLENGTH(encoder, inputF, io);
     }
-    else if (nopredict) {
-      writeHeader(encoder, io);
-      outputScanCABAC_DIAGONAL(encoder, inputF, io);
-    }
     else {
       writeHeader(encoder, io);
       outputScanCABAC_DIAGONAL(encoder, inputF, io);
@@ -134,9 +130,6 @@ int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array
 
     if (huffman) {
       decodeScanHuffman(decoder, io, outputF);
-    }
-    if (nopredict) {
-      decodeScanCABAC(decoder, io, outputF);
     }
     else {
       decodeScanCABAC(decoder, io, outputF);
@@ -287,8 +280,8 @@ void parse_args(int argc, char *argv[]) {
       break;
 
       case 'p':
-        if (!predict) {
-          predict = true;
+        if (!use_prediction) {
+          use_prediction = true;
           continue;
         }
       break;
@@ -391,7 +384,7 @@ int main(int argc, char *argv[]) {
     encoder2D.img_dims[1] = height;
     encoder2D.img_dims[2] = image_count;
     encoder2D.use_huffman = huffman;
-    encoder2D.use_prediction = predict;
+    encoder2D.use_prediction = use_prediction;
 
     size_t last_slash_pos = string(output_file_2D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -429,7 +422,7 @@ int main(int argc, char *argv[]) {
     encoder3D.img_dims[2] = sqrt(image_count);
     encoder3D.img_dims[3] = sqrt(image_count);
     encoder3D.use_huffman = huffman;
-    encoder3D.use_prediction = predict;
+    encoder3D.use_prediction = use_prediction;
 
     size_t last_slash_pos = string(output_file_3D).find_last_of('/');
     if (last_slash_pos != string::npos) {
@@ -468,7 +461,7 @@ int main(int argc, char *argv[]) {
     encoder4D.img_dims[3] = sqrt(image_count);
     encoder4D.img_dims[4] = 1;
     encoder4D.use_huffman = huffman;
-    encoder4D.use_prediction = predict;
+    encoder4D.use_prediction = use_prediction;
 
     for (size_t i {}; i < 4; i++) {
       std::cerr << encoder4D.block_size[i] << ' ';
