@@ -6,8 +6,6 @@
 #include "plenoppm.h"
 #include "file_mask.h"
 
-#include <ppm.h>
-
 #include <iostream>
 
 using namespace std;
@@ -20,6 +18,43 @@ bool isSquare(uint64_t num) {
   }
 
   return false;
+}
+
+int mapPPMs(const char *input_file_mask, uint64_t &width, uint64_t &height, uint32_t &color_depth, std::vector<PPM> &data) {
+  FileMask file_name(input_file_mask);
+
+  width       = 0;
+  height      = 0;
+  color_depth = 0;
+
+  for (size_t image = 0; image < file_name.count(); image++) {
+    PPM ppm {};
+
+    if (ppm.mmapPPM(file_name[image].c_str()) < 0) {
+      continue;
+    }
+
+    if (width && height && color_depth) {
+      if ((ppm.width() != width) || (ppm.height() != height) || (ppm.color_depth() != color_depth)) {
+        cerr << "ERROR: PPMs DIMENSIONS MISMATCH" << endl;
+        return -1;
+      }
+    }
+
+    width       = ppm.width();
+    height      = ppm.height();
+    color_depth = ppm.color_depth();
+
+    data.push_back(ppm);
+  }
+  return 0;
+}
+
+void unmapPPMs(std::vector<PPM> &data) {
+  for (auto &ppm: data) {
+    ppm.munmapPPM();
+  }
+  data.resize(0);
 }
 
 bool checkPPMheaders(const char *input_file_mask, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {

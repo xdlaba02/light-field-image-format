@@ -49,25 +49,22 @@ double PSNR(double mse, size_t max) {
 }
 
 template <size_t D>
-int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array<float, 3> &quality_interval, ostream &data_output) {
-  LfifDecoder<D> decoder {};
+int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, const array<float, 3> &quality_interval, ostream &data_output) {
+  LfifDecoder<D> decoder       {};
 
   size_t image_pixels          {};
   size_t compressed_image_size {};
   double mse                   {};
-
 
   uint16_t max_rgb_value = pow(2, encoder.color_depth) - 1;
 
   image_pixels = original.size() / ((encoder.color_depth > 8) ? 6 : 3);
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
-    if (encoder.color_depth > 8) {
-      return reinterpret_cast<const uint16_t *>(original.data())[index * 3 + channel];
-    }
-    else {
-      return reinterpret_cast<const uint8_t *>(original.data())[index * 3 + channel];
-    }
+    size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
+    size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
+
+    return original[img][img_index * 3 + channel];
   };
 
   auto inputF = [&](size_t index) -> INPUTTRIPLET {
@@ -75,7 +72,7 @@ int doTest(LfifEncoder<D> &encoder, const vector<uint8_t> &original, const array
     RGBUNIT G = inputF0(1, index);
     RGBUNIT B = inputF0(2, index);
 
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - ((max_rgb_value + 1) / 2);
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (max_rgb_value + 1) / 2;
     INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
     INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
 
@@ -337,12 +334,12 @@ void parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  vector<uint8_t> rgb_data {};
-
   uint64_t width       {};
   uint64_t height      {};
   uint32_t max_rgb_value {};
   uint64_t image_count {};
+
+  vector<PPM> ppm_data         {};
 
   ofstream outputs[3] {};
 
@@ -354,19 +351,13 @@ int main(int argc, char *argv[]) {
 
   parse_args(argc, argv);
 
-  if (!checkPPMheaders(input_file_mask, width, height, max_rgb_value, image_count)) {
+  if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data) < 0) {
     return 2;
   }
 
-  size_t input_size = width * height * image_count * 3;
-  input_size *= (max_rgb_value > 255) ? 2 : 1;
-  rgb_data.resize(input_size);
+  image_count = ppm_data.size();
 
   size_t block_size = sqrt(image_count);
-
-  if (!loadPPMs(input_file_mask, rgb_data.data())) {
-    return 3;
-  }
 
   ios_base::openmode flags { fstream::app };
   if (!append) {
@@ -402,10 +393,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder2D, rgb_data, quality_interval, outputs[0]);
+        doTest(encoder2D, ppm_data, quality_interval, outputs[0]);
       }
       else {
-        threads.emplace_back(doTest<2>, ref(encoder2D), ref(rgb_data), ref(quality_interval), ref(outputs[0]));
+        threads.emplace_back(doTest<2>, ref(encoder2D), ref(ppm_data), ref(quality_interval), ref(outputs[0]));
       }
     }
   }
@@ -440,10 +431,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder3D, rgb_data, quality_interval, outputs[1]);
+        doTest(encoder3D, ppm_data, quality_interval, outputs[1]);
       }
       else {
-        threads.emplace_back(doTest<3>, ref(encoder3D), ref(rgb_data), ref(quality_interval), ref(outputs[1]));
+        threads.emplace_back(doTest<3>, ref(encoder3D), ref(ppm_data), ref(quality_interval), ref(outputs[1]));
       }
     }
   }
@@ -484,10 +475,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder4D, rgb_data, quality_interval, outputs[2]);
+        doTest(encoder4D, ppm_data, quality_interval, outputs[2]);
       }
       else {
-        threads.emplace_back(doTest<4>, ref(encoder4D), ref(rgb_data), ref(quality_interval), ref(outputs[2]));
+        threads.emplace_back(doTest<4>, ref(encoder4D), ref(ppm_data), ref(quality_interval), ref(outputs[2]));
       }
     }
   }
@@ -495,6 +486,8 @@ int main(int argc, char *argv[]) {
   for (auto &thread: threads) {
     thread.join();
   }
+
+  unmapPPMs(ppm_data);
 
   return 0;
 }

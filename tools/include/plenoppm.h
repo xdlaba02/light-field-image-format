@@ -9,7 +9,13 @@
 #ifndef PLENOPPM_H
 #define PLENOPPM_H
 
+#include <ppm.h>
+
 #include <cstdint>
+#include <vector>
+
+int mapPPMs(const char *input_file_mask, uint64_t &width, uint64_t &height, uint32_t &color_depth, std::vector<PPM> &data);
+void unmapPPMs(std::vector<PPM> &data);
 
 /**
  * @brief Function which reads file headers from mask and checks if they are the same.

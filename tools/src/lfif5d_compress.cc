@@ -5,6 +5,7 @@
 
 #include "compress.h"
 #include "file_mask.h"
+#include "plenoppm.h"
 
 #include <colorspace.h>
 #include <lfif_encoder.h>
@@ -106,84 +107,54 @@ int main(int argc, char *argv[]) {
   float quality                {};
   size_t start_frame           {};
 
-  vector<uint8_t> rgb_data     {};
+  vector<PPM> ppm_data         {};
 
   uint64_t width               {};
   uint64_t height              {};
-  uint64_t frames_count        {};
   uint64_t views_count         {};
+  uint64_t frames_count        {};
   uint32_t max_rgb_value       {};
 
   LfifEncoder<5> encoder  {};
   ofstream       output   {};
 
-  PPMFileStruct ppm {};
-
   if (!parse_args_video(argc, argv, input_file_mask, output_file_name, quality, start_frame)) {
     return 1;
   }
 
-  cerr << "INFO: CHECKING FRAMES" << endl;
   for (size_t frame = start_frame; frame < get_mask_names_count(input_file_mask, '@'); frame++) {
-    cerr << "INFO: CHECKING FRAME " << frame << endl;
-    size_t v_count {};
+    uint64_t frame_width         {};
+    uint64_t frame_height        {};
+    uint32_t frame_max_rgb_value {};
 
-    for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
-      ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
-      if (!ppm.file) {
-        continue;
-      }
+    size_t prev_cnt = ppm_data.size();
 
-      v_count++;
-
-      if (readPPMHeader(&ppm)) {
-        fclose(ppm.file);
-        cerr << "ERROR: BAD PPM HEADER" << endl;
-        return 1;
-      }
-
-      fclose(ppm.file);
-
-      if (width && height && max_rgb_value) {
-        if ((ppm.width != width) || (ppm.height != height) || (ppm.color_depth != max_rgb_value)) {
-          cerr << "ERROR: PPM DIMENSIONS MISMATCH" << endl;
-          return 1;
-        }
-      }
-
-      width         = ppm.width;
-      height        = ppm.height;
-      max_rgb_value = ppm.color_depth;
-    }
-
-    if (!v_count) {
+    if (mapPPMs(get_name_from_mask(input_file_mask, '@', frame).c_str(), frame_width, frame_height, frame_max_rgb_value, ppm_data) < 0) {
+      unmapPPMs(ppm_data);
       break;
     }
 
-    if (!views_count) {
-      views_count = v_count;
+    size_t cnt = ppm_data.size() - prev_cnt;
+
+    if (cnt == 0) {
+      continue;
     }
-    else if (v_count != views_count) {
-      cerr << "ERROR: VIEW COUNT MISMATCH" << endl;
-      return 1;
+
+    if (width && height && max_rgb_value && views_count) {
+      if ((frame_width != width) || (frame_height != height) || (frame_max_rgb_value != max_rgb_value) || (cnt != views_count)) {
+        cerr << "ERROR: FRAME DIMENSIONS MISMATCH" << endl;
+        unmapPPMs(ppm_data);
+        return -1;
+      }
     }
 
     frames_count++;
-  }
 
-  if (!views_count || !frames_count) {
-    cerr << "ERROR: NO IMAGE LOADED" << endl;
-    return 1;
+    width         = frame_width;
+    height        = frame_height;
+    max_rgb_value = frame_max_rgb_value;
+    views_count   = cnt;
   }
-
-  if (!is_square(views_count)) {
-    cerr << "ERROR: NOT SQUARE" << endl;
-    return 1;
-  }
-
-  size_t input_size = width * height * views_count * 3 * BLOCK_SIZE;
-  input_size *= (max_rgb_value > 255) ? 2 : 1;
-  rgb_data.resize(input_size);
 
   size_t last_slash_pos = string(output_file_name).find_last_of('/');
   if (last_slash_pos != string::npos) {
@@ -207,94 +178,14 @@ int main(int argc, char *argv[]) {
   encoder.img_dims[5] = 1;
   encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
-  auto load_frames = [&](size_t first_frame_index) {
-    cerr << "INFO: LOADING FRAMES " << first_frame_index << " - " << first_frame_index + BLOCK_SIZE - 1 << endl;
-
-    Pixel *ppm_row              {};
-    size_t loaded_frames_count  {};
-
-    ppm_row = allocPPMRow(width);
-
-    for (size_t frame = first_frame_index; (frame < (start_frame + frames_count)) && (frame < (first_frame_index + BLOCK_SIZE)); frame++) {
-      cerr << "INFO: LOADING FRAME " << frame << ": " << get_name_from_mask(input_file_mask, '@', frame) << endl;
-      size_t loaded_views_count {};
-
-      for (size_t view = 0; view < get_mask_names_count(input_file_mask, '#'); view++) {
-        ppm.file = fopen(get_name_from_mask(get_name_from_mask(input_file_mask, '@', frame), '#', view).c_str(), "rb");
-        if (!ppm.file) {
-          continue;
-        }
-
-        readPPMHeader(&ppm);
-
-        for (size_t row = 0; row < ppm.height; row++) {
-          if (readPPMRow(&ppm, ppm_row)) {
-            cerr << "ERROR: BAD PPM" << endl;
-            fclose(ppm.file);
-          }
-
-          if (ppm.color_depth < 256) {
-            for (size_t col = 0; col < ppm.width; col++) {
-              uint8_t *data_ptr = reinterpret_cast<uint8_t *>(rgb_data.data());
-
-              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
-              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
-              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
-            }
-          }
-          else {
-            for (size_t col = 0; col < ppm.width; col++) {
-              uint16_t *data_ptr = reinterpret_cast<uint16_t *>(rgb_data.data());
-
-              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 0] = ppm_row[col].r;
-              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 1] = ppm_row[col].g;
-              data_ptr[(((loaded_frames_count * views_count + loaded_views_count) * ppm.height + row) * ppm.width + col) * 3 + 2] = ppm_row[col].b;
-            }
-          }
-
-        }
-
-        fclose(ppm.file);
-        loaded_views_count++;
-      }
-
-      if (loaded_views_count == views_count) {
-        loaded_frames_count++;
-        cerr << "INFO: FRAME " << loaded_frames_count << "/" << BLOCK_SIZE << " LOADED" << endl;
-      }
-      else if (loaded_views_count) {
-        cerr << "ERROR: THIS SHOULD NEVER HAPPEN" << endl;
-      }
-    }
-
-    freePPMRow(ppm_row);
-
-    cerr << "INFO: FRAMES " << first_frame_index << " - " << first_frame_index + BLOCK_SIZE - 1 << " WERE LOADED" << endl;
-  };
-
-  int64_t loaded_fifth_dimension_block_index = -1;
-
-  auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
-    size_t indexed_fifth_dimension_block_index = index / (width * height * views_count * BLOCK_SIZE);
-    size_t indexed_sample                      = index % (width * height * views_count * BLOCK_SIZE);
-
-    if (static_cast<int64_t>(indexed_fifth_dimension_block_index) != loaded_fifth_dimension_block_index) {
-      load_frames(start_frame + (indexed_fifth_dimension_block_index * BLOCK_SIZE));
-      loaded_fifth_dimension_block_index = indexed_fifth_dimension_block_index;
-    }
-
-    if (max_rgb_value < 256) {
-      return reinterpret_cast<const uint8_t *>(rgb_data.data())[indexed_sample * 3 + channel];
-    }
-    else {
-      return reinterpret_cast<const uint16_t *>(rgb_data.data())[indexed_sample * 3 + channel];
-    }
-  };
 
   auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    RGBUNIT R = inputF0(0, index);
-    RGBUNIT G = inputF0(1, index);
-    RGBUNIT B = inputF0(2, index);
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
+
+    RGBUNIT R = ppm_data[img][img_index * 3 + 0];
+    RGBUNIT G = ppm_data[img][img_index * 3 + 1];
+    RGBUNIT B = ppm_data[img][img_index * 3 + 2];
 
     INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (max_rgb_value + 1) / 2;
     INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
@@ -305,10 +196,7 @@ int main(int argc, char *argv[]) {
 
   initEncoder(encoder);
   constructQuantizationTables(encoder, "DEFAULT", quality);
-  constructTraversalTables(encoder, "ZIGZAG");
-
   writeHeader(encoder, output);
-
   outputScanCABAC_DIAGONAL(encoder, inputF, output);
 
   return 0;

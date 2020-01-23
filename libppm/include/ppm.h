@@ -12,6 +12,46 @@
 #include <cstdio>
 #include <cstdint>
 
+#include <endian.h>
+
+class PPM {
+  uint64_t    m_width;       /**< @brief Image width in pixels.*/
+  uint64_t    m_height;      /**< @brief Image height in pixels.*/
+  uint32_t    m_color_depth; /**< @brief Maximum RGB value of an image.*/
+
+  void       *m_file;
+  size_t      m_header_offset;
+
+  int parseHeader(FILE *ppm);
+
+public:
+  int mmapPPM(const char *file_name);
+  void munmapPPM();
+
+  uint16_t operator[](size_t index) const {
+    if (m_color_depth > 255) {
+      uint16_t *ptr = reinterpret_cast<uint16_t *>(static_cast<uint8_t *>(m_file) + m_header_offset);
+      return be16toh(ptr[index]);
+    }
+    else {
+      uint8_t *ptr = static_cast<uint8_t *>(m_file) + m_header_offset;
+      return ptr[index];
+    }
+  }
+
+  uint64_t width() const {
+    return m_width;
+  }
+
+  uint64_t height() const {
+    return m_height;
+  }
+
+  uint32_t color_depth() const {
+    return m_color_depth;
+  }
+};
+
 /**
  * @brief Base structure for reading and writing PPM files.
  */
@@ -73,5 +113,7 @@ int writePPMHeader(const PPMFileStruct *ppm);
  * @return Nonzero when something went wrong, zero else.
  */
 int writePPMRow(PPMFileStruct *ppm, const Pixel *buffer);
+
+int mapPPM(char *file_name, uint64_t &width, uint64_t &height, uint32_t &color_depth, void *data);
 
 #endif
