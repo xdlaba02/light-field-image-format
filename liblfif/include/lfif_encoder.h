@@ -19,6 +19,9 @@
 #include <ostream>
 #include <sstream>
 
+#include <iostream>
+#include <iomanip>
+
 /**
 * @brief Base structure for encoding an image.
 */
@@ -121,6 +124,7 @@ void initEncoder(LfifEncoder<D> &enc) {
   enc.amp_bits = ceil(log2(get_stride<D>(enc.block_size))) + enc.color_depth - D - (D/2);
   enc.class_bits = RunLengthPair::classBits(enc.amp_bits);
   enc.zeroes_bits = RunLengthPair::zeroesBits(enc.class_bits);
+
   enc.max_zeroes = constpow(2, enc.zeroes_bits) - 1;
 
   for (size_t y = 0; y < 2; y++) {
@@ -391,9 +395,6 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&input, std::ostream &o
   bitstream.flush();
 }
 
-#include <iostream>
-#include <iomanip>
-
 /**
 * @brief Function which encodes the image to the stream with CABAC.
 * @param enc The encoder structure.
@@ -546,7 +547,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
                     disusePrediction<D>(enc.input_block,       prediction_block                                                           );
                             putBlock<D>(enc.block_size.data(), inputF,               block,                  enc.img_dims_aligned, outputF);
     }
-    
+
                 encodeCABAC_DIAGONAL<D>(enc.quantized_block,   cabac,                contexts[channel != 0], threshold, scan_table        );
   };
 
