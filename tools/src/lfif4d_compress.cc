@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  encoder.block_size = {8, 8, sqrt(image_count), sqrt(image_count)};
+  encoder.block_size = {sqrt(image_count), sqrt(image_count), sqrt(image_count), sqrt(image_count)};
 
   encoder.img_dims[0] = width;
   encoder.img_dims[1] = height;
