@@ -50,6 +50,10 @@ public:
   uint32_t color_depth() const {
     return m_color_depth;
   }
+
+  void *data() const {
+    return static_cast<uint8_t *>(m_file) + m_header_offset;
+  }
 };
 
 /**

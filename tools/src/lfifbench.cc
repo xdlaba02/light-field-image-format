@@ -58,7 +58,7 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, const array<flo
 
   uint16_t max_rgb_value = pow(2, encoder.color_depth) - 1;
 
-  image_pixels = original.size() / ((encoder.color_depth > 8) ? 6 : 3);
+  image_pixels = original.size() * encoder.img_dims[0] * encoder.img_dims[1];
 
   auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
     size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
