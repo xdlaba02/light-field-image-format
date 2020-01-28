@@ -334,9 +334,9 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
     INPUTUNIT Cb = puller(i, 1) - pow(2, dec.color_depth - 1);
     INPUTUNIT Cr = puller(i, 2) - pow(2, dec.color_depth - 1);
 
-    uint16_t R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
-    uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
-    uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
+    uint16_t R = std::clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
+    uint16_t G = std::clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
+    uint16_t B = std::clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
 
     pusher(i, 0, R);
     pusher(i, 1, G);
