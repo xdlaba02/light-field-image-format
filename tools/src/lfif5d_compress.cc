@@ -7,7 +7,6 @@
 #include "file_mask.h"
 #include "plenoppm.h"
 
-#include <colorspace.h>
 #include <lfif_encoder.h>
 #include <ppm.h>
 
@@ -30,12 +29,18 @@ bool is_square(uint64_t num) {
   return false;
 }
 
-bool parse_args_video(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, size_t &start_frame) {
+bool parse_args_video(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, size_t &start_frame, bool &predict) {
   const char *arg_quality     {};
   const char *arg_start_frame {};
 
+  input_file_mask  = nullptr;
+  output_file_name = nullptr;
+  quality          = 0;
+  start_frame      = 0;
+  predict          = false;
+
   char opt;
-  while ((opt = getopt(argc, argv, "i:o:q:s:")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:q:s:p")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -61,6 +66,13 @@ bool parse_args_video(int argc, char *argv[], const char *&input_file_mask, cons
       case 's':
         if (!arg_start_frame) {
           arg_start_frame = optarg;
+          continue;
+        }
+        break;
+
+      case 'p':
+        if (!predict) {
+          predict = true;
           continue;
         }
         break;
@@ -105,20 +117,25 @@ int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
   float quality                {};
-  size_t start_frame           {};
+
+  bool use_huffman             {};
+  bool predict                 {};
 
   vector<PPM> ppm_data         {};
 
   uint64_t width               {};
   uint64_t height              {};
-  uint64_t views_count         {};
-  uint64_t frames_count        {};
+  uint64_t image_count         {};
   uint32_t max_rgb_value       {};
 
-  LfifEncoder<5> encoder  {};
-  ofstream       output   {};
+  LfifEncoder<5> encoder {};
+  ofstream       output  {};
 
-  if (!parse_args_video(argc, argv, input_file_mask, output_file_name, quality, start_frame)) {
+  size_t start_frame {};
+  size_t frames_count {};
+  size_t views_count {};
+
+  if (!parse_args_video(argc, argv, input_file_mask, output_file_name, quality, start_frame, predict)) {
     return 1;
   }
 
@@ -130,7 +147,6 @@ int main(int argc, char *argv[]) {
     size_t prev_cnt = ppm_data.size();
 
     if (mapPPMs(get_name_from_mask(input_file_mask, '@', frame).c_str(), frame_width, frame_height, frame_max_rgb_value, ppm_data) < 0) {
-      unmapPPMs(ppm_data);
       break;
     }
 
@@ -143,7 +159,6 @@ int main(int argc, char *argv[]) {
     if (width && height && max_rgb_value && views_count) {
       if ((frame_width != width) || (frame_height != height) || (frame_max_rgb_value != max_rgb_value) || (cnt != views_count)) {
         cerr << "ERROR: FRAME DIMENSIONS MISMATCH" << endl;
-        unmapPPMs(ppm_data);
         return -1;
       }
     }
@@ -156,10 +171,9 @@ int main(int argc, char *argv[]) {
     views_count   = cnt;
   }
 
-  size_t last_slash_pos = string(output_file_name).find_last_of('/');
-  if (last_slash_pos != string::npos) {
-    string command = "mkdir -p " + string(output_file_name).substr(0, last_slash_pos);
-    system(command.c_str());
+  if (create_directory(output_file_name)) {
+    cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
+    return 1;
   }
 
   output.open(output_file_name, ios::binary);
@@ -168,7 +182,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  encoder.block_size = {8, 8, sqrt(views_count), sqrt(views_count), frames_count};
+  if (optind + 5 == argc) {
+    for (size_t i { 0 }; i < 5; i++) {
+      int tmp = atoi(argv[optind++]);
+      if (tmp <= 0) {
+        size_t block_size = sqrt(views_count);
+        encoder.block_size = {block_size, block_size, block_size, block_size, block_size};
+        break;
+      }
+      encoder.block_size[i] = tmp;
+    }
+  }
+  else {
+    size_t block_size = sqrt(image_count);
+    encoder.block_size = {block_size, block_size, block_size, block_size, block_size};
+  }
 
   encoder.img_dims[0] = width;
   encoder.img_dims[1] = height;
@@ -178,26 +206,41 @@ int main(int argc, char *argv[]) {
   encoder.img_dims[5] = 1;
   encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
+  encoder.use_huffman    = false;
+  encoder.use_prediction = predict;
 
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+  auto puller = [&](size_t index, size_t channel) -> uint16_t {
     size_t img       = index / (width * height);
     size_t img_index = index % (width * height);
 
-    RGBUNIT R = ppm_data[img][img_index * 3 + 0];
-    RGBUNIT G = ppm_data[img][img_index * 3 + 1];
-    RGBUNIT B = ppm_data[img][img_index * 3 + 2];
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      return ptr[img_index * 3 + channel];
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      return ptr[img_index * 3 + channel];
+    }
+  };
 
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (max_rgb_value + 1) / 2;
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+  auto pusher = [&](size_t index, size_t channel, uint16_t val) {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
 
-    return {Y, Cb, Cr};
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
   };
 
   initEncoder(encoder);
   constructQuantizationTables(encoder, "DEFAULT", quality);
   writeHeader(encoder, output);
-  outputScanCABAC_DIAGONAL(encoder, inputF, output);
+  outputScanCABAC_DIAGONAL(encoder, puller, pusher, output);
 
   return 0;
 }

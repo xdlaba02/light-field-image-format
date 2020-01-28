@@ -10,6 +10,9 @@
 #define COMPRESS_H
 
 #include <cstdint>
+#include <cstddef>
+
+#include <getopt.h>
 
 /**
  * @brief Fucntion which prints usage of a compress tool.
@@ -25,6 +28,6 @@ void print_usage(const char *argv0);
  * @param output_file_name Return value for a tool which containts output file name.
  * @param quality Return value containing quality coefficient.
  */
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman);
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman, bool &predict);
 
 #endif

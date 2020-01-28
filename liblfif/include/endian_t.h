@@ -3,7 +3,7 @@
 * @author Drahomír Dlabaja (xdlaba02)
 * @date 12. 5. 2019
 * @copyright 2019 Drahomír Dlabaja
-* @brief Functions which performs FDCT and IDCT.
+* @brief Functions which performs endian conversions.
 */
 
 #include <algorithm>
@@ -39,6 +39,21 @@ inline T bigEndianSwap(T data) {
 }
 
 /**
+* @brief  Function which performs swap only if local endian != little endian.
+* @param  data The data to be swapped.
+* @return Swapped data.
+*/
+template <typename T>
+inline T littleEndianSwap(T data) {
+  if (htobe16(1) == 1) {
+    return endianSwap(data);
+  }
+  else {
+    return data;
+  }
+}
+
+/**
 * @brief Function which writes value to stream in big endian.
 * @param data The data to be written.
 * @param stream The stream to which the data will be written.
@@ -60,5 +75,23 @@ inline T readValueFromStream(std::istream &stream) {
   stream.read(reinterpret_cast<char *>(&dataBE), sizeof(dataBE));
   return bigEndianSwap(dataBE);
 }
+
+template <typename T>
+class BigEndian {
+  T m_data;
+public:
+  BigEndian() {}
+  BigEndian(const T& other): m_data { bigEndianSwap<T>(other) } { }
+  operator T() const { return bigEndianSwap(m_data); }
+};
+
+template <typename T>
+class LittleEndian {
+  T m_data;
+public:
+  LittleEndian() { }
+  LittleEndian(const T& other): m_data { littleEndianSwap<T>(other) } { }
+  operator T() const { return littleEndianSwap(m_data); }
+};
 
 #endif

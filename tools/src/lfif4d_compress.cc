@@ -6,7 +6,6 @@
 #include "compress.h"
 #include "plenoppm.h"
 
-#include <colorspace.h>
 #include <lfif_encoder.h>
 
 #include <cmath>
@@ -22,37 +21,31 @@ int main(int argc, char *argv[]) {
   float quality                {};
 
   bool use_huffman             {};
+  bool predict                 {};
 
-  vector<uint8_t> rgb_data     {};
+  vector<PPM> ppm_data         {};
 
   uint64_t width               {};
   uint64_t height              {};
   uint64_t image_count         {};
   uint32_t max_rgb_value       {};
 
-  LfifEncoder<4> encoder  {};
-  ofstream       output   {};
+  LfifEncoder<4> encoder {};
+  ofstream       output  {};
 
-  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman)) {
+  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman, predict)) {
     return 1;
   }
 
-  if (!checkPPMheaders(input_file_mask, width, height, max_rgb_value, image_count)) {
+  if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data) < 0) {
     return 2;
   }
 
-  size_t input_size = width * height * image_count * 3;
-  input_size *= (max_rgb_value > 255) ? 2 : 1;
-  rgb_data.resize(input_size);
+  image_count = ppm_data.size();
 
-  if (!loadPPMs(input_file_mask, rgb_data.data())) {
-    return 2;
-  }
-
-  size_t last_slash_pos = string(output_file_name).find_last_of('/');
-  if (last_slash_pos != string::npos) {
-    string command = "mkdir -p " + string(output_file_name).substr(0, last_slash_pos);
-    system(command.c_str());
+  if (create_directory(output_file_name)) {
+    cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
+    return 1;
   }
 
   output.open(output_file_name, ios::binary);
@@ -61,7 +54,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  encoder.block_size = {sqrt(image_count), sqrt(image_count), sqrt(image_count), sqrt(image_count)};
+  if (optind + 4 == argc) {
+    for (size_t i { 0 }; i < 4; i++) {
+      int tmp = atoi(argv[optind++]);
+      if (tmp <= 0) {
+        size_t block_size = sqrt(image_count);
+        encoder.block_size = {block_size, block_size, block_size, block_size};
+        break;
+      }
+      encoder.block_size[i] = tmp;
+    }
+  }
+  else {
+    size_t block_size = sqrt(image_count);
+    encoder.block_size = {block_size, block_size, block_size, block_size};
+  }
 
   encoder.img_dims[0] = width;
   encoder.img_dims[1] = height;
@@ -70,27 +77,35 @@ int main(int argc, char *argv[]) {
   encoder.img_dims[4] = 1;
   encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
-  encoder.use_huffman = use_huffman;
+  encoder.use_huffman    = use_huffman;
+  encoder.use_prediction = predict;
 
-  auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
-    if (max_rgb_value < 256) {
-      return reinterpret_cast<const uint8_t *>(rgb_data.data())[index * 3 + channel];
+  auto puller = [&](size_t index, size_t channel) -> uint16_t {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
+
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      return ptr[img_index * 3 + channel];
     }
     else {
-      return reinterpret_cast<const uint16_t *>(rgb_data.data())[index * 3 + channel];
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      return ptr[img_index * 3 + channel];
     }
   };
 
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    RGBUNIT R = inputF0(0, index);
-    RGBUNIT G = inputF0(1, index);
-    RGBUNIT B = inputF0(2, index);
+  auto pusher = [&](size_t index, size_t channel, uint16_t val) {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
 
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (max_rgb_value + 1) / 2;
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
-
-    return {Y, Cb, Cr};
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
   };
 
   initEncoder(encoder);
@@ -98,14 +113,14 @@ int main(int argc, char *argv[]) {
 
   if (use_huffman) {
     constructTraversalTables(encoder, "DEFAULT");
-    huffmanScan(encoder, inputF);
+    huffmanScan(encoder, puller);
     constructHuffmanTables(encoder);
     writeHeader(encoder, output);
-    outputScanHuffman_RUNLENGTH(encoder, inputF, output);
+    outputScanHuffman_RUNLENGTH(encoder, puller, output);
   }
   else {
     writeHeader(encoder, output);
-    outputScanCABAC_DIAGONAL(encoder, inputF, output);
+    outputScanCABAC_DIAGONAL(encoder, puller, pusher, output);
   }
 
   return 0;

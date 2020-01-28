@@ -49,9 +49,8 @@ double PSNR(double mse, size_t max) {
 }
 
 template <size_t D>
-int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, const array<float, 3> &quality_interval, ostream &data_output) {
+int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &read_write, const array<float, 3> &quality_interval, ostream &data_output) {
   LfifDecoder<D> decoder       {};
-
   size_t image_pixels          {};
   size_t compressed_image_size {};
   double mse                   {};
@@ -60,82 +59,99 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, const array<flo
 
   image_pixels = original.size() * encoder.img_dims[0] * encoder.img_dims[1];
 
-  auto inputF0 = [&](size_t channel, size_t index) -> RGBUNIT {
+  auto original_puller = [&](size_t index, size_t channel) -> uint16_t {
     size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
     size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
 
-    return original[img][img_index * 3 + channel];
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(original[img].data());
+      return ptr[img_index * 3 + channel];
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(original[img].data());
+      return ptr[img_index * 3 + channel];
+    }
   };
 
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    RGBUNIT R = inputF0(0, index);
-    RGBUNIT G = inputF0(1, index);
-    RGBUNIT B = inputF0(2, index);
+  auto puller = [&](size_t index, size_t channel) -> uint16_t {
+    size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
+    size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
 
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - (max_rgb_value + 1) / 2;
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
-
-    return {Y, Cb, Cr};
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(read_write[img].data());
+      return ptr[img_index * 3 + channel];
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(read_write[img].data());
+      return ptr[img_index * 3 + channel];
+    }
   };
 
-  auto outputF = [&](size_t index, const INPUTTRIPLET &triplet) {
-    INPUTUNIT  Y = triplet[0] + ((max_rgb_value + 1) / 2);
-    INPUTUNIT Cb = triplet[1];
-    INPUTUNIT Cr = triplet[2];
+  auto pusher = [&](size_t index, size_t channel, uint16_t val) {
+    size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
+    size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
 
-    RGBUNIT R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, max_rgb_value);
-    RGBUNIT G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, max_rgb_value);
-    RGBUNIT B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, max_rgb_value);
-
-    mse += (inputF0(0, index) - R) * (inputF0(0, index) - R);
-    mse += (inputF0(1, index) - G) * (inputF0(1, index) - G);
-    mse += (inputF0(2, index) - B) * (inputF0(2, index) - B);
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(read_write[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(read_write[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
   };
 
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
-    stringstream io {};
-
     mse = 0;
+    stringstream io {};
 
     initEncoder(encoder);
     constructQuantizationTables(encoder, qtabletype, quality);
 
     if (huffman) {
-      if (std::string { zztabletype } == "REFERENCE") {
+      /*if (std::string { zztabletype } == "REFERENCE") {
         referenceScan(encoder, inputF);
       }
       constructTraversalTables(encoder, zztabletype);
       huffmanScan(encoder, inputF);
       constructHuffmanTables(encoder);
       writeHeader(encoder, io);
-      outputScanHuffman_RUNLENGTH(encoder, inputF, io);
+      outputScanHuffman_RUNLENGTH(encoder, inputF, io);*/
     }
     else {
       writeHeader(encoder, io);
-      outputScanCABAC_DIAGONAL(encoder, inputF, io);
+      outputScanCABAC_DIAGONAL(encoder, puller, pusher, io);
     }
 
     compressed_image_size = io.tellp();
 
+    for (size_t i {}; i < encoder.img_stride_unaligned[D] * encoder.img_dims[D]; i++) {
+      pusher(i, 0, original_puller(i, 0));
+      pusher(i, 1, original_puller(i, 1));
+      pusher(i, 2, original_puller(i, 2));
+    }
+
     if (readHeader(decoder, io)) {
       cerr << "ERROR: IMAGE HEADER INVALID\n";
-      return -3;
+      return 2;
     }
 
     initDecoder(decoder);
 
-    if (huffman) {
-      decodeScanHuffman(decoder, io, outputF);
+    decodeScanCABAC(decoder, io, puller, pusher);
+
+    for (size_t i {}; i < encoder.img_stride_unaligned[D] * encoder.img_dims[D]; i++) {
+      mse += (original_puller(i, 0) - puller(i, 0)) * (original_puller(i, 0) - puller(i, 0));
+      mse += (original_puller(i, 1) - puller(i, 1)) * (original_puller(i, 1) - puller(i, 1));
+      mse += (original_puller(i, 2) - puller(i, 2)) * (original_puller(i, 2) - puller(i, 2));
     }
-    else {
-      decodeScanCABAC(decoder, io, outputF);
-    }
+
 
     double psnr = PSNR(mse / (image_pixels * 3), max_rgb_value);
     double bpp = compressed_image_size * 8.0 / image_pixels;
 
     data_output << quality  << " " << psnr << " " << bpp << endl;
+    std::cerr << D << "D: " << quality << " " << psnr << " " << bpp << "\n";
   }
 
   return 0;
@@ -334,28 +350,28 @@ void parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  uint64_t width       {};
-  uint64_t height      {};
-  uint32_t max_rgb_value {};
-  uint64_t image_count {};
+  uint64_t width                {};
+  uint64_t height               {};
+  uint32_t max_rgb_value        {};
+  uint64_t image_count          {};
 
-  vector<PPM> ppm_data         {};
+  vector<PPM> ppm_data_readonly {};
 
-  ofstream outputs[3] {};
+  ofstream outputs[3]           {};
 
-  vector<thread> threads {};
+  vector<thread> threads        {};
 
-  LfifEncoder<2> encoder2D {};
-  LfifEncoder<3> encoder3D {};
-  LfifEncoder<4> encoder4D {};
+  LfifEncoder<2> encoder2D      {};
+  LfifEncoder<3> encoder3D      {};
+  LfifEncoder<4> encoder4D      {};
 
   parse_args(argc, argv);
 
-  if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data) < 0) {
+  if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data_readonly) < 0) {
     return 2;
   }
 
-  image_count = ppm_data.size();
+  image_count = ppm_data_readonly.size();
 
   size_t block_size = sqrt(image_count);
 
@@ -365,6 +381,12 @@ int main(int argc, char *argv[]) {
   }
 
   if (output_file_2D) {
+    vector<PPM> ppm_data_readwrite {};
+
+    if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data_readwrite) < 0) {
+      return 2;
+    }
+
     if (!block_size_2D[0] || !block_size_2D[1]) {
       block_size_2D = { block_size, block_size };
     }
@@ -393,15 +415,21 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder2D, ppm_data, quality_interval, outputs[0]);
+        doTest(encoder2D, ppm_data_readonly, ppm_data_readwrite, quality_interval, outputs[0]);
       }
       else {
-        threads.emplace_back(doTest<2>, ref(encoder2D), ref(ppm_data), ref(quality_interval), ref(outputs[0]));
+        threads.emplace_back(doTest<2>, ref(encoder2D), ref(ppm_data_readonly), ref(ppm_data_readwrite), ref(quality_interval), ref(outputs[0]));
       }
     }
   }
 
   if (output_file_3D) {
+    vector<PPM> ppm_data_readwrite {};
+
+    if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data_readwrite) < 0) {
+      return 2;
+    }
+
     if (!block_size_3D[0] || !block_size_3D[1] || !block_size_3D[2]) {
       block_size_3D = { block_size, block_size, block_size };
     }
@@ -431,15 +459,21 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder3D, ppm_data, quality_interval, outputs[1]);
+        doTest(encoder3D, ppm_data_readonly, ppm_data_readwrite, quality_interval, outputs[1]);
       }
       else {
-        threads.emplace_back(doTest<3>, ref(encoder3D), ref(ppm_data), ref(quality_interval), ref(outputs[1]));
+        threads.emplace_back(doTest<3>, ref(encoder3D), ref(ppm_data_readonly), ref(ppm_data_readwrite), ref(quality_interval), ref(outputs[1]));
       }
     }
   }
 
   if (output_file_4D) {
+    vector<PPM> ppm_data_readwrite {};
+
+    if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data_readwrite) < 0) {
+      return 2;
+    }
+
     if (!block_size_4D[0] || !block_size_4D[1] || !block_size_4D[2] || !block_size_4D[3]) {
       block_size_4D = { block_size, block_size, block_size, block_size };
     }
@@ -475,10 +509,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (nothreads) {
-        doTest(encoder4D, ppm_data, quality_interval, outputs[2]);
+        doTest(encoder4D, ppm_data_readonly, ppm_data_readwrite, quality_interval, outputs[2]);
       }
       else {
-        threads.emplace_back(doTest<4>, ref(encoder4D), ref(ppm_data), ref(quality_interval), ref(outputs[2]));
+        threads.emplace_back(doTest<4>, ref(encoder4D), ref(ppm_data_readonly), ref(ppm_data_readwrite), ref(quality_interval), ref(outputs[2]));
       }
     }
   }
@@ -486,8 +520,6 @@ int main(int argc, char *argv[]) {
   for (auto &thread: threads) {
     thread.join();
   }
-
-  unmapPPMs(ppm_data);
 
   return 0;
 }

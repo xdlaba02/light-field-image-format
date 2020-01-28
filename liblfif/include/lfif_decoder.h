@@ -12,6 +12,7 @@
 #include "block_compress_chain.h"
 #include "block_decompress_chain.h"
 #include "bitstream.h"
+#include "colorspace.h"
 
 #include <cstdint>
 #include <istream>
@@ -28,10 +29,7 @@ struct LfifDecoder {
   std::array<uint64_t, D + 1> img_dims; /**< @brief Dimensions of a decoded image + image count.*/
 
   std::array<uint64_t, D> img_dims_unaligned;
-  std::array<uint64_t, D> img_dims_aligned;
-
   std::array<uint64_t, D + 1> img_stride_unaligned;
-  std::array<uint64_t, D + 1> img_stride_aligned;
 
   std::array<size_t, D>     block_dims; /**< @brief Dimensions of an encoded image in blocks. The multiple of all values should be equal to number of blocks in encoded image.*/
   std::array<size_t, D + 1> block_stride;
@@ -126,7 +124,6 @@ void initDecoder(LfifDecoder<D> &dec) {
   dec.runlength.resize(dec.block_size);
 
   dec.img_stride_unaligned[0] = 1;
-  dec.img_stride_aligned[0]   = 1;
   dec.block_stride[0]         = 1;
 
   for (size_t i = 0; i < D; i++) {
@@ -135,9 +132,6 @@ void initDecoder(LfifDecoder<D> &dec) {
 
     dec.img_dims_unaligned[i]       = dec.img_dims[i];
     dec.img_stride_unaligned[i + 1] = dec.img_stride_unaligned[i] * dec.img_dims_unaligned[i];
-
-    dec.img_dims_aligned[i]       = ceil(dec.block_dims[i] * dec.block_size[i]);
-    dec.img_stride_aligned[i + 1] = dec.img_stride_aligned[i] * dec.img_dims_aligned[i];
   }
 
   dec.huffman_decoders_ptr[0] = dec.huffman_decoder[0];
@@ -210,21 +204,17 @@ void decodeScanHuffman(LfifDecoder<D> &dec, std::istream &input, F &&output) {
 * @param input Input stream from which the image will be decoded.
 * @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
 */
-template<size_t D, typename F>
-void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, F &&output) {
+template<size_t D, typename IF, typename OF>
+void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &&pusher) {
   std::vector<std::vector<size_t>>        scan_table(num_diagonals<D>(dec.block_size));
   std::array<CABACContextsDIAGONAL<D>, 2> contexts         {CABACContextsDIAGONAL<D>(dec.block_size), CABACContextsDIAGONAL<D>(dec.block_size)};
   IBitstream                              bitstream        {};
   CABACDecoder                            cabac            {};
   size_t                                  threshold        {};
 
-  std::array<DynamicBlock<INPUTUNIT, D>, 3> decoded          {};
-  DynamicBlock<INPUTUNIT, D>                prediction_block {};
+  DynamicBlock<INPUTUNIT, D>              prediction_block {};
 
   if (dec.use_prediction) {
-    decoded[0].resize(dec.img_dims_aligned);
-    decoded[1].resize(dec.img_dims_aligned);
-    decoded[2].resize(dec.img_dims_aligned);
     prediction_block.resize(dec.block_size);
   }
 
@@ -242,32 +232,15 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, F &&output) {
   bitstream.open(&input);
   cabac.init(bitstream);
 
-  auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.current_block[pos];
-  };
-
-  auto inputFP = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.output_block[pos];
-  };
-
   for (size_t img = 0; img < dec.img_dims[D]; img++) {
-    auto outputF = [&](const std::array<size_t, D> &img_pos, const auto &value) {
-      size_t img_index {};
-
-      for (size_t i { 0 }; i < D; i++) {
-        img_index += img_pos[i] * dec.img_stride_unaligned[i];
-      }
-
-      img_index += img * dec.img_stride_unaligned[D];
-
-      output(img_index, value);
-    };
-
     iterate_dimensions<D>(dec.block_dims, [&](const std::array<size_t, D> &block) {
+      bool any_block_available {};
       bool previous_block_available[D] {};
       for (size_t i { 0 }; i < D; i++) {
         if (block[i]) {
           previous_block_available[i] = true;
+          any_block_available = true;
+
         }
         else {
           previous_block_available[i] = false;
@@ -277,7 +250,11 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, F &&output) {
       uint64_t prediction_type {};
       for (size_t channel = 0; channel < 3; channel++) {
 
-        auto predInputF = [&](std::array<int64_t, D> &block_pos) {
+        auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
+          if (!any_block_available) {
+            return 0;
+          }
+
           for (size_t i { 1 }; i < D; i++) {
             if (block_pos[i] >= static_cast<int64_t>(dec.block_size[i])) {
               block_pos[i] = dec.block_size[i] - 1;
@@ -311,25 +288,29 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, F &&output) {
             }
           }
 
-          std::array<size_t, D> img_pos {};
+          std::array<size_t, D + 1> img_pos {};
           for (size_t i { 0 }; i < D; i++) {
             img_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
 
-            if (img_pos[i] >= dec.img_dims_aligned[i]) {
-              img_pos[i] = dec.img_dims_aligned[i] - 1;
+            if (img_pos[i] >= dec.img_dims_unaligned[i]) {
+              img_pos[i] = dec.img_dims_unaligned[i] - 1;
             }
           }
+          img_pos[D] = img;
 
-          return decoded[channel][img_pos];
+          return static_cast<INPUTUNIT>(puller(make_index<D + 1>(dec.img_dims_unaligned, img_pos), channel)) - pow(2, dec.color_depth - 1);
         };
 
-        auto outputFP = [&](const std::array<size_t, D> &img_pos, const auto &value) {
-          decoded[channel][img_pos] = value;
+        auto predOutputF = [&](const auto &pos, auto value) {
+          value += pow(2, dec.color_depth - 1);
+          value = std::clamp(std::round(value), 0.f, powf(2, dec.color_depth) - 1);
+
+          pusher(img * dec.img_stride_unaligned[D] + make_index<D>(dec.img_dims_unaligned, pos), channel, value);
         };
 
         if (dec.use_prediction) {
           if (channel == 0) {
-            decodePredictionType<D>(prediction_type, cabac, contexts[0]);
+                  decodePredictionType<D>(prediction_type, cabac, contexts[0]);
           }
                                predict<D>(prediction_block,      prediction_type,                predInputF                    );
         }
@@ -339,18 +320,27 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, F &&output) {
 
         if (dec.use_prediction) {
                       disusePrediction<D>(dec.output_block,      prediction_block                                              );
-                              putBlock<D>(dec.block_size.data(), inputFP,             block,                          dec.img_dims_aligned, outputFP);
         }
-
-        for (size_t i = 0; i < get_stride<D>(dec.block_size); i++) {
-          dec.current_block[i][channel] = dec.output_block[i];
-        }
+                              putBlock<D>(dec.block_size.data(), [&](const auto &pos) -> const auto & { return dec.output_block[pos]; }, block, dec.img_dims_unaligned, predOutputF);
       }
-
-      putBlock<D>(dec.block_size.data(), inputF, block, dec.img_dims_unaligned, outputF);
     });
+
   }
 
   cabac.terminate();
+
+  for (size_t i {}; i < dec.img_stride_unaligned[D] * dec.img_dims[D]; i++) {
+    INPUTUNIT  Y = puller(i, 0);
+    INPUTUNIT Cb = puller(i, 1) - pow(2, dec.color_depth - 1);
+    INPUTUNIT Cr = puller(i, 2) - pow(2, dec.color_depth - 1);
+
+    uint16_t R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
+    uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
+    uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
+
+    pusher(i, 0, R);
+    pusher(i, 1, G);
+    pusher(i, 2, B);
+  }
 }
 #endif

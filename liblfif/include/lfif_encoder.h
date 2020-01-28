@@ -14,6 +14,7 @@
 #include "cabac_contexts.h"
 #include "bitstream.h"
 #include "predict.h"
+#include "colorspace.h"
 
 #include <cstdint>
 #include <ostream>
@@ -33,10 +34,7 @@ struct LfifEncoder {
   std::array<uint64_t, D + 1> img_dims; /**< @brief Dimensions of a encoded image + image count. The multiple of all values should be equal to number of pixels in encoded image.*/
 
   std::array<uint64_t, D>     img_dims_unaligned;
-  std::array<uint64_t, D>     img_dims_aligned;
-
   std::array<uint64_t, D + 1> img_stride_unaligned;
-  std::array<uint64_t, D + 1> img_stride_aligned;
 
   std::array<size_t, D>       block_dims; /**< @brief Dimensions of an encoded image in blocks. The multiple of all values should be equal to number of blocks in encoded image.*/
   std::array<size_t, D + 1>   block_stride;
@@ -87,7 +85,6 @@ void initEncoder(LfifEncoder<D> &enc) {
   }
 
   enc.img_stride_unaligned[0] = 1;
-  enc.img_stride_aligned[0]   = 1;
   enc.block_stride[0]         = 1;
 
   for (size_t i = 0; i < D; i++) {
@@ -96,9 +93,6 @@ void initEncoder(LfifEncoder<D> &enc) {
 
     enc.img_dims_unaligned[i]       = enc.img_dims[i];
     enc.img_stride_unaligned[i + 1] = enc.img_stride_unaligned[i] * enc.img_dims_unaligned[i];
-
-    enc.img_dims_aligned[i]       = ceil(enc.block_dims[i] * enc.block_size[i]);
-    enc.img_stride_aligned[i + 1] = enc.img_stride_aligned[i] * enc.img_dims_aligned[i];
   }
 
   enc.quant_tables[0]     = &enc.quant_table[0];
@@ -236,14 +230,26 @@ void performScan(LfifEncoder<D> &enc, INPUTF &&input, PERFF &&func) {
 * @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
 */
 template<size_t D, typename F>
-void referenceScan(LfifEncoder<D> &enc, F &&input) {
+void referenceScan(LfifEncoder<D> &enc, F &&puller) {
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
     forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
                           quantize<D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
                addToReferenceBlock<D>(enc.quantized_block, *enc.reference_blocks[channel]);
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 }
 
 /**
@@ -297,7 +303,7 @@ int constructTraversalTables(LfifEncoder<D> &enc, const std::string &table_type)
 * @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
 */
 template<size_t D, typename F>
-void huffmanScan(LfifEncoder<D> &enc, F &&input) {
+void huffmanScan(LfifEncoder<D> &enc, F &&puller) {
   QDATAUNIT previous_DC [3] {};
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
@@ -309,7 +315,19 @@ void huffmanScan(LfifEncoder<D> &enc, F &&input) {
                  huffmanAddWeights<D>(enc.runlength,        enc.huffman_weights[channel], enc.class_bits);
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 }
 
 /**
@@ -375,7 +393,7 @@ void writeHeader(LfifEncoder<D> &enc, std::ostream &output) {
 * @param output Output stream to which the image shall be encoded.
 */
 template<size_t D, typename F>
-void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&input, std::ostream &output) {
+void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &output) {
   QDATAUNIT previous_DC [3] {};
   OBitstream bitstream      {};
 
@@ -390,7 +408,19 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&input, std::ostream &o
            encodeHuffman_RUNLENGTH<D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 
   bitstream.flush();
 }
@@ -401,8 +431,8 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&input, std::ostream &o
 * @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
 * @param output Output stream to which the image shall be encoded.
 */
-template<size_t D, typename F>
-void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &output) {
+template<size_t D, typename IF, typename OF>
+void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std::ostream &output) {
   std::vector<std::vector<size_t>>         scan_table(num_diagonals<D>(enc.block_size));
 
   std::array<CABACContextsDIAGONAL<D>,  2> contexts   { CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size) };
@@ -410,13 +440,9 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
   CABACEncoder                             cabac      {};
   size_t                                   threshold  {};
 
-  std::array<DynamicBlock<INPUTUNIT, D>, 3> decoded          {};
   DynamicBlock<INPUTUNIT, D>                prediction_block {};
 
   if (enc.use_prediction) {
-    decoded[0].resize(enc.img_dims_aligned);
-    decoded[1].resize(enc.img_dims_aligned);
-    decoded[2].resize(enc.img_dims_aligned);
     prediction_block.resize(enc.block_size);
   }
 
@@ -436,26 +462,24 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
 
   uint64_t prediction_type {};
 
-  auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return enc.input_block[pos];
-  };
-
-  auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &block) {
-    auto outputF = [&](const std::array<size_t, D> &pos, const auto &value) {
-      decoded[channel][pos] = value;
-    };
-
+  auto perform = [&](size_t image, size_t channel, const std::array<size_t, D> &block) {
+    bool any_block_available {};
     bool previous_block_available[D] {};
     for (size_t i { 0 }; i < D; i++) {
       if (block[i]) {
         previous_block_available[i] = true;
+        any_block_available = true;
       }
       else {
         previous_block_available[i] = false;
       }
     }
 
-    auto predInputF = [&](std::array<int64_t, D> &block_pos) {
+    auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
+      if (!any_block_available) {
+        return 0;
+      }
+
       for (size_t i { 1 }; i < D; i++) {
         if (block_pos[i] >= static_cast<int64_t>(enc.block_size[i])) {
           block_pos[i] = enc.block_size[i] - 1;
@@ -489,16 +513,24 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
         }
       }
 
-      std::array<size_t, D> img_pos {};
+      std::array<size_t, D + 1> img_pos {};
       for (size_t i { 0 }; i < D; i++) {
         img_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
 
-        if (img_pos[i] >= enc.img_dims_aligned[i]) {
-          img_pos[i] = enc.img_dims_aligned[i] - 1;
+        if (img_pos[i] >= enc.img_dims_unaligned[i]) {
+          img_pos[i] = enc.img_dims_unaligned[i] - 1;
         }
       }
+      img_pos[D] = image;
 
-      return decoded[channel][img_pos];
+      return static_cast<INPUTUNIT>(puller(make_index<D + 1>(enc.img_dims_unaligned, img_pos), channel)) - pow(2, enc.color_depth - 1);
+    };
+
+    auto predOutputF = [&](const auto &pos, auto value) {
+      value += pow(2, enc.color_depth - 1);
+      value = std::clamp(std::round(value), 0.f, powf(2, enc.color_depth) - 1);
+
+      pusher(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, pos), channel, value);
     };
 
     if (enc.use_prediction) {
@@ -545,20 +577,32 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, F &&input, std::ostream &outp
                           dequantize<D>(enc.quantized_block,   enc.dct_block,       *enc.quant_tables[channel]                            );
       inverseDiscreteCosineTransform<D>(enc.dct_block,         enc.input_block                                                            );
                     disusePrediction<D>(enc.input_block,       prediction_block                                                           );
-                            putBlock<D>(enc.block_size.data(), inputF,               block,                  enc.img_dims_aligned, outputF);
+                            putBlock<D>(enc.block_size.data(), [&](const auto &pos) -> const auto & { return enc.input_block[pos]; }, block, enc.img_dims_unaligned, predOutputF);
     }
 
-                encodeCABAC_DIAGONAL<D>(enc.quantized_block,   cabac,                contexts[channel != 0], threshold, scan_table        );
+                encodeCABAC_DIAGONAL<D>(enc.quantized_block,   cabac, contexts[channel != 0], threshold, scan_table        );
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY (R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 
   cabac.terminate();
   bitstream.flush();
 }
 
 template<size_t D, typename F>
-void outputScanCABAC_RUNLENGTH(LfifEncoder<D> &enc, F &&input, std::ostream &output) {
+void outputScanCABAC_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &output) {
   std::array<CABACContextsRUNLENGTH<D>, 3> contexts    {};
   std::array<QDATAUNIT,                 3> previous_DC {};
   OBitstream                               bitstream   {};
@@ -576,14 +620,26 @@ void outputScanCABAC_RUNLENGTH(LfifEncoder<D> &enc, F &&input, std::ostream &out
              encodeCABAC_RUNLENGTH<D>(enc.runlength,        cabac,                contexts[channel], enc.class_bits);
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 
   cabac.terminate();
   bitstream.flush();
 }
 
 template<size_t D, typename F>
-void outputScanCABAC_JPEG(LfifEncoder<D> &enc, F &&input, std::ostream &output) {
+void outputScanCABAC_JPEG(LfifEncoder<D> &enc, F &&puller, std::ostream &output) {
   std::array<CABACContextsJPEG<D>, 3> contexts    { enc.amp_bits, enc.amp_bits, enc.amp_bits };
   std::array<QDATAUNIT,            3> previous_DC {};
   std::array<QDATAUNIT,            3> previous_DC_diff {};
@@ -601,14 +657,26 @@ void outputScanCABAC_JPEG(LfifEncoder<D> &enc, F &&input, std::ostream &output) 
                   encodeCABAC_JPEG<D>(enc.quantized_block,  cabac,                contexts[channel], previous_DC_diff[channel], enc.amp_bits);
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 
   cabac.terminate();
   bitstream.flush();
 }
 
 template<size_t D, typename F>
-void outputScanCABAC_H264(LfifEncoder<D> &enc, F &&input, std::ostream &output) {
+void outputScanCABAC_H264(LfifEncoder<D> &enc, F &&puller, std::ostream &output) {
   std::array<CABACContextsH264<D>, 3> contexts    {};
   std::array<QDATAUNIT,            3> previous_DC {};
   OBitstream                          bitstream   {};
@@ -625,7 +693,19 @@ void outputScanCABAC_H264(LfifEncoder<D> &enc, F &&input, std::ostream &output) 
                   encodeCABAC_H264<D>(enc.quantized_block,  cabac,                contexts[channel]);
   };
 
-  performScan(enc, input, perform);
+  auto inputF = [&](size_t index) -> INPUTTRIPLET {
+    uint16_t R = puller(index, 0);
+    uint16_t G = puller(index, 1);
+    uint16_t B = puller(index, 2);
+
+    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
+  };
+
+  performScan(enc, inputF, perform);
 
   cabac.terminate();
   bitstream.flush();

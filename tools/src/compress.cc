@@ -5,8 +5,6 @@
 
 #include "compress.h"
 
-#include <getopt.h>
-
 #include <iostream>
 
 using namespace std;
@@ -16,11 +14,17 @@ void print_usage(const char *argv0) {
   cerr << argv0 << " -i <file-mask> -o <file> -q <quality> {-h} {}" << endl;
 }
 
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman) {
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman, bool &predict) {
   const char *arg_quality {};
 
+  input_file_mask  = nullptr;
+  output_file_name = nullptr;
+  quality          = 0;
+  huffman          = false;
+  predict          = false;
+
   char opt;
-  while ((opt = getopt(argc, argv, "i:o:q:h")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:q:hp")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -44,7 +48,15 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
         break;
 
       case 'h':
-        huffman = true;
+        if (!huffman) {
+          huffman = true;
+        }
+        continue;
+
+      case 'p':
+        if (!predict) {
+          predict = true;
+        }
         continue;
 
       default:

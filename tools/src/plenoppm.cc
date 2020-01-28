@@ -45,16 +45,24 @@ int mapPPMs(const char *input_file_mask, uint64_t &width, uint64_t &height, uint
     height      = ppm.height();
     color_depth = ppm.color_depth();
 
-    data.push_back(ppm);
+    data.push_back(std::move(ppm));
   }
   return 0;
 }
 
-void unmapPPMs(std::vector<PPM> &data) {
-  for (auto &ppm: data) {
-    ppm.munmapPPM();
+int createPPMs(const char *output_file_mask, uint64_t width, uint64_t height, uint32_t color_depth, std::vector<PPM> &data) {
+  FileMask file_name(output_file_mask);
+
+  for (size_t image {}; image < data.size(); image++) {
+    if (create_directory(file_name[image].c_str())) {
+      return -1;
+    }
+
+    if (data[image].createPPM(file_name[image].c_str(), width, height, color_depth) < 0) {
+      return -2;
+    }
   }
-  data.resize(0);
+  return 0;
 }
 
 bool checkPPMheaders(const char *input_file_mask, uint64_t &width, uint64_t &height, uint32_t &color_depth, uint64_t &image_count) {

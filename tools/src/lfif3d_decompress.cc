@@ -7,7 +7,6 @@
 #include "plenoppm.h"
 
 #include <lfif_decoder.h>
-#include <colorspace.h>
 
 #include <cmath>
 
@@ -20,12 +19,15 @@ int main(int argc, char *argv[]) {
   const char *input_file_name  {};
   const char *output_file_mask {};
 
-  vector<uint8_t> rgb_data {};
+  vector<PPM> ppm_data         {};
 
-  LfifDecoder<3> decoder {};
-  ifstream       input   {};
+  uint64_t width               {};
+  uint64_t height              {};
+  uint64_t image_count         {};
+  uint32_t max_rgb_value       {};
 
-  uint16_t max_rgb_value {};
+  ifstream        input        {};
+  LfifDecoder<3> decoder       {};
 
   if (!parse_args(argc, argv, input_file_name, output_file_mask)) {
     return 1;
@@ -42,46 +44,52 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
+  width         = decoder.img_dims[0];
+  height        = decoder.img_dims[1];
+  image_count   = decoder.img_dims[2] * decoder.img_dims[3];
   max_rgb_value = pow(2, decoder.color_depth) - 1;
+
+  ppm_data.resize(image_count);
+
+  if (createPPMs(output_file_mask, width, height, max_rgb_value, ppm_data) < 0) {
+    return 3;
+  }
 
   initDecoder(decoder);
 
-  size_t output_size = decoder.img_stride_unaligned[3] * decoder.img_dims[3] * 3;
-  output_size *= (decoder.color_depth > 8) ? 2 : 1;
-  rgb_data.resize(output_size);
+  auto puller = [&](size_t index, size_t channel) -> uint16_t {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
 
-  auto outputF0 = [&](size_t channel, size_t index, RGBUNIT value) {
-    if (decoder.color_depth > 8) {
-      reinterpret_cast<uint16_t *>(rgb_data.data())[index * 3 + channel] = value;
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      return ptr[img_index * 3 + channel];
     }
     else {
-      reinterpret_cast<uint8_t *>(rgb_data.data())[index * 3 + channel] = value;
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      return ptr[img_index * 3 + channel];
     }
   };
 
-  auto outputF = [&](size_t index, const INPUTTRIPLET &triplet) {
-    INPUTUNIT  Y = triplet[0] + ((max_rgb_value + 1) / 2);
-    INPUTUNIT Cb = triplet[1];
-    INPUTUNIT Cr = triplet[2];
+  auto pusher = [&](size_t index, size_t channel, uint16_t val) {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
 
-    RGBUNIT R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, max_rgb_value);
-    RGBUNIT G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, max_rgb_value);
-    RGBUNIT B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, max_rgb_value);
-
-    outputF0(0, index, R);
-    outputF0(1, index, G);
-    outputF0(2, index, B);
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + channel] = val;
+    }
   };
 
   if (decoder.use_huffman) {
-    decodeScanHuffman(decoder, input, outputF);
+    //decodeScanHuffman(decoder, input, outputF);
   }
   else {
-    decodeScanCABAC(decoder, input, outputF);
-  }
-
-  if (!savePPMs(output_file_mask, rgb_data.data(), decoder.img_dims[0], decoder.img_dims[1], max_rgb_value, decoder.img_dims[2] * decoder.img_dims[3])) {
-    return 3;
+    decodeScanCABAC(decoder, input, puller, pusher);
   }
 
   return 0;

@@ -34,8 +34,6 @@ tools: $(FOLDERS) \
 			 $(BINDIR)/lfif4d_decompress \
 			 $(BINDIR)/lfif5d_compress \
 			 $(BINDIR)/lfif5d_decompress \
-			 $(BINDIR)/center_compress \
-			 $(BINDIR)/center_decompress \
 			 $(BINDIR)/lf_psnr
 
 benchmarks: $(FOLDERS) \
@@ -67,8 +65,6 @@ $(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(OBJDIR)/compress.o $(LF
 $(BINDIR)/lfif5d_compress: $(OBJDIR)/lfif5d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
-$(BINDIR)/center_compress: $(OBJDIR)/center_compress.o $(OBJDIR)/compress.o $(LFIF)
-	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif2d_decompress: $(OBJDIR)/lfif2d_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
@@ -80,9 +76,6 @@ $(BINDIR)/lfif4d_decompress: $(OBJDIR)/lfif4d_decompress.o $(OBJDIR)/decompress.
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif5d_decompress: $(OBJDIR)/lfif5d_decompress.o $(OBJDIR)/decompress.o $(LFIF)
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/center_decompress: $(OBJDIR)/center_decompress.o $(OBJDIR)/decompress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
 

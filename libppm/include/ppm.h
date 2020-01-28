@@ -15,6 +15,8 @@
 #include <endian.h>
 
 class PPM {
+  bool        m_opened;
+
   uint64_t    m_width;       /**< @brief Image width in pixels.*/
   uint64_t    m_height;      /**< @brief Image height in pixels.*/
   uint32_t    m_color_depth; /**< @brief Maximum RGB value of an image.*/
@@ -25,8 +27,16 @@ class PPM {
   int parseHeader(FILE *ppm);
 
 public:
+  PPM()                       = default;
+  PPM(const PPM &)            = delete;
+  PPM &operator=(const PPM &) = delete;
+
+  PPM(PPM &&);
+  ~PPM();
+
+  int createPPM(const char *file_name, uint64_t width, uint64_t height, uint32_t color_depth);
+
   int mmapPPM(const char *file_name);
-  void munmapPPM();
 
   uint16_t operator[](size_t index) const {
     if (m_color_depth > 255) {

@@ -487,17 +487,74 @@ int PPM::mmapPPM(const char *file_name) {
     return -3;
   }
 
-  m_file = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  m_file = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+  close(fd);
+
   if (m_file == MAP_FAILED) {
-    close(fd);
     return -4;
   }
 
-  close(fd);
+  m_opened = true;
+
   return 0;
 }
 
-void PPM::munmapPPM() {
-  size_t file_size = m_width * m_height * (m_color_depth > 255 ? 2 : 1);
-  munmap(m_file, file_size);
+PPM::PPM(PPM &&other): m_opened{other.m_opened}, m_width{other.m_width}, m_height{other.m_height}, m_color_depth{other.m_color_depth}, m_file{other.m_file}, m_header_offset{other.m_header_offset} {
+  other.m_opened        = false;
+  other.m_width         = 0;
+  other.m_height        = 0;
+  other.m_color_depth   = 0;
+  other.m_file          = nullptr;
+  other.m_header_offset = 0;
+}
+
+#include <iostream>
+
+PPM::~PPM() {
+  if (m_opened) {
+    size_t file_size = m_width * m_height * (m_color_depth > 255 ? 2 : 1);
+    if (munmap(m_file, file_size) < 0) {
+      std::cerr << "munmap fail\n";
+    }
+  }
+}
+
+int PPM::createPPM(const char *file_name, uint64_t width, uint64_t height, uint32_t color_depth) {
+  FILE *ppm = fopen(file_name, "wb");
+  if (!ppm) {
+    return -1;
+  }
+
+  if (fprintf(ppm, "P6\n%lu\n%lu\n%u\n", width, height, color_depth) < 0) {
+    fclose(ppm);
+    return -1;
+  }
+
+  m_header_offset = ftell(ppm);
+  fclose(ppm);
+
+  size_t file_size = width * height * (color_depth > 255 ? 2 : 1) * 3;
+
+  int fd = open(file_name, O_RDWR);
+  if (fd < 0) {
+    return -3;
+  }
+
+  if (ftruncate(fd, file_size + m_header_offset) < 0) {
+    return -4;
+  }
+
+  m_file = mmap(NULL, file_size + m_header_offset, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  close(fd);
+
+  if (m_file == MAP_FAILED) {
+    return -5;
+  }
+
+  m_opened      = true;
+  m_width       = width;
+  m_height      = height;
+  m_color_depth = color_depth;
+
+  return 0;
 }
