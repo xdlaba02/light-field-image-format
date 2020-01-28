@@ -102,6 +102,12 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
   };
 
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
+    for (size_t i {}; i < encoder.img_stride_unaligned[D] * encoder.img_dims[D]; i++) {
+      pusher(i, 0, original_puller(i, 0));
+      pusher(i, 1, original_puller(i, 1));
+      pusher(i, 2, original_puller(i, 2));
+    }
+
     mse = 0;
     stringstream io {};
 
@@ -145,7 +151,6 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
       mse += (original_puller(i, 1) - puller(i, 1)) * (original_puller(i, 1) - puller(i, 1));
       mse += (original_puller(i, 2) - puller(i, 2)) * (original_puller(i, 2) - puller(i, 2));
     }
-
 
     double psnr = PSNR(mse / (image_pixels * 3), max_rgb_value);
     double bpp = compressed_image_size * 8.0 / image_pixels;

@@ -301,7 +301,7 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
           return static_cast<INPUTUNIT>(puller(make_index<D + 1>(dec.img_dims_unaligned, img_pos), channel)) - pow(2, dec.color_depth - 1);
         };
 
-        auto predOutputF = [&](const auto &pos, auto value) {
+        auto outputF = [&](const auto &pos, auto value) {
           value += pow(2, dec.color_depth - 1);
           value = std::clamp(std::round(value), 0.f, powf(2, dec.color_depth) - 1);
 
@@ -321,7 +321,7 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
         if (dec.use_prediction) {
                       disusePrediction<D>(dec.output_block,      prediction_block                                              );
         }
-                              putBlock<D>(dec.block_size.data(), [&](const auto &pos) -> const auto & { return dec.output_block[pos]; }, block, dec.img_dims_unaligned, predOutputF);
+                              putBlock<D>(dec.block_size.data(), [&](const auto &pos) -> const auto & { return dec.output_block[pos]; }, block, dec.img_dims_unaligned, outputF);
       }
     });
 
