@@ -34,7 +34,7 @@ tools: $(FOLDERS) \
 			 $(BINDIR)/lfif4d_decompress \
 			 $(BINDIR)/lfif5d_compress \
 			 $(BINDIR)/lfif5d_decompress \
-			 $(BINDIR)/lf_psnr
+			 $(BINDIR)/lf_stats
 
 benchmarks: $(FOLDERS) \
 						$(BINDIR)/lfifbench \
@@ -79,7 +79,7 @@ $(BINDIR)/lfif5d_decompress: $(OBJDIR)/lfif5d_decompress.o $(OBJDIR)/decompress.
 	$(CC) -lm $^ -o $@
 
 
-$(BINDIR)/lf_psnr: $(OBJDIR)/lf_psnr.o $(PLENO)
+$(BINDIR)/lf_stats: $(OBJDIR)/lf_stats.o $(PLENO)
 	$(CC) -lm $^ -o $@
 
 

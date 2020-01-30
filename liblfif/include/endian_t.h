@@ -6,10 +6,13 @@
 * @brief Functions which performs endian conversions.
 */
 
-#include <algorithm>
-
 #ifndef ENDIAN_T_H
 #define ENDIAN_T_H
+
+#include <algorithm>
+#include <istream>
+#include <ostream>
+
 
 /**
 * @brief  Function which performs endian swap.
