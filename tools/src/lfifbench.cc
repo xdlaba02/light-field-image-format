@@ -55,44 +55,45 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
   size_t compressed_image_size {};
   double mse                   {};
 
+  size_t width  {encoder.img_dims[0]};
+  size_t height {encoder.img_dims[1]};
+
   uint16_t max_rgb_value = pow(2, encoder.color_depth) - 1;
 
-  image_pixels = original.size() * encoder.img_dims[0] * encoder.img_dims[1];
+  image_pixels = original.size() * width * height;
 
-  auto original_puller = [&](size_t index, size_t channel) -> uint16_t {
-    size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
-    size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
+  auto inputF = [&](size_t index) -> uint16_t {
+    size_t img       = index / (width * height * 3);
+    size_t img_index = index % (width * height * 3);
 
     if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(original[img].data());
-      return ptr[img_index * 3 + channel];
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(read_write[img].data());
+      return ptr[img_index];
     }
     else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(original[img].data());
-      return ptr[img_index * 3 + channel];
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(read_write[img].data());
+      return ptr[img_index];
+    }
+  };
+
+  auto outputF = [&](size_t index, uint16_t value) {
+    size_t img       = index / (width * height * 3);
+    size_t img_index = index % (width * height * 3);
+
+    if (max_rgb_value > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(read_write[img].data());
+      ptr[img_index] = value;
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(read_write[img].data());
+      ptr[img_index] = value;
     }
   };
 
   auto puller = [&](size_t index) -> std::array<INPUTUNIT, 3> {
-    size_t img       = index / (width * height);
-    size_t img_index = index % (width * height);
-
-    uint16_t R {};
-    uint16_t G {};
-    uint16_t B {};
-
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      R = ptr[img_index * 3 + 0];
-      G = ptr[img_index * 3 + 1];
-      B = ptr[img_index * 3 + 2];
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      R = ptr[img_index * 3 + 0];
-      G = ptr[img_index * 3 + 1];
-      B = ptr[img_index * 3 + 2];
-    }
+    uint16_t R = inputF(index * 3 + 0);
+    uint16_t G = inputF(index * 3 + 1);
+    uint16_t B = inputF(index * 3 + 2);
 
     INPUTUNIT Y  = YCbCr::RGBToY(R, G, B) - pow(2, encoder.color_depth - 1);
     INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
@@ -102,36 +103,36 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
   };
 
   auto pusher = [&](size_t index, const std::array<INPUTUNIT, 3> &values) {
-    size_t img       = index / (width * height);
-    size_t img_index = index % (width * height);
-
     INPUTUNIT Y  = values[0] + pow(2, encoder.color_depth - 1);
     INPUTUNIT Cb = values[1];
     INPUTUNIT Cr = values[2];
 
-    uint16_t R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
-    uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
-    uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
+    uint16_t R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, max_rgb_value);
+    uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, max_rgb_value);
+    uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, max_rgb_value);
+
+    outputF(index * 3 + 0, R);
+    outputF(index * 3 + 1, G);
+    outputF(index * 3 + 2, B);
+  };
+
+  auto originalInputF = [&](size_t index) -> uint16_t {
+    size_t img       = index / (width * height * 3);
+    size_t img_index = index % (width * height * 3);
 
     if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      ptr[img_index * 3 + 0] = R;
-      ptr[img_index * 3 + 1] = G;
-      ptr[img_index * 3 + 2] = B;
+      const BigEndian<uint16_t> *ptr = static_cast<const BigEndian<uint16_t> *>(original[img].data());
+      return ptr[img_index];
     }
     else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      ptr[img_index * 3 + 0] = R;
-      ptr[img_index * 3 + 1] = G;
-      ptr[img_index * 3 + 2] = B;
+      const BigEndian<uint8_t> *ptr = static_cast<const BigEndian<uint8_t> *>(original[img].data());
+      return ptr[img_index];
     }
   };
 
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
-    for (size_t i {}; i < encoder.img_stride_unaligned[D] * encoder.img_dims[D]; i++) {
-      pusher(i, 0, original_puller(i, 0));
-      pusher(i, 1, original_puller(i, 1));
-      pusher(i, 2, original_puller(i, 2));
+    for (size_t i {}; i < image_pixels * 3; i++) {
+      outputF(i, originalInputF(i));
     }
 
     mse = 0;
@@ -142,10 +143,10 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
 
     if (huffman) {
       if (std::string { zztabletype } == "REFERENCE") {
-        referenceScan(encoder, inputF);
+        referenceScan(encoder, puller);
       }
       constructTraversalTables(encoder, zztabletype);
-      huffmanScan(encoder, inputF);
+      huffmanScan(encoder, puller);
       constructHuffmanTables(encoder);
       writeHeader(encoder, io);
       outputScanHuffman_RUNLENGTH(encoder, puller, io);
@@ -157,10 +158,8 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
 
     compressed_image_size = io.tellp();
 
-    for (size_t i {}; i < encoder.img_stride_unaligned[D] * encoder.img_dims[D]; i++) {
-      pusher(i, 0, original_puller(i, 0));
-      pusher(i, 1, original_puller(i, 1));
-      pusher(i, 2, original_puller(i, 2));
+    for (size_t i {}; i < image_pixels * 3; i++) {
+      outputF(i, originalInputF(i));
     }
 
     if (readHeader(decoder, io)) {
@@ -172,10 +171,8 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
 
     decodeScanCABAC(decoder, io, puller, pusher);
 
-    for (size_t i {}; i < encoder.img_stride_unaligned[D] * encoder.img_dims[D]; i++) {
-      mse += (original_puller(i, 0) - puller(i, 0)) * (original_puller(i, 0) - puller(i, 0));
-      mse += (original_puller(i, 1) - puller(i, 1)) * (original_puller(i, 1) - puller(i, 1));
-      mse += (original_puller(i, 2) - puller(i, 2)) * (original_puller(i, 2) - puller(i, 2));
+    for (size_t i {}; i < image_pixels * 3; i++) {
+      mse += (originalInputF(i) - inputF(i)) * (originalInputF(i) - inputF(i));
     }
 
     double psnr = PSNR(mse / (image_pixels * 3), max_rgb_value);

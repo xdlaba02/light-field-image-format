@@ -234,19 +234,7 @@ void referenceScan(LfifEncoder<D> &enc, F &&puller) {
                addToReferenceBlock<D>(enc.quantized_block, *enc.reference_blocks[channel]);
   };
 
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    uint16_t R = puller(index, 0);
-    uint16_t G = puller(index, 1);
-    uint16_t B = puller(index, 2);
-
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
-
-    return {Y, Cb, Cr};
-  };
-
-  performScan(enc, inputF, perform);
+  performScan(enc, puller, perform);
 }
 
 /**
