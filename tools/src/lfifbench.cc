@@ -51,8 +51,6 @@ double PSNR(double mse, size_t max) {
 template <size_t D>
 int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &read_write, const array<float, 3> &quality_interval, ostream &data_output) {
   size_t image_pixels          {};
-  size_t compressed_image_size {};
-  double mse                   {};
 
   size_t width  {encoder.img_dims[0]};
   size_t height {encoder.img_dims[1]};
@@ -130,12 +128,12 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
   };
 
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
+    stringstream io  {};
+    double       mse {};
+
     for (size_t i {}; i < image_pixels * 3; i++) {
       outputF(i, originalInputF(i));
     }
-
-    mse = 0;
-    stringstream io {};
 
     initEncoder(encoder);
     constructQuantizationTables(encoder, qtabletype, quality);
@@ -155,7 +153,7 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
       outputScanCABAC_DIAGONAL(encoder, puller, pusher, io);
     }
 
-    compressed_image_size = io.tellp();
+    size_t compressed_image_size = io.tellp();
 
     for (size_t i {}; i < image_pixels * 3; i++) {
       mse += (originalInputF(i) - inputF(i)) * (originalInputF(i) - inputF(i));
