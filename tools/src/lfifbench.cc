@@ -50,7 +50,6 @@ double PSNR(double mse, size_t max) {
 
 template <size_t D>
 int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &read_write, const array<float, 3> &quality_interval, ostream &data_output) {
-  LfifDecoder<D> decoder       {};
   size_t image_pixels          {};
   size_t compressed_image_size {};
   double mse                   {};
@@ -157,19 +156,6 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
     }
 
     compressed_image_size = io.tellp();
-
-    for (size_t i {}; i < image_pixels * 3; i++) {
-      outputF(i, originalInputF(i));
-    }
-
-    if (readHeader(decoder, io)) {
-      cerr << "ERROR: IMAGE HEADER INVALID\n";
-      return 2;
-    }
-
-    initDecoder(decoder);
-
-    decodeScanCABAC(decoder, io, puller, pusher);
 
     for (size_t i {}; i < image_pixels * 3; i++) {
       mse += (originalInputF(i) - inputF(i)) * (originalInputF(i) - inputF(i));

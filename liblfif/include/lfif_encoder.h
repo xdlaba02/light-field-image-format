@@ -515,28 +515,24 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
                                    encodePredictionType<D>(prediction_type, cabac, contexts[0]);
                                     printPredictionType<D>(prediction_type);
           }
-                                 predict<D>(prediction_block,      prediction_type,      predInputF                    );
-                         applyPrediction<D>(enc.input_block,       prediction_block                                    );
+                                 predict<D>(prediction_block,    prediction_type,      predInputF                    );
+                         applyPrediction<D>(enc.input_block,     prediction_block                                    );
         }
-          forwardDiscreteCosineTransform<D>(enc.input_block,       enc.dct_block                                       );
-                                quantize<D>(enc.dct_block,         enc.quantized_block, *enc.quant_tables[channel]     );
+          forwardDiscreteCosineTransform<D>(enc.input_block,     enc.dct_block                                       );
+                                quantize<D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]     );
+                              dequantize<D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]     );
+          inverseDiscreteCosineTransform<D>(enc.dct_block,       enc.input_block                                     );
         if (enc.use_prediction) {
-                              dequantize<D>(enc.quantized_block,   enc.dct_block,       *enc.quant_tables[channel]     );
-          inverseDiscreteCosineTransform<D>(enc.dct_block,         enc.input_block                                     );
-                        disusePrediction<D>(enc.input_block,       prediction_block                                    );
+                        disusePrediction<D>(enc.input_block,     prediction_block                                    );
         }
-                    encodeCABAC_DIAGONAL<D>(enc.quantized_block,   cabac, contexts[channel != 0], threshold, scan_table);
+                    encodeCABAC_DIAGONAL<D>(enc.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
 
-        if (enc.use_prediction) {
-          for (size_t i = 0; i < enc.input_block.stride(D); i++) {
-            enc.current_block[i][channel] = enc.input_block[i];
-          }
+        for (size_t i = 0; i < enc.input_block.stride(D); i++) {
+          enc.current_block[i][channel] = enc.input_block[i];
         }
       }
 
-      if (enc.use_prediction) {
-        putBlock<D>(enc.block_size.data(), [&](const auto &pos) { return enc.current_block[pos]; }, block, enc.img_dims_unaligned, [&](const auto &pos, const auto &value) { pusher(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, pos), value); });
-      }
+      putBlock<D>(enc.block_size.data(), [&](const auto &pos) { return enc.current_block[pos]; }, block, enc.img_dims_unaligned, [&](const auto &pos, const auto &value) { pusher(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, pos), value); });
     });
   }
 
