@@ -73,31 +73,57 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
     }
   };
 
-  auto puller = [&](size_t index, size_t channel) -> uint16_t {
-    size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
-    size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
+  auto puller = [&](size_t index) -> std::array<INPUTUNIT, 3> {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
+
+    uint16_t R {};
+    uint16_t G {};
+    uint16_t B {};
 
     if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(read_write[img].data());
-      return ptr[img_index * 3 + channel];
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      R = ptr[img_index * 3 + 0];
+      G = ptr[img_index * 3 + 1];
+      B = ptr[img_index * 3 + 2];
     }
     else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(read_write[img].data());
-      return ptr[img_index * 3 + channel];
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      R = ptr[img_index * 3 + 0];
+      G = ptr[img_index * 3 + 1];
+      B = ptr[img_index * 3 + 2];
     }
+
+    INPUTUNIT Y  = YCbCr::RGBToY(R, G, B) - pow(2, encoder.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
+    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+
+    return {Y, Cb, Cr};
   };
 
-  auto pusher = [&](size_t index, size_t channel, uint16_t val) {
-    size_t img       = index / (encoder.img_dims[0] * encoder.img_dims[1]);
-    size_t img_index = index % (encoder.img_dims[0] * encoder.img_dims[1]);
+  auto pusher = [&](size_t index, const std::array<INPUTUNIT, 3> &values) {
+    size_t img       = index / (width * height);
+    size_t img_index = index % (width * height);
+
+    INPUTUNIT Y  = values[0] + pow(2, encoder.color_depth - 1);
+    INPUTUNIT Cb = values[1];
+    INPUTUNIT Cr = values[2];
+
+    uint16_t R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
+    uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
+    uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
 
     if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(read_write[img].data());
-      ptr[img_index * 3 + channel] = val;
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + 0] = R;
+      ptr[img_index * 3 + 1] = G;
+      ptr[img_index * 3 + 2] = B;
     }
     else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(read_write[img].data());
-      ptr[img_index * 3 + channel] = val;
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
+      ptr[img_index * 3 + 0] = R;
+      ptr[img_index * 3 + 1] = G;
+      ptr[img_index * 3 + 2] = B;
     }
   };
 
@@ -115,14 +141,14 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
     constructQuantizationTables(encoder, qtabletype, quality);
 
     if (huffman) {
-      /*if (std::string { zztabletype } == "REFERENCE") {
+      if (std::string { zztabletype } == "REFERENCE") {
         referenceScan(encoder, inputF);
       }
       constructTraversalTables(encoder, zztabletype);
       huffmanScan(encoder, inputF);
       constructHuffmanTables(encoder);
       writeHeader(encoder, io);
-      outputScanHuffman_RUNLENGTH(encoder, inputF, io);*/
+      outputScanHuffman_RUNLENGTH(encoder, puller, io);
     }
     else {
       writeHeader(encoder, io);

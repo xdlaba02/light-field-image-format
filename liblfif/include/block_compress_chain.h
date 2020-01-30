@@ -25,6 +25,8 @@
 #include <cstdint>
 
 #include <algorithm>
+#include <iostream>
+#include <iomanip>
 
 /**
  * @brief Function which performs the forward DCT to the block. Output coefficients are returned in second parameter.
@@ -369,6 +371,31 @@ void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABAC
   encoder.encodeBit(contexts.prediction_ctx[i], 0);
 }
 
+template <size_t D>
+void printPredictionType(uint64_t prediction_type) {
+  if (prediction_type == 0) {
+    std::cerr << "NO PREDICTION\n";
+  }
+  else if (prediction_type == 1) {
+    std::cerr << "DC PREDICTION\n";
+  }
+  else if (prediction_type == 2) {
+    std::cerr << "PLANAR PREDICTION\n";
+  }
+  else if (prediction_type >= 3) {
+    size_t dir = prediction_type - 3;
+    int8_t direction[D] {};
+
+    std::cerr << "[";
+    for (size_t d { 0 }; d < D; d++) {
+      direction[d] = dir % constpow(5, d + 1) / constpow(5, d);
+      direction[d] -= 2;
+      std::cerr << std::setw(3) << std::fixed << (int)direction[d];
+    }
+    std::cerr << " ]\n";
+  }
+}
+
 /**
  * @brief Function encodes block block to stream by CABAC encoder.
  * @param traversed_block The input block of traversed coefficients.
@@ -674,7 +701,6 @@ uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block
 
 template <size_t D, typename F>
 void predict(DynamicBlock<INPUTUNIT, D> &prediction_block, uint64_t prediction_type, F &&inputF) {
-
   if (prediction_type == 1) {
     predict_DC<D>(prediction_block, inputF);
   }

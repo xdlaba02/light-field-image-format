@@ -20,9 +20,6 @@
 #include <ostream>
 #include <sstream>
 
-#include <iostream>
-#include <iomanip>
-
 /**
 * @brief Base structure for encoding an image.
 */
@@ -315,19 +312,7 @@ void huffmanScan(LfifEncoder<D> &enc, F &&puller) {
                  huffmanAddWeights<D>(enc.runlength,        enc.huffman_weights[channel], enc.class_bits);
   };
 
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    uint16_t R = puller(index, 0);
-    uint16_t G = puller(index, 1);
-    uint16_t B = puller(index, 2);
-
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
-
-    return {Y, Cb, Cr};
-  };
-
-  performScan(enc, inputF, perform);
+  performScan(enc, puller, perform);
 }
 
 /**
@@ -408,19 +393,7 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &
            encodeHuffman_RUNLENGTH<D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
   };
 
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    uint16_t R = puller(index, 0);
-    uint16_t G = puller(index, 1);
-    uint16_t B = puller(index, 2);
-
-    INPUTUNIT  Y = YCbCr::RGBToY(R, G, B) - pow(2, enc.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
-
-    return {Y, Cb, Cr};
-  };
-
-  performScan(enc, inputF, perform);
+  performScan(enc, puller, perform);
 
   bitstream.flush();
 }
@@ -433,14 +406,13 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &
 */
 template<size_t D, typename IF, typename OF>
 void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std::ostream &output) {
-  std::vector<std::vector<size_t>>         scan_table(num_diagonals<D>(enc.block_size));
+  std::array<CABACContextsDIAGONAL<D>,  2> contexts         {CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size)};
+  std::vector<std::vector<size_t>>         scan_table       {};
+  OBitstream                               bitstream        {};
+  CABACEncoder                             cabac            {};
+  size_t                                   threshold        {};
 
-  std::array<CABACContextsDIAGONAL<D>,  2> contexts   { CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size) };
-  OBitstream                               bitstream  {};
-  CABACEncoder                             cabac      {};
-  size_t                                   threshold  {};
-
-  DynamicBlock<INPUTUNIT, D>                prediction_block {};
+  DynamicBlock<INPUTUNIT, D>               prediction_block {};
 
   if (enc.use_prediction) {
     prediction_block.resize(enc.block_size);
@@ -448,6 +420,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
   threshold = num_diagonals<D>(enc.block_size) / 2;
 
+  scan_table.resize(num_diagonals<D>(enc.block_size));
   iterate_dimensions<D>(enc.block_size, [&](const auto &pos) {
     size_t diagonal {};
     for (size_t i = 0; i < D; i++) {
@@ -460,142 +433,124 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  uint64_t prediction_type {};
+  auto outputF = [&](const std::array<size_t, D> &block_pos, const auto &value) {
+    enc.current_block[block_pos] = value;
+  };
 
-  auto perform = [&](size_t image, size_t channel, const std::array<size_t, D> &block) {
-    bool any_block_available {};
-    bool previous_block_available[D] {};
-    for (size_t i { 0 }; i < D; i++) {
-      if (block[i]) {
-        previous_block_available[i] = true;
-        any_block_available = true;
-      }
-      else {
-        previous_block_available[i] = false;
-      }
-    }
-
-    auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
-      if (!any_block_available) {
-        return 0;
-      }
-
-      for (size_t i { 1 }; i < D; i++) {
-        if (block_pos[i] >= static_cast<int64_t>(enc.block_size[i])) {
-          block_pos[i] = enc.block_size[i] - 1;
-        }
-      }
-
-      for (size_t i { 0 }; i < D; i++) {
-        if (!previous_block_available[i] && block_pos[i] < 0) {
-          block_pos[i] = 0;
-        }
-      }
-
-      int64_t max_pos {};
-      for (size_t i = 0; i < D; i++) {
-        if (previous_block_available[i] && (block_pos[i] + 1) > max_pos) {
-          max_pos = block_pos[i] + 1;
-        }
-      }
-
-      int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
-
-      for (size_t i = 0; i < D; i++) {
-        if (previous_block_available[i] && (block_pos[i] + 1) < min_pos) {
-          min_pos = block_pos[i] + 1;
-        }
-      }
-
-      for (size_t i = 0; i < D; i++) {
-        if (previous_block_available[i]) {
-          block_pos[i] -= min_pos;
-        }
-      }
-
-      std::array<size_t, D + 1> img_pos {};
-      for (size_t i { 0 }; i < D; i++) {
-        img_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
-
-        if (img_pos[i] >= enc.img_dims_unaligned[i]) {
-          img_pos[i] = enc.img_dims_unaligned[i] - 1;
-        }
-      }
-      img_pos[D] = image;
-
-      return static_cast<INPUTUNIT>(puller(make_index<D + 1>(enc.img_dims_unaligned, img_pos), channel)) - pow(2, enc.color_depth - 1);
+  for (size_t image = 0; image < enc.img_dims[D]; image++) {
+    auto inputF = [&](const std::array<size_t, D> &image_pos) {
+      return puller(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, image_pos));
     };
 
-    auto predOutputF = [&](const auto &pos, auto value) {
-      value += pow(2, enc.color_depth - 1);
-      value = std::clamp(std::round(value), 0.f, powf(2, enc.color_depth) - 1);
+    iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &block) {
 
-      pusher(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, pos), channel, value);
-    };
+      getBlock<D>(enc.block_size.data(), inputF, block, enc.img_dims_unaligned, outputF);
 
-    if (enc.use_prediction) {
-      if (channel == 0) {
-        prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
-        encodePredictionType<D>(prediction_type, cabac, contexts[0]);
-
-        for (size_t d = 0; d < D; d++) {
-          std::cerr <<  std::setw(3) << std::fixed << block[d];
+      bool any_block_available {};
+      bool previous_block_available[D] {};
+      for (size_t i { 0 }; i < D; i++) {
+        if (block[i]) {
+          previous_block_available[i] = true;
+          any_block_available = true;
         }
-        std::cerr << ": ";
+        else {
+          previous_block_available[i] = false;
+        }
+      }
 
-        if (prediction_type == 0) {
-          std::cerr << "NO PREDICTION\n";
-        }
-        else if (prediction_type == 1) {
-          std::cerr << "DC PREDICTION\n";
-        }
-        else if (prediction_type == 2) {
-          std::cerr << "PLANAR PREDICTION\n";
-        }
-        else if (prediction_type >= 3) {
-          size_t dir = prediction_type - 3;
-          int8_t direction[D] {};
+      uint64_t prediction_type {};
 
-          std::cerr << "[";
-          for (size_t d { 0 }; d < D; d++) {
-            direction[d] = dir % constpow(5, d + 1) / constpow(5, d);
-            direction[d] -= 2;
-            std::cerr << std::setw(3) << std::fixed << (int)direction[d];
+      for (size_t channel = 0; channel < 3; channel++) {
+        for (size_t i = 0; i < enc.input_block.stride(D); i++) {
+          enc.input_block[i] = enc.current_block[i][channel];
+        }
+
+        auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
+          if (!any_block_available) {
+            return 0;
           }
-          std::cerr << " ]\n";
+
+          for (size_t i { 1 }; i < D; i++) {
+            if (block_pos[i] >= static_cast<int64_t>(enc.block_size[i])) {
+              block_pos[i] = enc.block_size[i] - 1;
+            }
+          }
+
+          for (size_t i { 0 }; i < D; i++) {
+            if (!previous_block_available[i] && block_pos[i] < 0) {
+              block_pos[i] = 0;
+            }
+          }
+
+          int64_t max_pos {};
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i] && (block_pos[i] + 1) > max_pos) {
+              max_pos = block_pos[i] + 1;
+            }
+          }
+
+          int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
+
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i] && (block_pos[i] + 1) < min_pos) {
+              min_pos = block_pos[i] + 1;
+            }
+          }
+
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i]) {
+              block_pos[i] -= min_pos;
+            }
+          }
+
+          std::array<size_t, D + 1> image_pos {};
+          for (size_t i { 0 }; i < D; i++) {
+            image_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
+
+            if (image_pos[i] >= enc.img_dims_unaligned[i]) {
+              image_pos[i] = enc.img_dims_unaligned[i] - 1;
+            }
+          }
+          image_pos[D] = image;
+
+          return puller(make_index<D + 1>(enc.img_dims_unaligned, image_pos))[channel];
+        };
+
+        if (enc.use_prediction) {
+          if (channel == 0) {
+            for (size_t d = 0; d < D; d++) {
+              std::cerr <<  std::setw(3) << std::fixed << block[d];
+            }
+            std::cerr << ": ";
+
+            prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
+                                   encodePredictionType<D>(prediction_type, cabac, contexts[0]);
+                                    printPredictionType<D>(prediction_type);
+          }
+                                 predict<D>(prediction_block,      prediction_type,      predInputF                    );
+                         applyPrediction<D>(enc.input_block,       prediction_block                                    );
+        }
+          forwardDiscreteCosineTransform<D>(enc.input_block,       enc.dct_block                                       );
+                                quantize<D>(enc.dct_block,         enc.quantized_block, *enc.quant_tables[channel]     );
+        if (enc.use_prediction) {
+                              dequantize<D>(enc.quantized_block,   enc.dct_block,       *enc.quant_tables[channel]     );
+          inverseDiscreteCosineTransform<D>(enc.dct_block,         enc.input_block                                     );
+                        disusePrediction<D>(enc.input_block,       prediction_block                                    );
+        }
+                    encodeCABAC_DIAGONAL<D>(enc.quantized_block,   cabac, contexts[channel != 0], threshold, scan_table);
+
+        if (enc.use_prediction) {
+          for (size_t i = 0; i < enc.input_block.stride(D); i++) {
+            enc.current_block[i][channel] = enc.input_block[i];
+          }
         }
       }
 
-                             predict<D>(prediction_block,      prediction_type,      predInputF                                           );
-                     applyPrediction<D>(enc.input_block,       prediction_block                                                           );
-    }
-
-      forwardDiscreteCosineTransform<D>(enc.input_block,       enc.dct_block                                                              );
-                            quantize<D>(enc.dct_block,         enc.quantized_block, *enc.quant_tables[channel]                            );
-
-    if (enc.use_prediction) {
-                          dequantize<D>(enc.quantized_block,   enc.dct_block,       *enc.quant_tables[channel]                            );
-      inverseDiscreteCosineTransform<D>(enc.dct_block,         enc.input_block                                                            );
-                    disusePrediction<D>(enc.input_block,       prediction_block                                                           );
-                            putBlock<D>(enc.block_size.data(), [&](const auto &pos) -> const auto & { return enc.input_block[pos]; }, block, enc.img_dims_unaligned, predOutputF);
-    }
-
-                encodeCABAC_DIAGONAL<D>(enc.quantized_block,   cabac, contexts[channel != 0], threshold, scan_table        );
-  };
-
-  auto inputF = [&](size_t index) -> INPUTTRIPLET {
-    uint16_t R = puller(index, 0);
-    uint16_t G = puller(index, 1);
-    uint16_t B = puller(index, 2);
-
-    INPUTUNIT  Y = YCbCr::RGBToY (R, G, B) - pow(2, enc.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
-
-    return {Y, Cb, Cr};
-  };
-
-  performScan(enc, inputF, perform);
+      if (enc.use_prediction) {
+        putBlock<D>(enc.block_size.data(), [&](const auto &pos) { return enc.current_block[pos]; }, block, enc.img_dims_unaligned, [&](const auto &pos, const auto &value) { pusher(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, pos), value); });
+      }
+    });
+  }
 
   cabac.terminate();
   bitstream.flush();

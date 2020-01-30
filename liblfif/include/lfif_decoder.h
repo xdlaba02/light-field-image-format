@@ -206,8 +206,8 @@ void decodeScanHuffman(LfifDecoder<D> &dec, std::istream &input, F &&output) {
 */
 template<size_t D, typename IF, typename OF>
 void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &&pusher) {
-  std::vector<std::vector<size_t>>        scan_table(num_diagonals<D>(dec.block_size));
   std::array<CABACContextsDIAGONAL<D>, 2> contexts         {CABACContextsDIAGONAL<D>(dec.block_size), CABACContextsDIAGONAL<D>(dec.block_size)};
+  std::vector<std::vector<size_t>>        scan_table       {};
   IBitstream                              bitstream        {};
   CABACDecoder                            cabac            {};
   size_t                                  threshold        {};
@@ -220,6 +220,7 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
 
   threshold = num_diagonals<D>(dec.block_size) / 2;
 
+  scan_table.resize(num_diagonals<D>(dec.block_size));
   iterate_dimensions<D>(dec.block_size, [&](const auto &pos) {
     size_t diagonal {};
     for (size_t i = 0; i < D; i++) {
@@ -249,7 +250,6 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
 
       uint64_t prediction_type {};
       for (size_t channel = 0; channel < 3; channel++) {
-
         auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
           if (!any_block_available) {
             return 0;
@@ -288,7 +288,7 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
             }
           }
 
-          std::array<size_t, D + 1> img_pos {};
+          std::array<size_t, D> img_pos {};
           for (size_t i { 0 }; i < D; i++) {
             img_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
 
@@ -296,16 +296,8 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
               img_pos[i] = dec.img_dims_unaligned[i] - 1;
             }
           }
-          img_pos[D] = img;
 
-          return static_cast<INPUTUNIT>(puller(make_index<D + 1>(dec.img_dims_unaligned, img_pos), channel)) - pow(2, dec.color_depth - 1);
-        };
-
-        auto outputF = [&](const auto &pos, auto value) {
-          value += pow(2, dec.color_depth - 1);
-          value = std::clamp(std::round(value), 0.f, powf(2, dec.color_depth) - 1);
-
-          pusher(img * dec.img_stride_unaligned[D] + make_index<D>(dec.img_dims_unaligned, pos), channel, value);
+          return puller(img * dec.img_stride_unaligned[D] + make_index<D>(dec.img_dims_unaligned, img_pos))[channel];
         };
 
         if (dec.use_prediction) {
@@ -321,26 +313,17 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
         if (dec.use_prediction) {
                       disusePrediction<D>(dec.output_block,      prediction_block                                              );
         }
-                              putBlock<D>(dec.block_size.data(), [&](const auto &pos) -> const auto & { return dec.output_block[pos]; }, block, dec.img_dims_unaligned, outputF);
+
+        for (size_t i = 0; i < dec.output_block.stride(D); i++) {
+          dec.current_block[i][channel] = dec.output_block[i];
+        }
       }
+
+      putBlock<D>(dec.block_size.data(), [&](const auto &pos) { return dec.current_block[pos]; }, block, dec.img_dims_unaligned, [&](const auto &pos, const auto &value) { pusher(img * dec.img_stride_unaligned[D] + make_index<D>(dec.img_dims_unaligned, pos), value); });
     });
 
   }
 
   cabac.terminate();
-
-  for (size_t i {}; i < dec.img_stride_unaligned[D] * dec.img_dims[D]; i++) {
-    INPUTUNIT  Y = puller(i, 0);
-    INPUTUNIT Cb = puller(i, 1) - pow(2, dec.color_depth - 1);
-    INPUTUNIT Cr = puller(i, 2) - pow(2, dec.color_depth - 1);
-
-    uint16_t R = std::clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
-    uint16_t G = std::clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
-    uint16_t B = std::clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, dec.color_depth) - 1);
-
-    pusher(i, 0, R);
-    pusher(i, 1, G);
-    pusher(i, 2, B);
-  }
 }
 #endif
