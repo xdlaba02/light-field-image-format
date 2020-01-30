@@ -162,7 +162,7 @@ int constructQuantizationTables(LfifEncoder<D> &enc, const std::string &table_ty
 
     for (size_t i = 0; i < 2; i++) {
       applyQuality<D>(enc.quant_table[i], quality);
-        clampTable<D>(enc.quant_table[i], 1, 255);
+      clampTable<D>(enc.quant_table[i], 1, 255);
     }
 
     return 0;
@@ -171,7 +171,7 @@ int constructQuantizationTables(LfifEncoder<D> &enc, const std::string &table_ty
     for (size_t i = 0; i < 2; i++) {
       uniformTable<D>(50, enc.quant_table[i]);
       applyQuality<D>(enc.quant_table[i], quality);
-        clampTable<D>(enc.quant_table[i], 1, 255);
+      clampTable<D>(enc.quant_table[i], 1, 255);
     }
     return 0;
   }
@@ -229,9 +229,9 @@ void performScan(LfifEncoder<D> &enc, INPUTF &&input, PERFF &&func) {
 template<size_t D, typename F>
 void referenceScan(LfifEncoder<D> &enc, F &&puller) {
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
-    forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
-                          quantize<D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
-               addToReferenceBlock<D>(enc.quantized_block, *enc.reference_blocks[channel]);
+    forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+    quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+    addToReferenceBlock<D>(enc.quantized_block, *enc.reference_blocks[channel]);
   };
 
   performScan(enc, puller, perform);
@@ -292,12 +292,12 @@ void huffmanScan(LfifEncoder<D> &enc, F &&puller) {
   QDATAUNIT previous_DC [3] {};
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
-    forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
-                          quantize<D>(enc.dct_block,        enc.quantized_block,         *enc.quant_tables[channel]);
-                      diffEncodeDC<D>(enc.quantized_block,  previous_DC[channel]);
-                          traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                   runLengthEncode<D>(enc.quantized_block,  enc.runlength,                enc.max_zeroes);
-                 huffmanAddWeights<D>(enc.runlength,        enc.huffman_weights[channel], enc.class_bits);
+    forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+    quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+    diffEncodeDC<D>(enc.quantized_block, previous_DC[channel]);
+    traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
+    runLengthEncode<D>(enc.quantized_block, enc.runlength, enc.max_zeroes);
+    huffmanAddWeights<D>(enc.runlength, enc.huffman_weights[channel], enc.class_bits);
   };
 
   performScan(enc, puller, perform);
@@ -311,8 +311,7 @@ template<size_t D>
 void constructHuffmanTables(LfifEncoder<D> &enc) {
   for (size_t y = 0; y < 2; y++) {
     for (size_t x = 0; x < 2; x++) {
-      enc.huffman_encoder[y][x]
-      . generateFromWeights(enc.huffman_weight[y][x]);
+      enc.huffman_encoder[y][x].generateFromWeights(enc.huffman_weight[y][x]);
     }
   }
 }
@@ -352,8 +351,7 @@ void writeHeader(LfifEncoder<D> &enc, std::ostream &output) {
 
     for (size_t y = 0; y < 2; y++) {
       for (size_t x = 0; x < 2; x++) {
-        enc.huffman_encoder[y][x]
-        . writeToStream(output);
+        enc.huffman_encoder[y][x].writeToStream(output);
       }
     }
   }
@@ -373,12 +371,12 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &
   bitstream.open(&output);
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
-    forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
-                          quantize<D>(enc.dct_block,        enc.quantized_block,          *enc.quant_tables[channel]);
-                      diffEncodeDC<D>(enc.quantized_block,  previous_DC[channel]);
-                          traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                   runLengthEncode<D>(enc.quantized_block,  enc.runlength,                 enc.max_zeroes);
-           encodeHuffman_RUNLENGTH<D>(enc.runlength,        enc.huffman_encoders[channel], bitstream, enc.class_bits);
+    forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+    quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+    diffEncodeDC<D>(enc.quantized_block, previous_DC[channel]);
+    traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
+    runLengthEncode<D>(enc.quantized_block, enc.runlength, enc.max_zeroes);
+    encodeHuffman_RUNLENGTH<D>(enc.runlength, enc.huffman_encoders[channel], bitstream, enc.class_bits);
   };
 
   performScan(enc, puller, perform);
@@ -394,7 +392,7 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &
 */
 template<size_t D, typename IF, typename OF>
 void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std::ostream &output) {
-  std::array<CABACContextsDIAGONAL<D>,  2> contexts         {CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size)};
+  std::array<CABACContextsDIAGONAL<D>, 2> contexts         {CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size)};
   std::vector<std::vector<size_t>>         scan_table       {};
   OBitstream                               bitstream        {};
   CABACEncoder                             cabac            {};
@@ -512,20 +510,24 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
             std::cerr << ": ";
 
             prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
-                                   encodePredictionType<D>(prediction_type, cabac, contexts[0]);
-                                    printPredictionType<D>(prediction_type);
+            encodePredictionType<D>(prediction_type, cabac, contexts[0]);
+            printPredictionType<D>(prediction_type);
           }
-                                 predict<D>(prediction_block,    prediction_type,      predInputF                    );
-                         applyPrediction<D>(enc.input_block,     prediction_block                                    );
+
+          predict<D>(prediction_block, prediction_type, predInputF);
+          applyPrediction<D>(enc.input_block, prediction_block);
         }
-          forwardDiscreteCosineTransform<D>(enc.input_block,     enc.dct_block                                       );
-                                quantize<D>(enc.dct_block,       enc.quantized_block, *enc.quant_tables[channel]     );
-                              dequantize<D>(enc.quantized_block, enc.dct_block,       *enc.quant_tables[channel]     );
-          inverseDiscreteCosineTransform<D>(enc.dct_block,       enc.input_block                                     );
+
+        forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+        quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+        encodeCABAC_DIAGONAL<D>(enc.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
+
+        dequantize<D>(enc.quantized_block, enc.dct_block, *enc.quant_tables[channel]);
+        inverseDiscreteCosineTransform<D>(enc.dct_block, enc.input_block);
+
         if (enc.use_prediction) {
-                        disusePrediction<D>(enc.input_block,     prediction_block                                    );
+          disusePrediction<D>(enc.input_block, prediction_block);
         }
-                    encodeCABAC_DIAGONAL<D>(enc.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
 
         for (size_t i = 0; i < enc.input_block.stride(D); i++) {
           enc.current_block[i][channel] = enc.input_block[i];
@@ -551,12 +553,12 @@ void outputScanCABAC_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &ou
   cabac.init(bitstream);
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
-    forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
-                          quantize<D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
-                      diffEncodeDC<D>(enc.quantized_block,  previous_DC[channel]);
-                          traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                   runLengthEncode<D>(enc.quantized_block,  enc.runlength,        enc.max_zeroes);
-             encodeCABAC_RUNLENGTH<D>(enc.runlength,        cabac,                contexts[channel], enc.class_bits);
+    forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+    quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+    diffEncodeDC<D>(enc.quantized_block, previous_DC[channel]);
+    traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
+    runLengthEncode<D>(enc.quantized_block, enc.runlength, enc.max_zeroes);
+    encodeCABAC_RUNLENGTH<D>(enc.runlength, cabac, contexts[channel], enc.class_bits);
   };
 
   auto inputF = [&](size_t index) -> INPUTTRIPLET {
@@ -589,11 +591,11 @@ void outputScanCABAC_JPEG(LfifEncoder<D> &enc, F &&puller, std::ostream &output)
   cabac.init(bitstream);
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
-    forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
-                          quantize<D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
-                      diffEncodeDC<D>(enc.quantized_block,  previous_DC[channel]);
-                          traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                  encodeCABAC_JPEG<D>(enc.quantized_block,  cabac,                contexts[channel], previous_DC_diff[channel], enc.amp_bits);
+    forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+    quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+    diffEncodeDC<D>(enc.quantized_block, previous_DC[channel]);
+    traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
+    encodeCABAC_JPEG<D>(enc.quantized_block, cabac, contexts[channel], previous_DC_diff[channel], enc.amp_bits);
   };
 
   auto inputF = [&](size_t index) -> INPUTTRIPLET {
@@ -625,11 +627,11 @@ void outputScanCABAC_H264(LfifEncoder<D> &enc, F &&puller, std::ostream &output)
   cabac.init(bitstream);
 
   auto perform = [&](size_t, size_t channel, const std::array<size_t, D> &) {
-    forwardDiscreteCosineTransform<D>(enc.input_block,      enc.dct_block);
-                          quantize<D>(enc.dct_block,        enc.quantized_block, *enc.quant_tables[channel]);
-                      diffEncodeDC<D>(enc.quantized_block,  previous_DC[channel]);
-                          traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
-                  encodeCABAC_H264<D>(enc.quantized_block,  cabac,                contexts[channel]);
+    forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
+    quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+    diffEncodeDC<D>(enc.quantized_block, previous_DC[channel]);
+    traverse<D>(enc.quantized_block, *enc.traversal_tables[channel]);
+    encodeCABAC_H264<D>(enc.quantized_block, cabac, contexts[channel]);
   };
 
   auto inputF = [&](size_t index) -> INPUTTRIPLET {

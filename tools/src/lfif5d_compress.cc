@@ -118,7 +118,6 @@ int main(int argc, char *argv[]) {
   const char *output_file_name {};
   float quality                {};
 
-  bool use_huffman             {};
   bool predict                 {};
 
   vector<PPM> ppm_data         {};
