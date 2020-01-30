@@ -131,8 +131,10 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
   };
 
   for (size_t quality = quality_interval[0]; quality <= quality_interval[1]; quality += quality_interval[2]) {
-    for (size_t i {}; i < image_pixels * 3; i++) {
-      outputF(i, originalInputF(i));
+    if (use_prediction) {
+      for (size_t i {}; i < image_pixels * 3; i++) {
+        outputF(i, originalInputF(i));
+      }
     }
 
     mse = 0;
@@ -158,8 +160,10 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
 
     compressed_image_size = io.tellp();
 
-    for (size_t i {}; i < image_pixels * 3; i++) {
-      outputF(i, originalInputF(i));
+    if (use_prediction) {
+      for (size_t i {}; i < image_pixels * 3; i++) {
+        outputF(i, originalInputF(i));
+      }
     }
 
     if (readHeader(decoder, io)) {
