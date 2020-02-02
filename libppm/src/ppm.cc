@@ -487,7 +487,7 @@ int PPM::mmapPPM(const char *file_name) {
     return -3;
   }
 
-  m_file = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+  m_file = mmap(NULL, file_size + m_header_offset, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
   close(fd);
 
   if (m_file == MAP_FAILED) {
