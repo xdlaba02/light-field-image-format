@@ -127,6 +127,9 @@ $(BINDIR)/dynamic_test: $(OBJDIR)/dynamic_test.o ../liblfif/bin/liblfif.a
 $(BINDIR)/ppm_test: $(OBJDIR)/ppm_test.o $(OBJDIR)/plenoppm.o $(OBJDIR)/file_mask.o ../libppm/bin/libppm.a
 	$(CC) -lm $^ -o $@
 
+$(BINDIR)/tiler: $(OBJDIR)/tiler.o $(OBJDIR)/plenoppm.o $(OBJDIR)/file_mask.o ../libppm/bin/libppm.a
+	$(CC) -lm $^ -o $@
+
 ../libppm/bin/libppm.a:
 		$(MAKE) -C ../libppm/
 
