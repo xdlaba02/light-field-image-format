@@ -17,6 +17,8 @@
 #include <vector>
 #include <iostream>
 
+const int64_t SAMPLING_RATE = 8;
+
 std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std::array<float, 2> min, std::array<float, 2> max, size_t iterations) {
   assert(ppm_data.size());
 
@@ -49,8 +51,8 @@ std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std
   };
 
   auto inputF = [&](const std::array<size_t, 2> &img, const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
-    float shift_x = (img[0] - (side / 2.f)) * param[0];
-		float shift_y = (img[1] - (side / 2.f)) * param[1];
+    float shift_x = (img[0] - (side / 2.)) * param[0];
+		float shift_y = (img[1] - (side / 2.)) * param[1];
 
     int64_t floored_shift_x = std::floor(shift_x);
     int64_t floored_shift_y = std::floor(shift_y);
@@ -68,29 +70,29 @@ std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std
 
     size_t img_index = img[1] * side + img[0];
 
-    std::array<uint16_t, 3> val_00 = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_01 = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_10 = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 1) % width));
-    std::array<uint16_t, 3> val_11 = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 1) % width));
-
     float frac_x = shift_x - floored_shift_x;
     float frac_y = shift_y - floored_shift_y;
+
+    std::array<uint16_t, 3> val_top_left     = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 0) % width));
+    std::array<uint16_t, 3> val_top_right    = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 1) % width));
+    std::array<uint16_t, 3> val_bottom_left  = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 0) % width));
+    std::array<uint16_t, 3> val_bottom_right = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 1) % width));
 
     std::array<double,   3> val_top    {};
     std::array<double,   3> val_bottom {};
     std::array<uint16_t, 3> val        {};
 
-    val_top[0] = val_00[0] * (1.f - frac_x) + val_10[0] * frac_x;
-    val_top[1] = val_00[1] * (1.f - frac_x) + val_10[1] * frac_x;
-    val_top[2] = val_00[2] * (1.f - frac_x) + val_10[2] * frac_x;
+    val_top[0] = val_top_left[0] * (1. - frac_x) + val_top_right[0] * frac_x;
+    val_top[1] = val_top_left[1] * (1. - frac_x) + val_top_right[1] * frac_x;
+    val_top[2] = val_top_left[2] * (1. - frac_x) + val_top_right[2] * frac_x;
 
-    val_bottom[0] = val_01[0] * (1.f - frac_x) + val_11[0] * frac_x;
-    val_bottom[1] = val_01[1] * (1.f - frac_x) + val_11[1] * frac_x;
-    val_bottom[2] = val_01[2] * (1.f - frac_x) + val_11[2] * frac_x;
+    val_bottom[0] = val_bottom_left[0] * (1. - frac_x) + val_bottom_right[0] * frac_x;
+    val_bottom[1] = val_bottom_left[1] * (1. - frac_x) + val_bottom_right[1] * frac_x;
+    val_bottom[2] = val_bottom_left[2] * (1. - frac_x) + val_bottom_right[2] * frac_x;
 
-    val[0] = std::round(val_top[0] * (1.f - frac_y) + val_bottom[0] * frac_y);
-    val[1] = std::round(val_top[1] * (1.f - frac_y) + val_bottom[1] * frac_y);
-    val[2] = std::round(val_top[2] * (1.f - frac_y) + val_bottom[2] * frac_y);
+    val[0] = std::round(val_top[0] * (1. - frac_y) + val_bottom[0] * frac_y);
+    val[1] = std::round(val_top[1] * (1. - frac_y) + val_bottom[1] * frac_y);
+    val[2] = std::round(val_top[2] * (1. - frac_y) + val_bottom[2] * frac_y);
 
     return val;
   };
@@ -99,7 +101,7 @@ std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std
     float squared_error {};
 
     iterate_dimensions<4>(std::array {width, height, side - 1, side}, [&](const auto &pos) {
-      if (rand() < RAND_MAX / 4) {
+      if (rand() < RAND_MAX / SAMPLING_RATE) {
         std::array<uint16_t, 3> v0 = inputF({pos[2] + 0, pos[3]}, {pos[0], pos[1]});
         std::array<uint16_t, 3> v1 = inputF({pos[2] + 1, pos[3]}, {pos[0], pos[1]});
 
@@ -116,7 +118,7 @@ std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std
     float squared_error {};
 
     iterate_dimensions<4>(std::array {width, height, side, side - 1}, [&](const auto &pos) {
-      if (rand() < RAND_MAX / 4) {
+      if (rand() < RAND_MAX / SAMPLING_RATE) {
         std::array<uint16_t, 3> v0 = inputF({pos[2], pos[3] + 0}, {pos[0], pos[1]});
         std::array<uint16_t, 3> v1 = inputF({pos[2], pos[3] + 1}, {pos[0], pos[1]});
 
@@ -129,10 +131,15 @@ std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std
     return squared_error;
   };
 
-  float golden_ratio = (sqrt(5.f) + 1.f) / 2.f;
+  float golden_ratio = (sqrt(5.) + 1.) / 2.;
+
+  size_t mse_norm = (width * height * 3 * ppm_data.size()) / SAMPLING_RATE;
 
   for (size_t i {}; i < iterations; i++) {
     std::cerr << "iteration " << i << "\n";
+
+    std::cerr << "min: [" << min[0] << ", " << min[1] << "]\n";
+    std::cerr << "max: [" << max[0] << ", " << max[1] << "]\n";
 
     std::array<float, 2> lowest_se_min {};
     std::array<float, 2> lowest_se_max {};
@@ -140,27 +147,31 @@ std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std
     for (size_t d {}; d < 2; d++) {
       param[d] = max[d] - (max[d] - min[d]) / golden_ratio;
     }
+    std::cerr << "shift params: [" << param[0] << ", " << param[1] << "]\n";
 
     lowest_se_min[0] = get_se_horizontal();
     lowest_se_min[1] = get_se_vertical();
 
+    std::cerr << "mean squared errors: [" << lowest_se_min[0] / mse_norm << ", " << lowest_se_min[1] / mse_norm << "]\n";
+
     for (size_t d {}; d < 2; d++) {
       param[d] = min[d] + (max[d] - min[d]) / golden_ratio;
     }
+    std::cerr << "shift params: [" << param[0] << ", " << param[1] << "]\n";
 
     lowest_se_max[0] = get_se_horizontal();
     lowest_se_max[1] = get_se_vertical();
 
+    std::cerr << "mean squared errors: [" << lowest_se_max[0] / mse_norm << ", " << lowest_se_max[1] / mse_norm << "]\n";
+
     for (size_t d {}; d < 2; d++) {
       if (lowest_se_min[d] < lowest_se_max[d]) {
-        max[d] = min[d] + ((max[d] - min[d]) / golden_ratio);
+        max[d] = min[d] + (max[d] - min[d]) / golden_ratio;
       }
       else {
-        min[d] = max[d] - ((max[d] - min[d]) / golden_ratio);
+        min[d] = max[d] - (max[d] - min[d]) / golden_ratio;
       }
     }
-
-    std::cerr << (min[0] + max[0]) / 2 << ", " << (min[1] + max[1]) / 2 << "\n";
   }
 
   for (size_t d {}; d < 2; d++) {
@@ -227,7 +238,8 @@ int main(int argc, char *argv[]) {
     }
   }
   else {
-    param = find_best_tile_params(input, {-50, -50}, {50, 50}, 10);
+    param = find_best_tile_params(input, {-80, -80}, {80, 80}, 10);
+    std::cerr << param[0] << ", " << param[1] << "\n";
   }
 
   size_t side {static_cast<size_t>(sqrt(input.size()))};
@@ -273,8 +285,8 @@ int main(int argc, char *argv[]) {
   };
 
   auto inputF = [&](const std::array<size_t, 2> &img, const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
-    float shift_x = (img[0] - (side / 2.f)) * param[0];
-		float shift_y = (img[1] - (side / 2.f)) * param[1];
+    float shift_x = (img[0] - (side / 2.)) * param[0];
+		float shift_y = (img[1] - (side / 2.)) * param[1];
 
     int64_t floored_shift_x = std::floor(shift_x);
     int64_t floored_shift_y = std::floor(shift_y);
@@ -292,29 +304,29 @@ int main(int argc, char *argv[]) {
 
     size_t img_index = img[1] * side + img[0];
 
-    std::array<uint16_t, 3> val_00 = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_01 = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_10 = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 1) % width));
-    std::array<uint16_t, 3> val_11 = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 1) % width));
-
     float frac_x = shift_x - floored_shift_x;
     float frac_y = shift_y - floored_shift_y;
+
+    std::array<uint16_t, 3> val_top_left     = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 0) % width));
+    std::array<uint16_t, 3> val_top_right    = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 1) % width));
+    std::array<uint16_t, 3> val_bottom_left  = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 0) % width));
+    std::array<uint16_t, 3> val_bottom_right = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 1) % width));
 
     std::array<double,   3> val_top    {};
     std::array<double,   3> val_bottom {};
     std::array<uint16_t, 3> val        {};
 
-    val_top[0] = val_00[0] * (1.f - frac_x) + val_10[0] * frac_x;
-    val_top[1] = val_00[1] * (1.f - frac_x) + val_10[1] * frac_x;
-    val_top[2] = val_00[2] * (1.f - frac_x) + val_10[2] * frac_x;
+    val_top[0] = val_top_left[0] * (1. - frac_x) + val_top_right[0] * frac_x;
+    val_top[1] = val_top_left[1] * (1. - frac_x) + val_top_right[1] * frac_x;
+    val_top[2] = val_top_left[2] * (1. - frac_x) + val_top_right[2] * frac_x;
 
-    val_bottom[0] = val_01[0] * (1.f - frac_x) + val_11[0] * frac_x;
-    val_bottom[1] = val_01[1] * (1.f - frac_x) + val_11[1] * frac_x;
-    val_bottom[2] = val_01[2] * (1.f - frac_x) + val_11[2] * frac_x;
+    val_bottom[0] = val_bottom_left[0] * (1. - frac_x) + val_bottom_right[0] * frac_x;
+    val_bottom[1] = val_bottom_left[1] * (1. - frac_x) + val_bottom_right[1] * frac_x;
+    val_bottom[2] = val_bottom_left[2] * (1. - frac_x) + val_bottom_right[2] * frac_x;
 
-    val[0] = std::round(val_top[0] * (1.f - frac_y) + val_bottom[0] * frac_y);
-    val[1] = std::round(val_top[1] * (1.f - frac_y) + val_bottom[1] * frac_y);
-    val[2] = std::round(val_top[2] * (1.f - frac_y) + val_bottom[2] * frac_y);
+    val[0] = std::round(val_top[0] * (1. - frac_y) + val_bottom[0] * frac_y);
+    val[1] = std::round(val_top[1] * (1. - frac_y) + val_bottom[1] * frac_y);
+    val[2] = std::round(val_top[2] * (1. - frac_y) + val_bottom[2] * frac_y);
 
     return val;
   };
