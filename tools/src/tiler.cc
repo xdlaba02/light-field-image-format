@@ -17,168 +17,114 @@
 #include <vector>
 #include <iostream>
 
-const int64_t SAMPLING_RATE = 8;
+const int64_t SAMPLING_RATE = 4;
 
-std::array<float, 2> find_best_tile_params(const std::vector<PPM> &ppm_data, std::array<float, 2> min, std::array<float, 2> max, size_t iterations) {
-  assert(ppm_data.size());
+template <typename F>
+std::array<int64_t, 2> find_best_tile_params(F &&inputF, size_t width, size_t height, size_t side, std::array<int64_t, 2> min, std::array<int64_t, 2> max, size_t iterations) {
+  std::array<int64_t, 2> best_param         {};
+  std::array<float,   2> best_squared_error {};
 
-  std::array<float, 2> param {};
 
-  size_t width         {ppm_data[0].width()};
-  size_t height        {ppm_data[0].height()};
-  size_t max_rgb_value {ppm_data[0].color_depth()};
-  size_t side          {static_cast<size_t>(sqrt(ppm_data.size()))};
-
-  auto puller = [&](size_t img, size_t index) -> std::array<uint16_t, 3> {
-    uint16_t R {};
-    uint16_t G {};
-    uint16_t B {};
-
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      R = ptr[index * 3 + 0];
-      G = ptr[index * 3 + 1];
-      B = ptr[index * 3 + 2];
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      R = ptr[index * 3 + 0];
-      G = ptr[index * 3 + 1];
-      B = ptr[index * 3 + 2];
-    }
-
-    return {R, G, B};
-  };
-
-  auto inputF = [&](const std::array<size_t, 2> &img, const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
-    float shift_x = (img[0] - (side / 2.)) * param[0];
-		float shift_y = (img[1] - (side / 2.)) * param[1];
-
-    int64_t floored_shift_x = std::floor(shift_x);
-    int64_t floored_shift_y = std::floor(shift_y);
-
-    int64_t pos_x = pos[0] + floored_shift_x;
-    int64_t pos_y = pos[1] + floored_shift_y;
-
-    while (pos_x < 0) {
-      pos_x += width;
-    }
-
-    while (pos_y < 0) {
-      pos_y += height;
-    }
-
-    size_t img_index = img[1] * side + img[0];
-
-    float frac_x = shift_x - floored_shift_x;
-    float frac_y = shift_y - floored_shift_y;
-
-    std::array<uint16_t, 3> val_top_left     = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_top_right    = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 1) % width));
-    std::array<uint16_t, 3> val_bottom_left  = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_bottom_right = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 1) % width));
-
-    std::array<double,   3> val_top    {};
-    std::array<double,   3> val_bottom {};
-    std::array<uint16_t, 3> val        {};
-
-    val_top[0] = val_top_left[0] * (1. - frac_x) + val_top_right[0] * frac_x;
-    val_top[1] = val_top_left[1] * (1. - frac_x) + val_top_right[1] * frac_x;
-    val_top[2] = val_top_left[2] * (1. - frac_x) + val_top_right[2] * frac_x;
-
-    val_bottom[0] = val_bottom_left[0] * (1. - frac_x) + val_bottom_right[0] * frac_x;
-    val_bottom[1] = val_bottom_left[1] * (1. - frac_x) + val_bottom_right[1] * frac_x;
-    val_bottom[2] = val_bottom_left[2] * (1. - frac_x) + val_bottom_right[2] * frac_x;
-
-    val[0] = std::round(val_top[0] * (1. - frac_y) + val_bottom[0] * frac_y);
-    val[1] = std::round(val_top[1] * (1. - frac_y) + val_bottom[1] * frac_y);
-    val[2] = std::round(val_top[2] * (1. - frac_y) + val_bottom[2] * frac_y);
-
-    return val;
-  };
-
-  auto get_se_horizontal = [&]() {
+  auto get_error_horizontal = [&](const auto &shift_param) {
     float squared_error {};
 
     iterate_dimensions<4>(std::array {width, height, side - 1, side}, [&](const auto &pos) {
       if (rand() < RAND_MAX / SAMPLING_RATE) {
-        std::array<uint16_t, 3> v0 = inputF({pos[2] + 0, pos[3]}, {pos[0], pos[1]});
-        std::array<uint16_t, 3> v1 = inputF({pos[2] + 1, pos[3]}, {pos[0], pos[1]});
+        std::array<uint16_t, 3> v0 = inputF(std::array {pos[0], pos[1], pos[2] + 0, pos[3]}, shift_param);
+        std::array<uint16_t, 3> v1 = inputF(std::array {pos[0], pos[1], pos[2] + 1, pos[3]}, shift_param);
 
-        squared_error += (v0[0] - v1[0]) * (v0[0] - v1[0]);
-        squared_error += (v0[1] - v1[1]) * (v0[1] - v1[1]);
-        squared_error += (v0[2] - v1[2]) * (v0[2] - v1[2]);
+        squared_error += std::abs(v0[0] - v1[0]);
+        squared_error += std::abs(v0[1] - v1[1]);
+        squared_error += std::abs(v0[2] - v1[2]);
       }
     });
 
     return squared_error;
   };
 
-  auto get_se_vertical = [&]() {
+  auto get_error_vertical = [&](const auto &shift_param) {
     float squared_error {};
 
     iterate_dimensions<4>(std::array {width, height, side, side - 1}, [&](const auto &pos) {
       if (rand() < RAND_MAX / SAMPLING_RATE) {
-        std::array<uint16_t, 3> v0 = inputF({pos[2], pos[3] + 0}, {pos[0], pos[1]});
-        std::array<uint16_t, 3> v1 = inputF({pos[2], pos[3] + 1}, {pos[0], pos[1]});
+        std::array<uint16_t, 3> v0 = inputF(std::array {pos[0], pos[1], pos[2], pos[3] + 0}, shift_param);
+        std::array<uint16_t, 3> v1 = inputF(std::array {pos[0], pos[1], pos[2], pos[3] + 1}, shift_param);
 
-        squared_error += (v0[0] - v1[0]) * (v0[0] - v1[0]);
-        squared_error += (v0[1] - v1[1]) * (v0[1] - v1[1]);
-        squared_error += (v0[2] - v1[2]) * (v0[2] - v1[2]);
+        squared_error += std::abs(v0[0] - v1[0]);
+        squared_error += std::abs(v0[1] - v1[1]);
+        squared_error += std::abs(v0[2] - v1[2]);
       }
     });
 
     return squared_error;
   };
 
-  float golden_ratio = (sqrt(5.) + 1.) / 2.;
+  double golden_ratio = (sqrt(5.) + 1.) / 2.;
 
-  size_t mse_norm = (width * height * 3 * ppm_data.size()) / SAMPLING_RATE;
+  size_t error_norm = (width * height * side * side * 3) / SAMPLING_RATE;
+
+  best_squared_error[0] = get_error_horizontal(std::array {0, 0});
+  best_squared_error[1] = get_error_vertical(std::array {0, 0});
+
+  std::cerr << "shift params: [" << 0 << ", " << 0 << "]\n";
+  std::cerr << "mean squared errors: [" << best_squared_error[0] / error_norm << ", " << best_squared_error[1] / error_norm << "]\n";
+
 
   for (size_t i {}; i < iterations; i++) {
+    std::array<int64_t, 2> param             {};
+    std::array<float,   2> squared_error_min {};
+    std::array<float,   2> squared_error_max {};
+
     std::cerr << "iteration " << i << "\n";
 
     std::cerr << "min: [" << min[0] << ", " << min[1] << "]\n";
     std::cerr << "max: [" << max[0] << ", " << max[1] << "]\n";
 
-    std::array<float, 2> lowest_se_min {};
-    std::array<float, 2> lowest_se_max {};
-
     for (size_t d {}; d < 2; d++) {
-      param[d] = max[d] - (max[d] - min[d]) / golden_ratio;
+      param[d] = std::round(max[d] - (max[d] - min[d]) / golden_ratio);
     }
     std::cerr << "shift params: [" << param[0] << ", " << param[1] << "]\n";
 
-    lowest_se_min[0] = get_se_horizontal();
-    lowest_se_min[1] = get_se_vertical();
-
-    std::cerr << "mean squared errors: [" << lowest_se_min[0] / mse_norm << ", " << lowest_se_min[1] / mse_norm << "]\n";
+    squared_error_min[0] = get_error_horizontal(param);
+    squared_error_min[1] = get_error_vertical(param);
 
     for (size_t d {}; d < 2; d++) {
-      param[d] = min[d] + (max[d] - min[d]) / golden_ratio;
+      if (squared_error_min[d] < best_squared_error[d]) {
+        best_squared_error[d] = squared_error_min[d];
+        best_param[d]         = param[d];
+      }
+    }
+
+    std::cerr << "mean squared errors: [" << squared_error_min[0] / error_norm << ", " << squared_error_min[1] / error_norm << "]\n";
+
+    for (size_t d {}; d < 2; d++) {
+      param[d] = std::round(min[d] + (max[d] - min[d]) / golden_ratio);
     }
     std::cerr << "shift params: [" << param[0] << ", " << param[1] << "]\n";
 
-    lowest_se_max[0] = get_se_horizontal();
-    lowest_se_max[1] = get_se_vertical();
-
-    std::cerr << "mean squared errors: [" << lowest_se_max[0] / mse_norm << ", " << lowest_se_max[1] / mse_norm << "]\n";
+    squared_error_max[0] = get_error_horizontal(param);
+    squared_error_max[1] = get_error_vertical(param);
 
     for (size_t d {}; d < 2; d++) {
-      if (lowest_se_min[d] < lowest_se_max[d]) {
-        max[d] = min[d] + (max[d] - min[d]) / golden_ratio;
+      if (squared_error_max[d] < best_squared_error[d]) {
+        best_squared_error[d] = squared_error_max[d];
+        best_param[d]         = param[d];
+      }
+    }
+
+    std::cerr << "mean squared errors: [" << squared_error_max[0] / error_norm << ", " << squared_error_max[1] / error_norm << "]\n";
+
+    for (size_t d {}; d < 2; d++) {
+      if (squared_error_min[d] < squared_error_max[d]) {
+        max[d] = std::round(min[d] + (max[d] - min[d]) / golden_ratio);
       }
       else {
-        min[d] = max[d] - (max[d] - min[d]) / golden_ratio;
+        min[d] = std::round(max[d] - (max[d] - min[d]) / golden_ratio);
       }
     }
   }
 
-  for (size_t d {}; d < 2; d++) {
-    param[d] = (min[d] + max[d]) / 2;
-  }
-
-  return param;
+  return best_param;
 }
 
 int main(int argc, char *argv[]) {
@@ -224,22 +170,8 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  output.resize(input.size());
-
-  if (createPPMs(output_file_mask, width, height, max_rgb_value, output) < 0) {
+  if (!input.size()) {
     return 3;
-  }
-
-  std::array<float, 2> param {};
-
-  if (optind + 2 == argc) {
-    for (size_t i { 0 }; i < 2; i++) {
-      param[i] = atof(argv[optind++]);
-    }
-  }
-  else {
-    param = find_best_tile_params(input, {-80, -80}, {80, 80}, 10);
-    std::cerr << param[0] << ", " << param[1] << "\n";
   }
 
   size_t side {static_cast<size_t>(sqrt(input.size()))};
@@ -284,15 +216,12 @@ int main(int argc, char *argv[]) {
     }
   };
 
-  auto inputF = [&](const std::array<size_t, 2> &img, const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
-    float shift_x = (img[0] - (side / 2.)) * param[0];
-		float shift_y = (img[1] - (side / 2.)) * param[1];
+  auto inputF = [&](const auto &pos, const auto &shift) -> std::array<uint16_t, 3> {
+    int64_t shift_x = (pos[2] - (side / 2)) * shift[0];
+		int64_t shift_y = (pos[3] - (side / 2)) * shift[1];
 
-    int64_t floored_shift_x = std::floor(shift_x);
-    int64_t floored_shift_y = std::floor(shift_y);
-
-    int64_t pos_x = pos[0] + floored_shift_x;
-    int64_t pos_y = pos[1] + floored_shift_y;
+    int64_t pos_x = pos[0] + shift_x;
+    int64_t pos_y = pos[1] + shift_y;
 
     while (pos_x < 0) {
       pos_x += width;
@@ -302,37 +231,30 @@ int main(int argc, char *argv[]) {
       pos_y += height;
     }
 
-    size_t img_index = img[1] * side + img[0];
-
-    float frac_x = shift_x - floored_shift_x;
-    float frac_y = shift_y - floored_shift_y;
-
-    std::array<uint16_t, 3> val_top_left     = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_top_right    = puller(img_index, ((pos_y + 0) % height) * width + ((pos_x + 1) % width));
-    std::array<uint16_t, 3> val_bottom_left  = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 0) % width));
-    std::array<uint16_t, 3> val_bottom_right = puller(img_index, ((pos_y + 1) % height) * width + ((pos_x + 1) % width));
-
-    std::array<double,   3> val_top    {};
-    std::array<double,   3> val_bottom {};
-    std::array<uint16_t, 3> val        {};
-
-    val_top[0] = val_top_left[0] * (1. - frac_x) + val_top_right[0] * frac_x;
-    val_top[1] = val_top_left[1] * (1. - frac_x) + val_top_right[1] * frac_x;
-    val_top[2] = val_top_left[2] * (1. - frac_x) + val_top_right[2] * frac_x;
-
-    val_bottom[0] = val_bottom_left[0] * (1. - frac_x) + val_bottom_right[0] * frac_x;
-    val_bottom[1] = val_bottom_left[1] * (1. - frac_x) + val_bottom_right[1] * frac_x;
-    val_bottom[2] = val_bottom_left[2] * (1. - frac_x) + val_bottom_right[2] * frac_x;
-
-    val[0] = std::round(val_top[0] * (1. - frac_y) + val_bottom[0] * frac_y);
-    val[1] = std::round(val_top[1] * (1. - frac_y) + val_bottom[1] * frac_y);
-    val[2] = std::round(val_top[2] * (1. - frac_y) + val_bottom[2] * frac_y);
-
-    return val;
+    return puller(pos[3] * side + pos[2], (pos_y % height) * width + (pos_x % width));
   };
 
+
+  std::array<int64_t, 2> param {};
+  if (optind + 2 == argc) {
+    for (size_t i { 0 }; i < 2; i++) {
+      param[i] = atof(argv[optind++]);
+    }
+  }
+  else {
+    param = find_best_tile_params(inputF, width, height, side, {-50, -50}, {50, 50}, 10);
+    std::cerr << param[0] << ", " << param[1] << "\n";
+  }
+
+  output.resize(input.size());
+
+  if (createPPMs(output_file_mask, width, height, max_rgb_value, output) < 0) {
+    return 4;
+  }
+
   iterate_dimensions<4>(std::array {width, height, side, side}, [&](const auto &pos) {
-    pusher(pos[3] * side + pos[2], pos[1] * width + pos[0], inputF({pos[2], pos[3]}, {pos[0], pos[1]}));
+    auto val = inputF(pos, param);
+    pusher(pos[3] * side + pos[2], pos[1] * width + pos[0], val);
   });
 
   return 0;
