@@ -157,18 +157,16 @@ void initDecoder(LfifDecoder<D> &dec) {
 * @param output Output callback function which will be returning pixels with signature void output(size_t index, INPUTTRIPLET value), where index is a pixel index in memory and value is said pixel.
 */
 template<size_t D, typename F>
-void decodeScanHuffman(LfifDecoder<D> &dec, std::istream &input, F &&output) {
+void decodeScanHuffman(LfifDecoder<D> &dec, std::istream &input, F &&pusher) {
   IBitstream bitstream       {};
   QDATAUNIT  previous_DC [3] {};
 
   bitstream.open(&input);
 
-  auto inputF = [&](const std::array<size_t, D> &pos) -> const auto & {
-    return dec.current_block[pos];
-  };
+  for (size_t image = 0; image < dec.img_dims[D]; image++) {
 
-  for (size_t img = 0; img < dec.img_dims[D]; img++) {
     iterate_dimensions<D>(dec.block_dims, [&](const std::array<size_t, D> &block) {
+
       for (size_t channel = 0; channel < 3; channel++) {
         decodeHuffman_RUNLENGTH<D>(bitstream, dec.runlength, dec.huffman_decoders_ptr[channel], dec.class_bits);
         runLengthDecode<D>(dec.runlength, dec.quantized_block);
@@ -182,18 +180,14 @@ void decodeScanHuffman(LfifDecoder<D> &dec, std::istream &input, F &&output) {
         }
       }
 
-      auto outputF = [&](const std::array<size_t, D> &pos, const auto &value) {
-        size_t img_index {};
-
-        for (size_t i { 0 }; i < D; i++) {
-          img_index += pos[i] * dec.img_stride_unaligned[i];
-        }
-        img_index += img * dec.img_stride_unaligned[D];
-
-        output(img_index, value);
+      auto outputF = [&](const auto &image_pos, const auto &value) {
+        std::array<size_t, D + 1> whole_image_pos {};
+        std::copy(std::begin(image_pos), std::end(image_pos), std::begin(whole_image_pos));
+        whole_image_pos[D] = image;
+        return pusher(whole_image_pos, value);
       };
 
-      putBlock<D>(dec.block_size.data(), inputF, block, dec.img_dims_unaligned, outputF);
+      putBlock<D>(dec.block_size.data(), [&](const auto &pos) { return dec.current_block[pos]; }, block, dec.img_dims_unaligned, outputF);
     });
   }
 }
@@ -233,7 +227,21 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
   bitstream.open(&input);
   cabac.init(bitstream);
 
-  for (size_t img = 0; img < dec.img_dims[D]; img++) {
+  for (size_t image = 0; image < dec.img_dims[D]; image++) {
+    auto inputF = [&](const auto &image_pos) {
+      std::array<size_t, D + 1> whole_image_pos {};
+      std::copy(std::begin(image_pos), std::end(image_pos), std::begin(whole_image_pos));
+      whole_image_pos[D] = image;
+      return puller(whole_image_pos);
+    };
+
+    auto outputF = [&](const auto &image_pos, const auto &value) {
+      std::array<size_t, D + 1> whole_image_pos {};
+      std::copy(std::begin(image_pos), std::end(image_pos), std::begin(whole_image_pos));
+      whole_image_pos[D] = image;
+      return pusher(whole_image_pos, value);
+    };
+
     iterate_dimensions<D>(dec.block_dims, [&](const std::array<size_t, D> &block) {
       bool any_block_available {};
       bool previous_block_available[D] {};
@@ -288,16 +296,14 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
             }
           }
 
-          std::array<size_t, D> img_pos {};
+          std::array<size_t, D> image_pos {};
           for (size_t i { 0 }; i < D; i++) {
-            img_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
+            image_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
 
-            if (img_pos[i] >= dec.img_dims_unaligned[i]) {
-              img_pos[i] = dec.img_dims_unaligned[i] - 1;
-            }
+            std::clamp<size_t>(image_pos[i], 0, dec.img_dims_unaligned[i] - 1);
           }
 
-          return puller(img * dec.img_stride_unaligned[D] + make_index<D>(dec.img_dims_unaligned, img_pos))[channel];
+          return inputF(image_pos)[channel];
         };
 
         if (dec.use_prediction) {
@@ -321,7 +327,7 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
         }
       }
 
-      putBlock<D>(dec.block_size.data(), [&](const auto &pos) { return dec.current_block[pos]; }, block, dec.img_dims_unaligned, [&](const auto &pos, const auto &value) { pusher(img * dec.img_stride_unaligned[D] + make_index<D>(dec.img_dims_unaligned, pos), value); });
+      putBlock<D>(dec.block_size.data(), [&](const auto &pos) { return dec.current_block[pos]; }, block, dec.img_dims_unaligned, outputF);
     });
 
   }

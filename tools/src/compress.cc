@@ -11,20 +11,21 @@ using namespace std;
 
 void print_usage(const char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <file-mask> -o <file> -q <quality> {-h} {}" << endl;
+  cerr << argv0 << " -i <file-mask> -o <file> -q <quality> {-h} {-p} {-s}" << endl;
 }
 
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman, bool &predict) {
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman, bool &predict, bool &shift) {
   const char *arg_quality {};
 
   input_file_mask  = nullptr;
   output_file_name = nullptr;
-  quality          = 0;
+  quality          = 0.f;
   huffman          = false;
   predict          = false;
+  shift            = false;
 
   char opt;
-  while ((opt = getopt(argc, argv, "i:o:q:hp")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:q:hps")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -56,6 +57,12 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
       case 'p':
         if (!predict) {
           predict = true;
+        }
+        continue;
+
+      case 's':
+        if (!shift) {
+          shift = true;
         }
         continue;
 

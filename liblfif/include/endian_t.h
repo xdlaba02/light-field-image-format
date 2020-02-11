@@ -79,22 +79,4 @@ inline T readValueFromStream(std::istream &stream) {
   return bigEndianSwap(dataBE);
 }
 
-template <typename T>
-class BigEndian {
-  T m_data;
-public:
-  BigEndian() {}
-  BigEndian(const T& other): m_data { bigEndianSwap<T>(other) } { }
-  operator T() const { return bigEndianSwap(m_data); }
-};
-
-template <typename T>
-class LittleEndian {
-  T m_data;
-public:
-  LittleEndian() { }
-  LittleEndian(const T& other): m_data { littleEndianSwap<T>(other) } { }
-  operator T() const { return littleEndianSwap(m_data); }
-};
-
 #endif

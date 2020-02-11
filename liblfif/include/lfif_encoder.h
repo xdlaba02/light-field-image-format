@@ -194,17 +194,12 @@ void performScan(LfifEncoder<D> &enc, INPUTF &&input, PERFF &&func) {
     enc.current_block[block_pos] = value;
   };
 
-  for (size_t img = 0; img < enc.img_dims[D]; img++) {
-    auto inputF = [&](const std::array<size_t, D> &img_pos) {
-      size_t img_index {};
-
-      for (size_t i { 0 }; i < D; i++) {
-        img_index += img_pos[i] * enc.img_stride_unaligned[i];
-      }
-
-      img_index += img * enc.img_stride_unaligned[D];
-
-      return input(img_index);
+  for (size_t image = 0; image < enc.img_dims[D]; image++) {
+    auto inputF = [&](const auto &image_pos) {
+      std::array<size_t, D + 1> whole_image_pos {};
+      std::copy(std::begin(image_pos), std::end(image_pos), std::begin(whole_image_pos));
+      whole_image_pos[D] = image;
+      return input(whole_image_pos);
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &pos_block) {
@@ -215,7 +210,7 @@ void performScan(LfifEncoder<D> &enc, INPUTF &&input, PERFF &&func) {
           enc.input_block[i] = enc.current_block[i][channel];
         }
 
-        func(img, channel, pos_block);
+        func(image, channel, pos_block);
       }
     });
   }
@@ -419,18 +414,24 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
   bitstream.open(&output);
   cabac.init(bitstream);
 
-  auto outputF = [&](const std::array<size_t, D> &block_pos, const auto &value) {
-    enc.current_block[block_pos] = value;
-  };
-
   for (size_t image = 0; image < enc.img_dims[D]; image++) {
-    auto inputF = [&](const std::array<size_t, D> &image_pos) {
-      return puller(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, image_pos));
+    auto inputF = [&](const auto &image_pos) {
+      std::array<size_t, D + 1> whole_image_pos {};
+      std::copy(std::begin(image_pos), std::end(image_pos), std::begin(whole_image_pos));
+      whole_image_pos[D] = image;
+      return puller(whole_image_pos);
+    };
+
+    auto outputF = [&](const auto &image_pos, const auto &value) {
+      std::array<size_t, D + 1> whole_image_pos {};
+      std::copy(std::begin(image_pos), std::end(image_pos), std::begin(whole_image_pos));
+      whole_image_pos[D] = image;
+      return pusher(whole_image_pos, value);
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &block) {
 
-      getBlock<D>(enc.block_size.data(), inputF, block, enc.img_dims_unaligned, outputF);
+      getBlock<D>(enc.block_size.data(), inputF, block, enc.img_dims_unaligned, [&](const auto &block_pos, const auto &value) { enc.current_block[block_pos] = value; });
 
       bool any_block_available {};
       bool previous_block_available[D] {};
@@ -489,17 +490,14 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
             }
           }
 
-          std::array<size_t, D + 1> image_pos {};
+          std::array<size_t, D> image_pos {};
           for (size_t i { 0 }; i < D; i++) {
             image_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
 
-            if (image_pos[i] >= enc.img_dims_unaligned[i]) {
-              image_pos[i] = enc.img_dims_unaligned[i] - 1;
-            }
+            std::clamp<size_t>(image_pos[i], 0, enc.img_dims_unaligned[i] - 1);
           }
-          image_pos[D] = image;
 
-          return puller(make_index<D + 1>(enc.img_dims_unaligned, image_pos))[channel];
+          return inputF(image_pos)[channel];
         };
 
         if (enc.use_prediction) {
@@ -534,7 +532,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
         }
       }
 
-      putBlock<D>(enc.block_size.data(), [&](const auto &pos) { return enc.current_block[pos]; }, block, enc.img_dims_unaligned, [&](const auto &pos, const auto &value) { pusher(image * enc.img_stride_unaligned[D] + make_index<D>(enc.img_dims_unaligned, pos), value); });
+      putBlock<D>(enc.block_size.data(), [&](const auto &pos) { return enc.current_block[pos]; }, block, enc.img_dims_unaligned, outputF);
     });
   }
 

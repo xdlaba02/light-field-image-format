@@ -55,38 +55,31 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  auto puller = [&](size_t index) -> std::array<INPUTUNIT, 3> {
-    size_t img       = index / (width * height);
-    size_t img_index = index % (width * height);
+  auto rgb_puller = [&](const std::array<size_t, 6> &pos) -> std::array<uint16_t, 3> {
+    size_t img_index = pos[1] * width + pos[0];
+    size_t img       = ((pos[5] * decoder.img_dims[4] + pos[4]) * decoder.img_dims[3] + pos[3]) * decoder.img_dims[2] + pos[2];
 
-    uint16_t R {};
-    uint16_t G {};
-    uint16_t B {};
+    return ppm_data[img].get(img_index);
+  };
 
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      R = ptr[img_index * 3 + 0];
-      G = ptr[img_index * 3 + 1];
-      B = ptr[img_index * 3 + 2];
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      R = ptr[img_index * 3 + 0];
-      G = ptr[img_index * 3 + 1];
-      B = ptr[img_index * 3 + 2];
-    }
+  auto rgb_pusher = [&](const std::array<size_t, 6> &pos, const std::array<uint16_t, 3> &RGB) {
+    size_t img_index = pos[1] * width + pos[0];
+    size_t img       = ((pos[5] * decoder.img_dims[4] + pos[4]) * decoder.img_dims[3] + pos[3]) * decoder.img_dims[2] + pos[2];
 
-    INPUTUNIT Y  = YCbCr::RGBToY(R, G, B) - pow(2, decoder.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+    ppm_data[img].put(img_index, RGB);
+  };
+
+  auto yuv_puller = [&](const std::array<size_t, 6> &pos) -> std::array<INPUTUNIT, 3> {
+    std::array<uint16_t, 3> RGB = rgb_puller(pos);
+
+    INPUTUNIT Y  = YCbCr::RGBToY(RGB[0], RGB[1], RGB[2]) - pow(2, decoder.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(RGB[0], RGB[1], RGB[2]);
+    INPUTUNIT Cr = YCbCr::RGBToCr(RGB[0], RGB[1], RGB[2]);
 
     return {Y, Cb, Cr};
   };
 
-  auto pusher = [&](size_t index, const std::array<INPUTUNIT, 3> &values) {
-    size_t img       = index / (width * height);
-    size_t img_index = index % (width * height);
-
+  auto yuv_pusher = [&](const std::array<size_t, 6> &pos, const std::array<INPUTUNIT, 3> &values) {
     INPUTUNIT Y  = values[0] + pow(2, decoder.color_depth - 1);
     INPUTUNIT Cb = values[1];
     INPUTUNIT Cr = values[2];
@@ -95,22 +88,11 @@ int main(int argc, char *argv[]) {
     uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, decoder.color_depth) - 1);
     uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, decoder.color_depth) - 1);
 
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      ptr[img_index * 3 + 0] = R;
-      ptr[img_index * 3 + 1] = G;
-      ptr[img_index * 3 + 2] = B;
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      ptr[img_index * 3 + 0] = R;
-      ptr[img_index * 3 + 1] = G;
-      ptr[img_index * 3 + 2] = B;
-    }
+    rgb_pusher(pos, {R, G, B});
   };
 
   initDecoder(decoder);
-  decodeScanCABAC(decoder, input, puller, pusher);
+  decodeScanCABAC(decoder, input, yuv_puller, yuv_pusher);
 
   return 0;
 }

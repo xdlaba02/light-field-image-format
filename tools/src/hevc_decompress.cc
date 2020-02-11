@@ -173,9 +173,9 @@ int main(int argc, char *argv[]) {
 
     view_counter++;
 
-    if (last_slash_pos != string::npos) {
-      string command("mkdir -p " + filename.substr(0, last_slash_pos));
-      system(command.c_str());
+    if (create_directory(file_name)) {
+      cerr << "ERROR: CANNON OPEN " << file_name << " FOR WRITING\n";
+      return 1;
     }
 
     ppm.file = fopen(filename.c_str(), "wb");

@@ -229,12 +229,11 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  size_t last_slash_pos = string(output_file_name).find_last_of('/');
-  if (last_slash_pos != string::npos) {
-    string command = "mkdir -p " + string(output_file_name).substr(0, last_slash_pos);
-    system(command.c_str());
+  if (create_directory(output_file_name)) {
+    cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
+    return 1;
   }
-
+  
   output.open(output_file_name, ios::binary);
   if (!output) {
     cerr << "Could not open " << output_file_name << " for writing\n";

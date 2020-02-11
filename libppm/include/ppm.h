@@ -9,10 +9,12 @@
 #ifndef PPM_H
 #define PPM_H
 
+#include <array>
+
 #include <cstdio>
 #include <cstdint>
 
-#include <endian.h>
+#include "ppm_endian.h"
 
 class PPM {
   bool        m_opened;
@@ -38,14 +40,43 @@ public:
 
   int mmapPPM(const char *file_name);
 
-  uint16_t operator[](size_t index) const {
+  void *data() const {
+    return static_cast<uint8_t *>(m_file) + m_header_offset;
+  }
+
+  std::array<uint16_t, 3> get(size_t index) const {
+    uint16_t R {};
+    uint16_t G {};
+    uint16_t B {};
+
     if (m_color_depth > 255) {
-      uint16_t *ptr = reinterpret_cast<uint16_t *>(static_cast<uint8_t *>(m_file) + m_header_offset);
-      return be16toh(ptr[index]);
+      const BigEndian<uint16_t> *ptr = static_cast<const BigEndian<uint16_t> *>(data());
+      R = ptr[index * 3 + 0];
+      G = ptr[index * 3 + 1];
+      B = ptr[index * 3 + 2];
     }
     else {
-      uint8_t *ptr = static_cast<uint8_t *>(m_file) + m_header_offset;
-      return ptr[index];
+      const BigEndian<uint8_t> *ptr = static_cast<const BigEndian<uint8_t> *>(data());
+      R = ptr[index * 3 + 0];
+      G = ptr[index * 3 + 1];
+      B = ptr[index * 3 + 2];
+    }
+
+    return {R, G, B};
+  }
+
+  void put(size_t index, const std::array<uint16_t, 3> &value) {
+    if (m_color_depth > 255) {
+      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(data());
+      ptr[index * 3 + 0] = value[0];
+      ptr[index * 3 + 1] = value[1];
+      ptr[index * 3 + 2] = value[2];
+    }
+    else {
+      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(data());
+      ptr[index * 3 + 0] = value[0];
+      ptr[index * 3 + 1] = value[1];
+      ptr[index * 3 + 2] = value[2];
     }
   }
 
@@ -59,10 +90,6 @@ public:
 
   uint32_t color_depth() const {
     return m_color_depth;
-  }
-
-  void *data() const {
-    return static_cast<uint8_t *>(m_file) + m_header_offset;
   }
 };
 

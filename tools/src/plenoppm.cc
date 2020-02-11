@@ -172,14 +172,12 @@ bool savePPMs(const char *output_file_mask, const void *rgb_data, uint64_t width
 
   ppm_row = allocPPMRow(width);
 
-  size_t last_slash_pos = string(output_file_mask).find_last_of('/');
-
   FileMask file_name(output_file_mask);
 
   for (size_t image = 0; image < image_count; image++) {
-    if (last_slash_pos != string::npos) {
-      string command("mkdir -p " + file_name[image].substr(0, last_slash_pos));
-      system(command.c_str());
+    if (create_directory(file_name[image].c_str())) {
+      cerr << "ERROR: CANNON OPEN " << file_name[image] << " FOR WRITING\n";
+      return 1;
     }
 
     ppm.file = fopen(file_name[image].c_str(), "wb");

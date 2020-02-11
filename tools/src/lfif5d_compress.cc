@@ -124,7 +124,6 @@ int main(int argc, char *argv[]) {
 
   uint64_t width               {};
   uint64_t height              {};
-  uint64_t image_count         {};
   uint32_t max_rgb_value       {};
 
   LfifEncoder<5> encoder {};
@@ -181,26 +180,25 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  size_t side = sqrt(views_count);
   if (optind + 5 == argc) {
     for (size_t i { 0 }; i < 5; i++) {
       int tmp = atoi(argv[optind++]);
       if (tmp <= 0) {
-        size_t block_size = sqrt(views_count);
-        encoder.block_size = {block_size, block_size, block_size, block_size, block_size};
+        encoder.block_size = {side, side, side, side, side};
         break;
       }
       encoder.block_size[i] = tmp;
     }
   }
   else {
-    size_t block_size = sqrt(image_count);
-    encoder.block_size = {block_size, block_size, block_size, block_size, block_size};
+    encoder.block_size = {side, side, side, side, side};
   }
 
   encoder.img_dims[0] = width;
   encoder.img_dims[1] = height;
-  encoder.img_dims[2] = sqrt(views_count);
-  encoder.img_dims[3] = sqrt(views_count);
+  encoder.img_dims[2] = side;
+  encoder.img_dims[3] = side;
   encoder.img_dims[4] = frames_count;
   encoder.img_dims[5] = 1;
   encoder.color_depth = ceil(log2(max_rgb_value + 1));
@@ -208,38 +206,31 @@ int main(int argc, char *argv[]) {
   encoder.use_huffman    = false;
   encoder.use_prediction = predict;
 
-  auto puller = [&](size_t index) -> std::array<INPUTUNIT, 3> {
-    size_t img       = index / (width * height);
-    size_t img_index = index % (width * height);
+  auto rgb_puller = [&](const std::array<size_t, 6> &pos) -> std::array<uint16_t, 3> {
+    size_t img_index = pos[1] * width + pos[0];
+    size_t img       = ((pos[5] * frames_count + pos[4]) * side + pos[3]) * side + pos[2];
 
-    uint16_t R {};
-    uint16_t G {};
-    uint16_t B {};
+    return ppm_data[img].get(img_index);
+  };
 
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      R = ptr[img_index * 3 + 0];
-      G = ptr[img_index * 3 + 1];
-      B = ptr[img_index * 3 + 2];
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      R = ptr[img_index * 3 + 0];
-      G = ptr[img_index * 3 + 1];
-      B = ptr[img_index * 3 + 2];
-    }
+  auto rgb_pusher = [&](const std::array<size_t, 6> &pos, const std::array<uint16_t, 3> &RGB) {
+    size_t img_index = pos[1] * width + pos[0];
+    size_t img       = ((pos[5] * frames_count + pos[4]) * side + pos[3]) * side + pos[2];
 
-    INPUTUNIT Y  = YCbCr::RGBToY(R, G, B) - pow(2, encoder.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(R, G, B);
-    INPUTUNIT Cr = YCbCr::RGBToCr(R, G, B);
+    ppm_data[img].put(img_index, RGB);
+  };
+
+  auto yuv_puller = [&](const std::array<size_t, 6> &pos) -> std::array<INPUTUNIT, 3> {
+    std::array<uint16_t, 3> RGB = rgb_puller(pos);
+
+    INPUTUNIT Y  = YCbCr::RGBToY(RGB[0], RGB[1], RGB[2]) - pow(2, encoder.color_depth - 1);
+    INPUTUNIT Cb = YCbCr::RGBToCb(RGB[0], RGB[1], RGB[2]);
+    INPUTUNIT Cr = YCbCr::RGBToCr(RGB[0], RGB[1], RGB[2]);
 
     return {Y, Cb, Cr};
   };
 
-  auto pusher = [&](size_t index, const std::array<INPUTUNIT, 3> &values) {
-    size_t img       = index / (width * height);
-    size_t img_index = index % (width * height);
-
+  auto yuv_pusher = [&](const std::array<size_t, 6> &pos, const std::array<INPUTUNIT, 3> &values) {
     INPUTUNIT Y  = values[0] + pow(2, encoder.color_depth - 1);
     INPUTUNIT Cb = values[1];
     INPUTUNIT Cr = values[2];
@@ -248,24 +239,13 @@ int main(int argc, char *argv[]) {
     uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
     uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
 
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(ppm_data[img].data());
-      ptr[img_index * 3 + 0] = R;
-      ptr[img_index * 3 + 1] = G;
-      ptr[img_index * 3 + 2] = B;
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(ppm_data[img].data());
-      ptr[img_index * 3 + 0] = R;
-      ptr[img_index * 3 + 1] = G;
-      ptr[img_index * 3 + 2] = B;
-    }
+    rgb_pusher(pos, {R, G, B});
   };
 
   initEncoder(encoder);
   constructQuantizationTables(encoder, "DEFAULT", quality);
   writeHeader(encoder, output);
-  outputScanCABAC_DIAGONAL(encoder, puller, pusher, output);
+  outputScanCABAC_DIAGONAL(encoder, yuv_puller, yuv_pusher, output);
 
   return 0;
 }
