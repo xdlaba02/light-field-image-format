@@ -4,6 +4,7 @@
 \******************************************************************************/
 
 #include "plenoppm.h"
+#include "tiler.h"
 
 #include <colorspace.h>
 #include <lfif_encoder.h>
@@ -36,7 +37,11 @@ std::array<size_t, 4> block_size_4D {};
 
 bool append                 {};
 bool huffman                {};
-bool use_prediction                {};
+bool use_prediction         {};
+bool shift                  {};
+bool shift_param_set        {};
+
+std::array<int64_t, 2> shift_param {};
 
 array<float, 3> quality_interval {};
 
@@ -174,12 +179,12 @@ int doTest(LfifEncoder<D> &encoder, const vector<PPM> &original, vector<PPM> &re
 
 void print_usage(char *argv0) {
   cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name> [<x> <y>]] [-3 <output-file-name> [<x> <y> <z>]] [-4 <output-file-name> [<x> <y> <z> <ž>]] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h] [-p]" << endl;
+  cerr << argv0 << " -i <input-file-mask> [-2 <output-file-name> [<x> <y>]] [-3 <output-file-name> [<x> <y> <z>]] [-4 <output-file-name> [<x> <y> <z> <ž>]] [-f <fist-quality>] [-l <last-quality>] [-s <quality-step>] [-a] [-Q <qtabletype-type>] [-Z <zztabletype-type>] [-h] [-p] [-t [<x> <y>]]" << endl;
 }
 
 void parse_args(int argc, char *argv[]) {
   char opt {};
-  while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:aQ:Z:hp")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:s:f:l:2:3:4:aQ:Z:hpt")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -213,16 +218,18 @@ void parse_args(int argc, char *argv[]) {
         if (!output_file_2D) {
           output_file_2D = optarg;
 
-          int tmp = atoi(argv[optind]);
-          if (tmp > 0) {
-            optind++;
-            block_size_2D[0] = tmp;
-            for (size_t i { 1 }; i < 2; i++) {
-              tmp = atoi(argv[optind++]);
-              if (tmp <= 0) {
-                break;
+          if (optind + 1 < argc) {
+            int tmp = atoi(argv[optind]);
+            if (tmp > 0) {
+              optind++;
+              block_size_2D[0] = tmp;
+              for (size_t i { 1 }; i < 2; i++) {
+                tmp = atoi(argv[optind++]);
+                if (tmp <= 0) {
+                  break;
+                }
+                block_size_2D[i] = tmp;
               }
-              block_size_2D[i] = tmp;
             }
           }
 
@@ -234,16 +241,18 @@ void parse_args(int argc, char *argv[]) {
         if (!output_file_3D) {
           output_file_3D = optarg;
 
-          int tmp = atoi(argv[optind]);
-          if (tmp > 0) {
-            optind++;
-            block_size_3D[0] = tmp;
-            for (size_t i { 1 }; i < 3; i++) {
-              tmp = atoi(argv[optind++]);
-              if (tmp <= 0) {
-                break;
+          if (optind + 2 < argc) {
+            int tmp = atoi(argv[optind]);
+            if (tmp > 0) {
+              optind++;
+              block_size_3D[0] = tmp;
+              for (size_t i { 1 }; i < 3; i++) {
+                tmp = atoi(argv[optind++]);
+                if (tmp <= 0) {
+                  break;
+                }
+                block_size_3D[i] = tmp;
               }
-              block_size_3D[i] = tmp;
             }
           }
 
@@ -255,16 +264,18 @@ void parse_args(int argc, char *argv[]) {
         if (!output_file_4D) {
           output_file_4D = optarg;
 
-          int tmp = atoi(argv[optind]);
-          if (tmp > 0) {
-            optind++;
-            block_size_4D[0] = tmp;
-            for (size_t i { 1 }; i < 4; i++) {
-              tmp = atoi(argv[optind++]);
-              if (tmp <= 0) {
-                break;
+          if (optind + 3 < argc) {
+            int tmp = atoi(argv[optind]);
+            if (tmp > 0) {
+              optind++;
+              block_size_4D[0] = tmp;
+              for (size_t i { 1 }; i < 4; i++) {
+                tmp = atoi(argv[optind++]);
+                if (tmp <= 0) {
+                  break;
+                }
+                block_size_4D[i] = tmp;
               }
-              block_size_4D[i] = tmp;
             }
           }
 
@@ -307,6 +318,25 @@ void parse_args(int argc, char *argv[]) {
         }
       break;
 
+      case 't':
+        if (!shift) {
+          shift = true;
+
+          if (optind + 1 < argc) {
+            auto shift_x = std::stringstream(argv[optind]);
+            shift_x >> shift_param[0];
+            if (!shift_x.fail()) {
+              auto shift_y = std::stringstream(argv[optind + 1]);
+              shift_y >> shift_param[1];
+              if (!shift_y.fail()) {
+                optind += 2;
+                shift_param_set = true;
+              }
+            }
+          }
+          continue;
+        }
+      break;
 
       default:
         print_usage(argv[0]);
@@ -367,7 +397,6 @@ int main(int argc, char *argv[]) {
 
   ofstream outputs[3]           {};
 
-
   parse_args(argc, argv);
 
   if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data_readonly) < 0) {
@@ -376,12 +405,58 @@ int main(int argc, char *argv[]) {
 
   image_count = ppm_data_readonly.size();
 
-  size_t block_size = sqrt(image_count);
+  size_t side = sqrt(image_count);
+
+  auto shift_images = [&](std::vector<PPM> &ppms) {
+    if (shift) {
+      auto inputF = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
+        size_t img_index = pos[1] * width + pos[0];
+        size_t img       = pos[3] * side  + pos[2];
+
+        return ppms[img].get(img_index);
+      };
+
+      if (!shift_param_set) {
+        int64_t width_shift  {static_cast<int64_t>((width  * 2) / side)};
+        int64_t height_shift {static_cast<int64_t>((height * 2) / side)};
+
+        shift_param = find_best_shift_params(inputF, {width, height, side, side}, {-width_shift, -height_shift}, {width_shift, height_shift}, 10, 8);
+        std::cerr << shift_param[0] << " " << shift_param[1] << "\n";
+        shift_param_set = true;
+      }
+
+      for (size_t y {}; y < side; y++) {
+        for (size_t x {}; x < side; x++) {
+          auto shiftInputF = [&](const std::array<size_t, 2> &pos) {
+            std::array<size_t, 4> whole_image_pos {};
+
+            whole_image_pos[0] = pos[0];
+            whole_image_pos[1] = pos[1];
+            whole_image_pos[2] = x;
+            whole_image_pos[3] = y;
+
+            return inputF(whole_image_pos);
+          };
+
+          auto shiftOutputF = [&](const std::array<size_t, 2> &pos, const auto &value) {
+            size_t img_index = pos[1] * width + pos[0];
+            size_t img       = y * side + x;
+
+            return ppms[img].put(img_index, value);
+          };
+
+          shift_image(shiftInputF, shiftOutputF, {width, height}, get_shift_coef({x, y}, {side, side}, shift_param));
+        }
+      }
+    }
+  };
 
   ios_base::openmode flags { fstream::app };
   if (!append) {
     flags = fstream::trunc;
   }
+
+  shift_images(ppm_data_readonly);
 
   if (output_file_2D) {
     LfifEncoder<2> encoder2D       {};
@@ -391,8 +466,10 @@ int main(int argc, char *argv[]) {
       return 2;
     }
 
+    shift_images(ppm_data_readwrite);
+
     if (!block_size_2D[0] || !block_size_2D[1]) {
-      block_size_2D = { block_size, block_size };
+      block_size_2D = { side, side };
     }
 
     encoder2D.block_size = block_size_2D;
@@ -430,8 +507,10 @@ int main(int argc, char *argv[]) {
       return 2;
     }
 
+    shift_images(ppm_data_readwrite);
+
     if (!block_size_3D[0] || !block_size_3D[1] || !block_size_3D[2]) {
-      block_size_3D = { block_size, block_size, block_size };
+      block_size_3D = { side, side, side };
     }
 
     encoder3D.block_size = block_size_3D;
@@ -469,8 +548,10 @@ int main(int argc, char *argv[]) {
       return 2;
     }
 
+    shift_images(ppm_data_readwrite);
+
     if (!block_size_4D[0] || !block_size_4D[1] || !block_size_4D[2] || !block_size_4D[3]) {
-      block_size_4D = { block_size, block_size, block_size, block_size };
+      block_size_4D = { side, side, side, side };
     }
 
     encoder4D.block_size = block_size_4D;
