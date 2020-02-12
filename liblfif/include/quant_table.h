@@ -95,44 +95,37 @@ constexpr void scaleFillNear(const QuantTable<D> &input, QuantTable<D> &output) 
  */
 template <size_t D>
 constexpr void scaleByDCT(const QuantTable<D> &input, QuantTable<D> &output) {
-  DynamicBlock<DCTDATAUNIT, D> input_coefs(input.size());
-  DynamicBlock<DCTDATAUNIT, D> output_coefs(output.size());
+  DynamicBlock<DCTDATAUNIT, D> coefs(input.size());
+  DynamicBlock<DCTDATAUNIT, D> resized_coefs(output.size());
 
-  auto fInputF = [&](size_t index) -> DCTDATAUNIT {
-    return input[index];
+  for (size_t i = 0; i < input.stride(D); i++) {
+    coefs[i] = input[i];
+  }
+
+  auto inputF = [&](size_t index) -> auto & {
+    return coefs[index];
   };
 
-  auto fOutputF = [&](size_t index) -> DCTDATAUNIT & {
-    return input_coefs[index];
-  };
+  fdct<D>(input.size().data(), inputF);
 
-  fdct<D>(input.size().data(), fInputF, fOutputF);
-
-  auto iInputF = [&](size_t index) -> DCTDATAUNIT {
-    size_t real_index {};
-
-    for (size_t i { 1 }; i <= D; i++) {
-      size_t dim = index % output.stride(D - i + 1) / output.stride(D - i);
-      if (dim >= input.size()[D - i]) {
-        return 0;
-      }
-      else {
-        real_index *= input.size()[D - i];
-        real_index += dim;
+  iterate_dimensions<D>(coefs.size(), [&](const auto &pos) {
+    for (size_t i {}; i < D; i++) {
+      if (pos[i] >= resized_coefs.size(i)) {
+        return;
       }
     }
 
-    return input_coefs[real_index];
+    resized_coefs[pos] = coefs[pos];
+  });
+
+  auto outputF = [&](size_t index) -> auto & {
+    return resized_coefs[index];
   };
 
-  auto iOutputF = [&](size_t index) -> DCTDATAUNIT & {
-    return output_coefs[index];
-  };
-
-  idct<D>(output.size().data(), iInputF, iOutputF);
+  idct<D>(output.size().data(), outputF);
 
   for (size_t i = 0; i < output.stride(D); i++) {
-    output[i] = std::round(output_coefs[i]);
+    output[i] = std::round(resized_coefs[i]);
   }
 }
 

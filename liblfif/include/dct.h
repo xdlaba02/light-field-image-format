@@ -47,32 +47,22 @@ struct fdct {
   * @param input  callback function returning samples from a block. Signature is DCTDATAUNIT input(size_t index).
   * @param output callback function for writing DCT coefficients. Signature is DCTDATAUNIT &output(size_t index).
   */
-  template <typename IF, typename OF>
-  fdct(const size_t BS[D], IF &&input, OF &&output) {
-    DynamicBlock<DCTDATAUNIT, D> tmp(BS);
-
+  template <typename F>
+  fdct(const size_t BS[D], F &&input) {
     for (size_t slice = 0; slice < BS[D - 1]; slice++) {
-      auto inputF = [&](size_t index) {
+      auto inputF = [&](size_t index) -> auto & {
         return input(slice * get_stride<D - 1>(BS) + index);
       };
 
-      auto outputF = [&](size_t index) -> auto & {
-        return tmp[slice * get_stride<D - 1>(BS) + index];
-      };
-
-      fdct<D - 1>(BS, inputF, outputF);
+      fdct<D - 1>(BS, inputF);
     }
 
     for (size_t noodle = 0; noodle < get_stride<D - 1>(BS); noodle++) {
-      auto inputF = [&](size_t index) {
-        return tmp[index * get_stride<D - 1>(BS) + noodle];
+      auto inputF = [&](size_t index) -> auto & {
+        return input(index * get_stride<D - 1>(BS) + noodle);
       };
 
-      auto outputF = [&](size_t index) -> auto & {
-        return output(index * get_stride<D - 1>(BS) + noodle);
-      };
-
-      fdct<1>(&BS[D - 1], inputF, outputF);
+      fdct<1>(&BS[D - 1], inputF);
     }
   }
 };
@@ -88,14 +78,20 @@ struct fdct<1> {
    * @brief The parital specialization for putting one dimensional fdct.
    * @see fdct<BS, D>::fdct
    */
-  template <typename IF, typename OF>
-  fdct(const size_t BS[1], IF &&input, OF &&output) {
-    static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]);
+  template <typename F>
+  fdct(const size_t BS[1], F &&input) {
+    static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]); //FIXME DANGEROUS FOR FUTURE IMPLEMENTATION WITH DIFFERENT BLOCK SIZES IN ONE IMAGE
+
+    DynamicBlock<DCTDATAUNIT, 1> tmp(BS);
 
     for (size_t u = 0; u < BS[0]; u++) {
       for (size_t x = 0; x < BS[0]; x++) {
-        output(u) += input(x) * coefs[u * BS[0] + x];
+        tmp[u] += input(x) * coefs[u * BS[0] + x];
       }
+    }
+
+    for (size_t i {}; i < BS[0]; i++) {
+      input(i) = tmp[i];
     }
   }
 };
@@ -111,32 +107,22 @@ struct idct {
   * @param input  callback function returning coefficients from decoded block. Signature is DCTDATAUNIT input(size_t index).
   * @param output callback function for writing output samples. Signature is DCTDATAUNIT &output(size_t index).
   */
-  template <typename IF, typename OF>
-  idct(const size_t BS[D], IF &&input, OF &&output) {
-    DynamicBlock<DCTDATAUNIT, D> tmp(BS);
-
+  template <typename F>
+  idct(const size_t BS[D], F &&input) {
     for (size_t slice = 0; slice < BS[D - 1]; slice++) {
-      auto inputF = [&](size_t index) {
+      auto inputF = [&](size_t index) -> auto & {
         return input(slice * get_stride<D - 1>(BS) + index);
       };
 
-      auto outputF = [&](size_t index) -> auto & {
-        return tmp[slice * get_stride<D - 1>(BS) + index];
-      };
-
-      idct<D - 1>(BS, inputF, outputF);
+      idct<D - 1>(BS, inputF);
     }
 
     for (size_t noodle = 0; noodle < get_stride<D - 1>(BS); noodle++) {
-      auto inputF = [&](size_t index) {
-        return tmp[index * get_stride<D - 1>(BS) + noodle];
+      auto inputF = [&](size_t index) -> auto & {
+        return input(index * get_stride<D - 1>(BS) + noodle);
       };
 
-      auto outputF = [&](size_t index) -> auto & {
-        return output(index * get_stride<D - 1>(BS) + noodle);
-      };
-
-      idct<1>(&BS[D - 1], inputF, outputF);
+      idct<1>(&BS[D - 1], inputF);
     }
   }
 };
@@ -152,14 +138,20 @@ struct idct<1> {
    * @brief The parital specialization for putting one dimensional idct.
    * @see idct<BS, D>::idct
    */
-  template <typename IF, typename OF>
-  idct(const size_t BS[1], IF &&input, OF &&output) {
+  template <typename F>
+  idct(const size_t BS[1], F &&input) {
     static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]);
+
+    DynamicBlock<DCTDATAUNIT, 1> tmp(BS);
 
     for (size_t x = 0; x < BS[0]; x++) {
       for (size_t u = 0; u < BS[0]; u++) {
-        output(x) += input(u) * coefs[u * BS[0] + x];
+        tmp[x] += input(u) * coefs[u * BS[0] + x];
       }
+    }
+
+    for (size_t i {}; i < BS[0]; i++) {
+      input(i) = tmp[i];
     }
   }
 };

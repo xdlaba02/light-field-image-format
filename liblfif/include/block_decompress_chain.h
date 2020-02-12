@@ -259,20 +259,18 @@ void dequantize(const DynamicBlock<QDATAUNIT, D> &quantized_block, DynamicBlock<
  * @param output_block The output block of image samples.
  */
 template <size_t D>
-void inverseDiscreteCosineTransform(const DynamicBlock<DCTDATAUNIT, D> &dct_block, DynamicBlock<INPUTUNIT, D> &output_block) {
+void inverseDiscreteCosineTransform(DynamicBlock<DCTDATAUNIT, D> &dct_block, DynamicBlock<INPUTUNIT, D> &output_block) {
   assert(dct_block.size() == output_block.size());
 
-  output_block.fill(0);
-
-  auto inputF = [&](size_t index) {
+  auto inputF = [&](size_t index) -> auto & {
     return dct_block[index];
   };
 
-  auto outputF = [&](size_t index) -> auto & {
-    return output_block[index];
-  };
+  idct<D>(dct_block.size().data(), inputF);
 
-  idct<D>(dct_block.size().data(), inputF, outputF);
+  for (size_t i {}; i < output_block.stride(D); i++) {
+    output_block[i] = dct_block[i];
+  }
 }
 
 template <size_t D>

@@ -37,7 +37,8 @@ class DynamicBlock {
   std::vector<T>        m_data {};
 
 public:
-  DynamicBlock() = default;
+  DynamicBlock()                     = default;
+  DynamicBlock(const DynamicBlock &) = default;
 
   DynamicBlock(size_t BS): m_data(pow(BS, D)) {
     std::fill(std::begin(m_size), std::end(m_size), BS);
@@ -48,6 +49,7 @@ public:
   }
 
   DynamicBlock(const std::array<size_t, D> &size): DynamicBlock(size.data()) {}
+
 
   void resize(const std::array<size_t, D> &size) {
     m_size = size;
