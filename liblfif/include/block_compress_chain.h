@@ -37,15 +37,17 @@ template <size_t D>
 void forwardDiscreteCosineTransform(const DynamicBlock<INPUTUNIT, D> &input_block, DynamicBlock<DCTDATAUNIT, D> &transformed_block) {
   assert(input_block.size() == transformed_block.size());
 
-  for (size_t i {}; i < input_block.stride(D); i++) {
-    transformed_block[i] = input_block[i];
-  }
+  transformed_block.fill(0);
 
-  auto inputF = [&](size_t index) -> auto & {
+  auto inputF = [&](size_t index) {
+    return input_block[index];
+  };
+
+  auto outputF = [&](size_t index) -> auto & {
     return transformed_block[index];
   };
 
-  fdct<D>(input_block.size().data(), inputF);
+  fdct<D>(input_block.size().data(), inputF, outputF);
 }
 
 /**
