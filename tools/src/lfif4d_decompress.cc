@@ -5,6 +5,7 @@
 
 #include "decompress.h"
 #include "plenoppm.h"
+#include "tiler.h"
 
 #include <lfif_decoder.h>
 
@@ -48,6 +49,7 @@ int main(int argc, char *argv[]) {
   height        = decoder.img_dims[1];
   image_count   = decoder.img_dims[2] * decoder.img_dims[3] * decoder.img_dims[4];
   max_rgb_value = pow(2, decoder.color_depth) - 1;
+  size_t side = sqrt(image_count);
 
   ppm_data.resize(image_count);
 
@@ -98,6 +100,36 @@ int main(int argc, char *argv[]) {
   }
   else {
     decodeScanCABAC(decoder, input, yuv_puller, yuv_pusher);
+  }
+
+  if (decoder.shift) {
+    for (size_t y {}; y < side; y++) {
+      for (size_t x {}; x < side; x++) {
+        auto shiftInputF = [&](const std::array<size_t, 2> &pos) {
+          std::array<size_t, 5> whole_image_pos {};
+
+          whole_image_pos[0] = pos[0];
+          whole_image_pos[1] = pos[1];
+          whole_image_pos[2] = x;
+          whole_image_pos[3] = y;
+
+          return rgb_puller(whole_image_pos);
+        };
+
+        auto shiftOutputF = [&](const std::array<size_t, 2> &pos, const auto &value) {
+          std::array<size_t, 5> whole_image_pos {};
+
+          whole_image_pos[0] = pos[0];
+          whole_image_pos[1] = pos[1];
+          whole_image_pos[2] = x;
+          whole_image_pos[3] = y;
+
+          return rgb_pusher(whole_image_pos, value);
+        };
+
+        shift_image(shiftInputF, shiftOutputF, {width, height}, get_shift_coef({x, y}, {side, side}, decoder.shift_param));
+      }
+    }
   }
 
   return 0;

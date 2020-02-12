@@ -38,6 +38,9 @@ struct LfifEncoder {
 
   bool use_huffman; /**< @brief Huffman encoding will be used when this is true.*/
   bool use_prediction;
+  bool shift;
+
+  std::array<int64_t, 2> shift_param;
 
   QuantTable<D>      quant_table     [2];    /**< @brief Quantization matrices for luma and chroma.*/
   TraversalTable<D>  traversal_table [2];    /**< @brief Traversal matrices for luma and chroma.*/
@@ -335,9 +338,15 @@ void writeHeader(LfifEncoder<D> &enc, std::ostream &output) {
     writeQuantToStream<D>(enc.quant_table[i], output);
   }
 
-  writeValueToStream<uint8_t>(enc.use_huffman, output);
+  writeValueToStream<uint8_t>(enc.use_huffman,    output);
   writeValueToStream<uint8_t>(enc.use_prediction, output);
+  writeValueToStream<uint8_t>(enc.shift,          output);
 
+  if (enc.shift) {
+    for (size_t i = 0; i < 2; i++) {
+      writeValueToStream<int64_t>(-enc.shift_param[i], output);
+    }
+  }
 
   if (enc.use_huffman) {
     for (size_t i = 0; i < 2; i++) {

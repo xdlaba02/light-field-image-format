@@ -11,50 +11,112 @@
 #include <block.h>
 
 #include <cmath>
+#include <numeric>
 
 #include <array>
 #include <map>
 
-inline void shift_pos(std::array<size_t, 4> &pos, const std::array<int64_t, 2> &shift, size_t width, size_t height, size_t side) {
-  int64_t shift_x = (pos[2] - (side / 2)) * shift[0];
-  int64_t shift_y = (pos[3] - (side / 2)) * shift[1];
+template <typename IF, typename OF>
+inline void shift_image(IF &&input, OF &&output, const std::array<size_t, 2> &dimensions, std::array<int64_t, 2> shift_coef) {
+  std::array<size_t, 2> gcd {};
 
-  std::array<int64_t, 2> shifted_pos {};
+  for (size_t i {}; i < 2; i++) {
+    while (shift_coef[i] < 0) {
+      shift_coef[i] += dimensions[i];
+    }
+    shift_coef[i] %= dimensions[i];
 
-  shifted_pos[0] = pos[0] + shift_x;
-  shifted_pos[1] = pos[1] + shift_y;
-
-  while (shifted_pos[0] < 0) {
-    shifted_pos[0] += width;
+    gcd[i] = std::gcd<size_t>(dimensions[i], shift_coef[i]);
   }
 
-  while (shifted_pos[1] < 0) {
-    shifted_pos[1] += height;
+  for (size_t y {}; y < dimensions[1]; y++) {
+    for (size_t x {}; x < gcd[0]; x++) {
+      auto tmp = input({x, y});
+
+      size_t i {x};
+      while (true) {
+        size_t k = i + shift_coef[0];
+        if (k >= dimensions[0]) {
+          k -= dimensions[0];
+        }
+
+        if (k == x) {
+          break;
+        }
+
+        output({i, y}, input({k, y}));
+        i = k;
+      }
+
+      output({i, y}, tmp);
+    }
   }
 
-  pos[0] = shifted_pos[0] % width;
-  pos[1] = shifted_pos[1] % height;
+  for (size_t y {}; y < gcd[1]; y++) {
+    for (size_t x {}; x < dimensions[0]; x++) {
+      auto tmp = input({x, y});
+
+      size_t i {y};
+      while (true) {
+        size_t k = i + shift_coef[1];
+        if (k >= dimensions[1]) {
+          k -= dimensions[1];
+        }
+
+        if (k == y) {
+          break;
+        }
+
+        output({x, i}, input({x, k}));
+        i = k;
+      }
+
+      output({x, i}, tmp);
+    }
+  }
 }
 
+inline std::array<int64_t, 2> get_shift_coef(const std::array<size_t, 2> &pos, const std::array<size_t, 2> &size, const std::array<int64_t, 2> &shift_param) {
+  return {(static_cast<int64_t>(pos[0]) - static_cast<int64_t>(size[0] / 2)) * shift_param[0], (static_cast<int64_t>(pos[1]) - static_cast<int64_t>(size[1] / 2)) * shift_param[1]};
+}
+
+inline std::array<size_t, 4> get_shifted_pos(std::array<size_t, 4> pos, const std::array<size_t, 4> &size, const std::array<int64_t, 2> &shift_param) {
+  std::array<int64_t, 2> shifted {};
+
+  shifted = get_shift_coef({pos[2], pos[3]}, {size[2], size[3]}, shift_param);
+
+  for (size_t i {}; i < 2; i++) {
+    shifted[i] = pos[i] + shifted[i];
+
+    while (shifted[i] < 0) {
+      shifted[i] += size[i];
+    }
+
+    pos[i] = shifted[i] % size[i];
+  }
+
+  return pos;
+}
 
 template <typename F>
-std::array<int64_t, 2> find_best_tile_params(F &&inputF, size_t width, size_t height, size_t side, std::array<int64_t, 2> min, std::array<int64_t, 2> max, size_t iterations, int64_t sample_rate) {
+std::array<int64_t, 2> find_best_shift_params(F &&inputF, const std::array<size_t, 4> &size, std::array<int64_t, 2> min, std::array<int64_t, 2> max, size_t iterations, int64_t sample_rate) {
   std::array<int64_t,  2> best_param {};
   std::array<uint64_t, 2> best_error {};
 
   std::array<std::map<int64_t, uint64_t>, 2> errors {};
 
-  auto get_error_horizontal = [&](const auto &shift_param) {
+  auto get_error_horizontal = [&](const std::array<int64_t, 2> &shift_param) {
     auto it = errors[0].find(shift_param[0]);
     if (it != errors[0].end()) {
       return it->second;
     }
 
     uint64_t error {};
-    iterate_dimensions<4>(std::array {width, height, side - 1, side}, [&](const auto &pos) {
+    iterate_dimensions<4>(std::array<size_t, 4> {size[0], size[1], size[2] - 1, size[3]}, [&](const auto &pos) {
       if (rand() < RAND_MAX / sample_rate) {
-        std::array<uint16_t, 3> v0 = inputF(std::array {pos[0], pos[1], pos[2] + 0, pos[3]}, shift_param);
-        std::array<uint16_t, 3> v1 = inputF(std::array {pos[0], pos[1], pos[2] + 1, pos[3]}, shift_param);
+
+        std::array<uint16_t, 3> v0 = inputF(get_shifted_pos({pos[0], pos[1], pos[2] + 0, pos[3]}, size, shift_param));
+        std::array<uint16_t, 3> v1 = inputF(get_shifted_pos({pos[0], pos[1], pos[2] + 1, pos[3]}, size, shift_param));
 
         error += std::abs(v0[0] - v1[0]);
         error += std::abs(v0[1] - v1[1]);
@@ -67,17 +129,17 @@ std::array<int64_t, 2> find_best_tile_params(F &&inputF, size_t width, size_t he
     return error;
   };
 
-  auto get_error_vertical = [&](const auto &shift_param) {
+  auto get_error_vertical = [&](const std::array<int64_t, 2> &shift_param) {
     auto it = errors[1].find(shift_param[1]);
     if (it != errors[1].end()) {
       return it->second;
     }
 
     uint64_t error {};
-    iterate_dimensions<4>(std::array {width, height, side, side - 1}, [&](const auto &pos) {
+    iterate_dimensions<4>(std::array<size_t, 4> {size[0], size[1], size[2], size[3] - 1}, [&](const auto &pos) {
       if (rand() < RAND_MAX / sample_rate) {
-        std::array<uint16_t, 3> v0 = inputF(std::array {pos[0], pos[1], pos[2], pos[3] + 0}, shift_param);
-        std::array<uint16_t, 3> v1 = inputF(std::array {pos[0], pos[1], pos[2], pos[3] + 1}, shift_param);
+        std::array<uint16_t, 3> v0 = inputF(get_shifted_pos({pos[0], pos[1], pos[2], pos[3] + 0}, size, shift_param));
+        std::array<uint16_t, 3> v1 = inputF(get_shifted_pos({pos[0], pos[1], pos[2], pos[3] + 1}, size, shift_param));
 
         error += std::abs(v0[0] - v1[0]);
         error += std::abs(v0[1] - v1[1]);
@@ -92,8 +154,8 @@ std::array<int64_t, 2> find_best_tile_params(F &&inputF, size_t width, size_t he
 
   double golden_ratio = (sqrt(5.) + 1.) / 2.;
 
-  best_error[0] = get_error_horizontal(std::array {0, 0});
-  best_error[1] = get_error_vertical(std::array {0, 0});
+  best_error[0] = get_error_horizontal({0, 0});
+  best_error[1] = get_error_vertical({0, 0});
 
   for (size_t i {}; i < iterations; i++) {
     std::array<int64_t,  2> param     {};

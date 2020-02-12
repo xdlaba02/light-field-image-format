@@ -5,9 +5,11 @@
 
 #include "plenoppm.h"
 
-#include <endian_t.h>
+#include <tiler.h>
 
 #include <getopt.h>
+
+#include <cmath>
 
 #include <vector>
 #include <iostream>
@@ -61,64 +63,19 @@ int main(int argc, char *argv[]) {
 
   size_t side {static_cast<size_t>(sqrt(input.size()))};
 
-  auto puller = [&](size_t img, size_t index) -> std::array<uint16_t, 3> {
-    uint16_t R {};
-    uint16_t G {};
-    uint16_t B {};
+  auto rgb_puller = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
+    size_t img_index = pos[1] * width + pos[0];
+    size_t img       = pos[3] * side  + pos[2];
 
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(input[img].data());
-      R = ptr[index * 3 + 0];
-      G = ptr[index * 3 + 1];
-      B = ptr[index * 3 + 2];
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(input[img].data());
-      R = ptr[index * 3 + 0];
-      G = ptr[index * 3 + 1];
-      B = ptr[index * 3 + 2];
-    }
-
-    return {R, G, B};
+    return input[img].get(img_index);
   };
 
-  auto pusher = [&](size_t img, size_t index, const std::array<uint16_t, 3> &values) {
-    uint16_t R = values[0];
-    uint16_t G = values[1];
-    uint16_t B = values[2];
+  auto rgb_pusher = [&](const std::array<size_t, 4> &pos, const std::array<uint16_t, 3> &RGB) {
+    size_t img_index = pos[1] * width + pos[0];
+    size_t img       = pos[3] * side  + pos[2];
 
-    if (max_rgb_value > 255) {
-      BigEndian<uint16_t> *ptr = static_cast<BigEndian<uint16_t> *>(output[img].data());
-      ptr[index * 3 + 0] = R;
-      ptr[index * 3 + 1] = G;
-      ptr[index * 3 + 2] = B;
-    }
-    else {
-      BigEndian<uint8_t> *ptr = static_cast<BigEndian<uint8_t> *>(output[img].data());
-      ptr[index * 3 + 0] = R;
-      ptr[index * 3 + 1] = G;
-      ptr[index * 3 + 2] = B;
-    }
+    output[img].put(img_index, RGB);
   };
-
-  auto inputF = [&](const auto &pos, const auto &shift) -> std::array<uint16_t, 3> {
-    int64_t shift_x = (pos[2] - (side / 2)) * shift[0];
-		int64_t shift_y = (pos[3] - (side / 2)) * shift[1];
-
-    int64_t pos_x = pos[0] + shift_x;
-    int64_t pos_y = pos[1] + shift_y;
-
-    while (pos_x < 0) {
-      pos_x += width;
-    }
-
-    while (pos_y < 0) {
-      pos_y += height;
-    }
-
-    return puller(pos[3] * side + pos[2], (pos_y % height) * width + (pos_x % width));
-  };
-
 
   std::array<int64_t, 2> param {};
   if (optind + 2 == argc) {
@@ -129,7 +86,7 @@ int main(int argc, char *argv[]) {
   else {
     int64_t width_half  = (static_cast<int64_t>(width) * 2) / side;
     int64_t height_half = (static_cast<int64_t>(height) * 2) / side;
-    param = find_best_tile_params(inputF, width, height, side, {-width_half, -height_half}, {width_half, height_half}, 20, 4);
+    param = find_best_shift_params(rgb_puller, {width, height, side, side}, {-width_half, -height_half}, {width_half, height_half}, 20, 8);
     std::cerr << param[0] << ", " << param[1] << "\n";
   }
 
@@ -140,7 +97,7 @@ int main(int argc, char *argv[]) {
   }
 
   iterate_dimensions<4>(std::array {width, height, side, side}, [&](const auto &pos) {
-    pusher(pos[3] * side + pos[2], pos[1] * width + pos[0], inputF(pos, param));
+    rgb_pusher(pos, rgb_puller(get_shifted_pos(pos, {width, height, side, side}, param)));
   });
 
   return 0;

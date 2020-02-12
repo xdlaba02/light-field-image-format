@@ -80,6 +80,7 @@ int main(int argc, char *argv[]) {
 
   encoder.use_huffman    = use_huffman;
   encoder.use_prediction = predict;
+  encoder.shift          = shift;
 
   auto rgb_puller = [&](const std::array<size_t, 5> &pos) -> std::array<uint16_t, 3> {
     size_t img_index = pos[1] * width + pos[0];
@@ -117,25 +118,48 @@ int main(int argc, char *argv[]) {
     rgb_pusher(pos, {R, G, B});
   };
 
-  /*
-
   if (shift) {
-    auto inputF = [&](std::array<size_t, 4> pos, std::array<int64_t, 2> shift) -> std::array<uint16_t, 3> {
-      shift_pos(pos, shift, width, height, side);
-
+    auto inputF = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
       std::array<size_t, 5> whole_image_pos {};
       std::copy(std::begin(pos), std::end(pos), std::begin(whole_image_pos));
-      whole_image_pos[4] = 1;
-
       return rgb_puller(whole_image_pos);
     };
 
     int64_t width_shift  {static_cast<int64_t>((width  * 2) / side)};
     int64_t height_shift {static_cast<int64_t>((height * 2) / side)};
 
-    std::array<int64_t, 2> param = find_best_tile_params(inputF, width, height, side, {-width_shift, -height_shift}, {width_shift, height_shift}, 20, 8);
-    //TODO
-  }*/
+    encoder.shift_param = find_best_shift_params(inputF, {width, height, side, side}, {-width_shift, -height_shift}, {width_shift, height_shift}, 10, 8);
+
+    std::cerr << encoder.shift_param[0] << " " << encoder.shift_param[1] << "\n";
+
+    for (size_t y {}; y < side; y++) {
+      for (size_t x {}; x < side; x++) {
+        auto shiftInputF = [&](const std::array<size_t, 2> &pos) {
+          std::array<size_t, 5> whole_image_pos {};
+
+          whole_image_pos[0] = pos[0];
+          whole_image_pos[1] = pos[1];
+          whole_image_pos[2] = x;
+          whole_image_pos[3] = y;
+
+          return rgb_puller(whole_image_pos);
+        };
+
+        auto shiftOutputF = [&](const std::array<size_t, 2> &pos, const auto &value) {
+          std::array<size_t, 5> whole_image_pos {};
+
+          whole_image_pos[0] = pos[0];
+          whole_image_pos[1] = pos[1];
+          whole_image_pos[2] = x;
+          whole_image_pos[3] = y;
+
+          return rgb_pusher(whole_image_pos, value);
+        };
+
+        shift_image(shiftInputF, shiftOutputF, {width, height}, get_shift_coef({x, y}, {side, side}, encoder.shift_param));
+      }
+    }
+  }
 
   initEncoder(encoder);
   constructQuantizationTables(encoder, "DEFAULT", quality);
@@ -151,6 +175,8 @@ int main(int argc, char *argv[]) {
     writeHeader(encoder, output);
     outputScanCABAC_DIAGONAL(encoder, yuv_puller, yuv_pusher, output);
   }
+
+  output << shift;
 
   return 0;
 }

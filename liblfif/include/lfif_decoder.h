@@ -36,6 +36,9 @@ struct LfifDecoder {
 
   bool use_huffman; /**< @brief Huffman Encoding was used when this is true.*/
   bool use_prediction;
+  bool shift;
+
+  std::array<int64_t, 2> shift_param;
 
   QuantTable<D>      quant_table         [2];    /**< @brief Quantization matrices for luma and chroma.*/
   TraversalTable<D>  traversal_table     [2];    /**< @brief Traversal matrices for luma and chroma.*/
@@ -94,6 +97,13 @@ int readHeader(LfifDecoder<D> &dec, std::istream &input) {
 
   dec.use_huffman    = readValueFromStream<uint8_t>(input);
   dec.use_prediction = readValueFromStream<uint8_t>(input);
+  dec.shift          = readValueFromStream<uint8_t>(input);
+
+  if (dec.shift) {
+    for (size_t i = 0; i < 2; i++) {
+      dec.shift_param[i] = readValueFromStream<int64_t>(input);
+    }
+  }
 
   if (dec.use_huffman) {
     for (size_t i = 0; i < 2; i++) {
