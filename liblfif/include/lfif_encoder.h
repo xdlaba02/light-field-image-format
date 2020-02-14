@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <ostream>
 #include <sstream>
+#include <map>
 
 /**
 * @brief Base structure for encoding an image.
@@ -404,6 +405,8 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
   DynamicBlock<INPUTUNIT, D>               prediction_block {};
 
+  std::map<uint64_t, size_t>               prediction_stats {};
+
   if (enc.use_prediction) {
     prediction_block.resize(enc.block_size);
   }
@@ -511,14 +514,10 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
         if (enc.use_prediction) {
           if (channel == 0) {
-            for (size_t d = 0; d < D; d++) {
-              std::cerr <<  std::setw(3) << std::fixed << block[d];
-            }
-            std::cerr << ": ";
+            prediction_stats[prediction_type]++;
 
             prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
             encodePredictionType<D>(prediction_type, cabac, contexts[0]);
-            printPredictionType<D>(prediction_type);
           }
 
           predict<D>(prediction_block, prediction_type, predInputF);
@@ -547,6 +546,13 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
   cabac.terminate();
   bitstream.flush();
+
+  if (enc.use_prediction) {
+    for (auto &pred: prediction_stats) {
+      printPredictionType<D>(pred.first);
+      std::cerr << ": " << pred.second << "\n";
+    }
+  }
 }
 
 template<size_t D, typename F>
