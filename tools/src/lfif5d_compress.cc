@@ -145,7 +145,8 @@ int main(int argc, char *argv[]) {
     size_t prev_cnt = ppm_data.size();
 
     if (mapPPMs(get_name_from_mask(input_file_mask, '@', frame).c_str(), frame_width, frame_height, frame_max_rgb_value, ppm_data) < 0) {
-      break;
+      cerr << "ERROR: IMAGE PROPERTIES MISMATCH\n";
+      return -1;
     }
 
     size_t cnt = ppm_data.size() - prev_cnt;
@@ -167,6 +168,11 @@ int main(int argc, char *argv[]) {
     height        = frame_height;
     max_rgb_value = frame_max_rgb_value;
     views_count   = cnt;
+  }
+
+  if (!frames_count) {
+    cerr << "ERROR: NO IMAGES LOADED\n";
+    return 2;
   }
 
   if (create_directory(output_file_name)) {

@@ -40,10 +40,16 @@ int main(int argc, char *argv[]) {
   }
 
   if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data) < 0) {
+    cerr << "ERROR: IMAGES PROPERTIES MISMATCH\n";
     return 2;
   }
 
   image_count = ppm_data.size();
+
+  if (!image_count) {
+    cerr << "ERROR: NO IMAGES LOADED\n";
+    return 2;
+  }
 
   if (create_directory(output_file_name)) {
     cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
