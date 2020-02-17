@@ -12,7 +12,7 @@ in its root folder. To compile only part of the project, you can specify which p
 
     make <FOLDER>
 
-where ``<FOLDER>`` can be ``liblfif`` for LFIF library only, ``libppm`` for PPM library only. The ``tools`` specifier will compile the whole project because tools depend on it. To compile tools with specific block size, add a parameter ``BS=<NUMBER>`` to the make command. A ``<NUMBER>`` specifies the size of a block. The default value is 8. Compilation outputs its binaries in ``bin`` subfolder of each folder.
+where ``<FOLDER>`` can be ``liblfif`` for LFIF library only, ``libppm`` for PPM library only. The ``tools`` specifier will compile the whole project because tools depend on it. Compilation outputs its binaries in ``bin`` subfolder of each folder.
 
 The documentation can be generated with ``Doxygen`` tool with the command
 
@@ -25,14 +25,17 @@ The tools are able to compress a light field image which exists as a set of ppm 
 The image files must be sorted in row or column order and the view indices must be part of file names.
 To compress a light field image, use the compression tool like this:
 
-    ./tools/bin/lfif{2,3,4}d_compress -i path/to/##/input/###.ppm -o output.lf{2,3,4}d -q <quality>
+    ./tools/bin/lfif{2,3,4}d_compress -i path/to/##/input/###.ppm -o path/to/output.lf -q <quality> [-p] [-s] -- [<x> <y> ...]
 
-The ``#`` characters can be anywhere in the path and are expanded with sequential numbers. This means that a path ``##/file#.ppm`` will be expanded to files ``00/file0.ppm``, ``00/file1.ppm``, ..., ``99/file9.ppm``. The parameters of the images must be the same. The images must together resemble a square of views.
+The ``#`` characters can be anywhere in the path and are expanded with sequential numbers. This means that a path ``##/file#.ppm`` will be expanded to files ``00/file0.ppm``, ``00/file1.ppm``, ..., ``99/file9.ppm``. The properties of all the images must be the same. The images must together resemble a square of views.
 The ``<quality>`` parameters specify a compression quality. The tools consume any floating point number from 1.0 to 100.0. The higher the number, the better the visual quality, but worse compression ratio.
+The ``-p`` switch will turn on the intra prediction. This will take some extra time to compute.
+The ``-s`` switch will try to find disparity of the views and compensate for it. This often leads to better compression ratios and it is recommended.
+At the end of the switches and parameters, the compression block size can be specified with d positive integer numbers, where d is the dimensionality of the compression. By default, block size will be d-dimensional cube with side equal to square root of view count.
 
 The decompression tool can decompress images compressed with corresponding compression tools. The tools will output the individual views as a set of ppm files with names specified by a mask. To decompress a light filed image, use decompression tools like this:
 
-    ./tools/bin/lfif{2,3,4}d_decompress -i input.lf{2,3,4}d -o path/to/##/output/###.ppm
+    ./tools/bin/lfif{2,3,4}d_decompress -i path/to/input.lf -o path/to/##/output/###.ppm
 
 The ``#`` characters will be expanded in a similar way as with compression tools.
 

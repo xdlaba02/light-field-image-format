@@ -19,7 +19,11 @@ SRCS = $(wildcard $(SRCDIR)/*.cc)
 
 TARGET = $(BINDIR)/libppm.so $(BINDIR)/libppm.a
 
-all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(TARGET)
+$(shell mkdir -p $(BINDIR) > /dev/null)
+$(shell mkdir -p $(OBJDIR) > /dev/null)
+$(shell mkdir -p $(DEPDIR) > /dev/null)
+
+all: $(TARGET)
 
 $(BINDIR)/libppm.so: $(OBJDIR)/ppm.o
 	$(CC) $(LDFLAGS) $^ -o $@
@@ -32,13 +36,6 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 -include $(patsubst %,$(DEPDIR)/%.d,$(basename $(notdir $(SRCS))))
-
-$(DEPDIR):
-	mkdir -p $(DEPDIR)
-$(BINDIR):
-	mkdir -p $(BINDIR)
-$(OBJDIR):
-	mkdir -p $(OBJDIR)
 
 .PHONY: clean
 

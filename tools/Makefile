@@ -11,22 +11,25 @@ BINDIR = bin
 
 BS			 = 8
 CC 			 = g++
-INC 		 = -Iinclude -I../liblfif/include -I../libppm/include -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/xvc_enc_lib -I../xvc/src/xvc_dec_lib
-CFLAGS   = $(INC) -O3 -std=c++2a -Wall -Wextra -pedantic -Wfatal-errors
+INCLUDE  = -Iinclude -I../liblfif/include -I../libppm/include
+OTHERINC = -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/xvc_enc_lib -I../xvc/src/xvc_dec_lib
+CFLAGS   = $(INCLUDE) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
 
-FOLDERS = $(BINDIR) $(OBJDIR) $(DEPDIR)
 PLENO   = $(OBJDIR)/file_mask.o $(OBJDIR)/plenoppm.o ../libppm/bin/libppm.a
 LFIF    = $(PLENO) ../liblfif/bin/liblfif.a
+
+$(shell mkdir -p $(BINDIR) > /dev/null)
+$(shell mkdir -p $(OBJDIR) > /dev/null)
+$(shell mkdir -p $(DEPDIR) > /dev/null)
 
 .PHONY: all clean tools benchmarks
 
 all: tools
 
-tools: $(FOLDERS) \
-			 $(BINDIR)/lfif2d_compress \
+tools: $(BINDIR)/lfif2d_compress \
 			 $(BINDIR)/lfif2d_decompress \
 			 $(BINDIR)/lfif3d_compress \
 			 $(BINDIR)/lfif3d_decompress \
@@ -34,18 +37,16 @@ tools: $(FOLDERS) \
 			 $(BINDIR)/lfif4d_decompress \
 			 $(BINDIR)/lfif5d_compress \
 			 $(BINDIR)/lfif5d_decompress \
+			 $(BINDIR)/lfifbench \
 			 $(BINDIR)/lf_stats
 
-benchmarks: $(FOLDERS) \
-						$(BINDIR)/lfifbench \
-						$(BINDIR)/mozbench \
+benchmarks: $(BINDIR)/mozbench
 						$(BINDIR)/x265bench \
 						$(BINDIR)/openjpegbench \
 						$(BINDIR)/av1bench \
 						$(BINDIR)/xvcbench
 
-others: $(FOLDERS) \
-			  $(BINDIR)/hevc_compress \
+others: $(BINDIR)/hevc_compress \
 				$(BINDIR)/hevc_decompress \
 				$(BINDIR)/xvc_compress \
 				$(BINDIR)/xvc_decompress \
@@ -140,18 +141,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
 	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.cc
-	$(CC) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
-	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
-
 -include $(patsubst %,$(DEPDIR)/%.d,$(basename $(notdir $(SRCS))))
-
-$(DEPDIR):
-	mkdir -p $(DEPDIR)
-$(BINDIR):
-	mkdir -p $(BINDIR)
-$(OBJDIR):
-	mkdir -p $(OBJDIR)
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR) $(DEPDIR)

@@ -11,7 +11,7 @@ BINDIR = bin
 
 CC = g++
 INC = -Iinclude
-CFLAGS = $(INC) -O3 -std=c++2a -Wall -Wextra -pedantic -Wfatal-errors -fPIC
+CFLAGS = $(INC) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors -fPIC
 LDFLAGS = -shared
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
@@ -20,7 +20,11 @@ OBJS := $(patsubst $(SRCDIR)/%.cc, $(OBJDIR)/%.o, $(SRCS))
 
 TARGET = $(BINDIR)/liblfif.a
 
-all: $(BINDIR) $(OBJDIR) $(DEPDIR) $(TARGET)
+$(shell mkdir -p $(BINDIR) > /dev/null)
+$(shell mkdir -p $(OBJDIR) > /dev/null)
+$(shell mkdir -p $(DEPDIR) > /dev/null)
+
+all: $(TARGET)
 
 $(BINDIR)/liblfif.a: $(OBJS)
 	ar rcs $@ $^
@@ -30,13 +34,6 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 -include $(patsubst %,$(DEPDIR)/%.d,$(basename $(notdir $(SRCS))))
-
-$(DEPDIR):
-	mkdir -p $(DEPDIR)
-$(BINDIR):
-	mkdir -p $(BINDIR)
-$(OBJDIR):
-	mkdir -p $(OBJDIR)
 
 .PHONY: clean
 
