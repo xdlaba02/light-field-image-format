@@ -18,7 +18,7 @@
 inline int create_directory(const char *file_name) {
   size_t last_slash_pos = std::string(file_name).find_last_of('/');
   if (last_slash_pos != std::string::npos) {
-    std::string command = "mkdir -p " + std::string(file_name).substr(0, last_slash_pos);
+    std::string command = "mkdir -p '" + std::string(file_name).substr(0, last_slash_pos) + "'";
     return system(command.c_str());
   }
   return 0;
