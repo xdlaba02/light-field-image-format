@@ -109,36 +109,37 @@ void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBloc
   iterate_dimensions<D - 1>(main_ref.size(), [&](const std::array<size_t, D - 1> &pos) {
     std::array<int64_t, D> position {};
 
+    if (direction[main_ref_idx] < 0) {
+      position[main_ref_idx] += BS[main_ref_idx] + 1;
+    }
+
     for (size_t i {}; i < D - 1; i++) {
       size_t idx = i < main_ref_idx ? i : i + 1;
       position[idx] = pos[i];
 
       if (direction[idx] >= 0) {
-        position[idx] -= BS[main_ref_idx];
+        position[idx] -= BS[main_ref_idx] - 1;
       }
-      if (direction[idx] <= 0) {
-        position[idx] -= 1;
+      else {
+        position[idx] += 1;
       }
     }
 
-    size_t nearest_neighbour_idx {};
-
     // najde nejblizsi stenu po vektoru direction
-    double neighbour_distance {};
-    for (size_t d { 0 }; d < D; d++) {
-      if (direction[d] > 0) {
-        double distance {};
-        distance = static_cast<double>(position[d]) / direction[d];
-        if (distance <= neighbour_distance) {
-          neighbour_distance = distance;
-          nearest_neighbour_idx = d;
+    double nearest_neighbour_distance {};
+    size_t nearest_neighbour_idx {};
+    for (size_t i { 0 }; i < D; i++) {
+      if (direction[i] > 0) {
+        double distance = static_cast<double>(position[i]) / direction[i];
+        if (distance <= nearest_neighbour_distance) {
+          nearest_neighbour_distance = distance;
+          nearest_neighbour_idx = i;
         }
       }
     }
 
-    int64_t num_steps = position[nearest_neighbour_idx];
-
     //posune soradnice podle vektoru diection tak, aby byly pokud mozno vsechny vetsi nebo rovno nule
+    int64_t num_steps = position[nearest_neighbour_idx];
     for (size_t i { 0 }; i < D; i++) {
       position[i] *= direction[nearest_neighbour_idx];
       position[i] -= direction[i] * num_steps;
@@ -147,18 +148,11 @@ void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBloc
       if (position[i] < 0) {
         position[i] = 0;
       }
-
-      else if ((direction[i] >= 0) && (position[i] > static_cast<int64_t>(BS[i]))) { // is this important?
+      else if ((direction[i] >= 0) && (position[i] > static_cast<int64_t>(BS[i]))) {
         position[i] = BS[i];
       }
-      else if (position[i] > static_cast<int64_t>(BS[i]) * 2) { // is THIS important?
-        position[i] = BS[i] * 2;
-      }
 
-
-      if (direction[i] > 0) {
-        position[i]--;
-      }
+      position[i] -= 1;
     }
 
     main_ref[pos] = inputF(position);
@@ -168,22 +162,30 @@ void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBloc
 template <size_t D>
 void predict_from_main_ref(DynamicBlock<INPUTUNIT, D> &output, const int8_t direction[D], const DynamicBlock<INPUTUNIT, D - 1> &main_ref, size_t main_ref_idx) {
   iterate_dimensions<D>(output.size(), [&](std::array<size_t, D> &pos) {
+
+    int64_t distance = pos[main_ref_idx];
+    if (direction[main_ref_idx] < 0) {
+      distance -= output.size(main_ref_idx);
+    }
+    else {
+      distance += 1;
+    }
+
     int64_t main_ref_pos[D - 1] {};
     for (size_t i { 0 }; i < D - 1; i++) {
       size_t idx = i < main_ref_idx ? i : i + 1;
-      main_ref_pos[i]  = pos[idx] + 1; //zjisti souradnici z indexu
+      main_ref_pos[i] = pos[idx];
 
       if (direction[idx] >= 0) {
         main_ref_pos[i] += output.size(main_ref_idx);
       }
 
       main_ref_pos[i] *= direction[main_ref_idx]; //vynasobi se tak, aby se nemuselo konvertovat do floating point
-      main_ref_pos[i] -= direction[idx] * (pos[main_ref_idx] + 1); //vytvori projekci souradnice na hlavni referencni rovinu
+      main_ref_pos[i] -= direction[idx] * distance; //vytvori projekci souradnice na hlavni referencni rovinu
 
-
-      if (main_ref_pos[i] > static_cast<int64_t>(output.size(idx) + output.size(main_ref_idx)) * direction[main_ref_idx]) {
-        main_ref_pos[i] = (output.size(idx) + output.size(main_ref_idx)) * direction[main_ref_idx];
-      }
+      //if (main_ref_pos[i] > static_cast<int64_t>(output.size(idx) + output.size(main_ref_idx)) * direction[main_ref_idx]) {
+      //  main_ref_pos[i] = (output.size(idx) + output.size(main_ref_idx)) * direction[main_ref_idx];
+      //}
     }
 
     auto inputF = [&](size_t index) {
@@ -198,22 +200,31 @@ template <size_t D, typename F>
 void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t direction[D], F &&inputF) {
   size_t  main_ref_idx { 0 };
 
-  // find which neighbouring block will be main
-  for (size_t d = 0; d < D; d++) {
-    if (direction[d] >= direction[main_ref_idx]) {
-      main_ref_idx = d;
+  auto positive = [&]() {
+    for (size_t i = 0; i < D; i++) {
+      if (direction[i] > 0) {
+        return true;
+      }
     }
+    return false;
+  };
+
+  if (!positive()) {
+    return;
   }
 
-  if (direction[main_ref_idx] <= 0) {
-    return;
+  // find which neighbouring block will be main
+  for (size_t d = 0; d < D; d++) {
+    if (std::abs(direction[d]) >= std::abs(direction[main_ref_idx])) {
+      main_ref_idx = d;
+    }
   }
 
   size_t ref_size[D - 1] {};
 
   for (size_t i {}; i < D - 1; i++) {
     size_t idx = i < main_ref_idx ? i : i + 1;
-    ref_size[i] = output.size(idx) + output.size(main_ref_idx) + 1;
+    ref_size[i] = output.size(idx) + output.size(main_ref_idx);
   }
 
   DynamicBlock<INPUTUNIT, D - 1> ref(ref_size);
@@ -239,13 +250,14 @@ void predict_DC(DynamicBlock<INPUTUNIT, D> &output, F &inputF) {
 
     iterate_dimensions<D - 1>(neighbour_block_size, [&](const std::array<size_t, D - 1> &pos) {
       std::array<int64_t, D> position {};
-      position[neighbour_idx]--;
 
       for (size_t i { 0 }; i < D - 1; i++) {
         size_t idx     = i < neighbour_idx ? i : i + 1;
-        position[idx] += pos[i];
+        position[idx] = pos[i];
       }
 
+      position[neighbour_idx]--;
+      
       sum += inputF(position);
     });
   }
