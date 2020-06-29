@@ -249,7 +249,7 @@ void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t directio
 
   for (size_t i {}; i < D - 1; i++) {
     size_t idx = i < main_ref_idx ? i : i + 1;
-    ref_size[i] = output.size(idx) + output.size(main_ref_idx) + 1;
+    ref_size[i] = output.size(idx) + output.size(main_ref_idx);
   }
 
   DynamicBlock<INPUTUNIT, D - 1> ref(ref_size);
