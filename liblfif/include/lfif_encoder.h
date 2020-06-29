@@ -442,7 +442,6 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &block) {
-
       getBlock<D>(enc.block_size.data(), inputF, block, enc.img_dims_unaligned, [&](const auto &block_pos, const auto &value) { enc.current_block[block_pos] = value; });
 
       bool any_block_available {};
@@ -469,30 +468,21 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
             return 0;
           }
 
-          for (size_t i { 1 }; i < D; i++) {
+          for (size_t i = 1; i < D; i++) { // you can look to the future only for first dimension (scanline)
             if (block_pos[i] >= static_cast<int64_t>(enc.block_size[i])) {
               block_pos[i] = enc.block_size[i] - 1;
             }
           }
 
-          for (size_t i { 0 }; i < D; i++) {
-            if (!previous_block_available[i] && block_pos[i] < 0) {
+          int64_t min_pos = std::numeric_limits<int64_t>::max();
+          for (size_t i = 0; i < D; i++) {
+            if (previous_block_available[i]) {
+              if ((block_pos[i] + 1) < min_pos) {
+                min_pos = block_pos[i] + 1;
+              }
+            }
+            else if (block_pos[i] < 0) {
               block_pos[i] = 0;
-            }
-          }
-
-          int64_t max_pos {};
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i] && (block_pos[i] + 1) > max_pos) {
-              max_pos = block_pos[i] + 1;
-            }
-          }
-
-          int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
-
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i] && (block_pos[i] + 1) < min_pos) {
-              min_pos = block_pos[i] + 1;
             }
           }
 
@@ -503,10 +493,9 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
           }
 
           std::array<size_t, D> image_pos {};
-          for (size_t i { 0 }; i < D; i++) {
+          for (size_t i = 0; i < D; i++) {
             image_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
-
-            std::clamp<size_t>(image_pos[i], 0, enc.img_dims_unaligned[i] - 1);
+            image_pos[i] = std::clamp<size_t>(image_pos[i], 0, enc.img_dims_unaligned[i] - 1);
           }
 
           return inputF(image_pos)[channel];
