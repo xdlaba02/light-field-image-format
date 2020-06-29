@@ -514,9 +514,8 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
         if (enc.use_prediction) {
           if (channel == 0) {
-            prediction_stats[prediction_type]++;
-
             prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
+            prediction_stats[prediction_type]++;
             encodePredictionType<D>(prediction_type, cabac, contexts[0]);
           }
 

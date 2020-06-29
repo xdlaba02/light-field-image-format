@@ -12,9 +12,9 @@
 using namespace std;
 
 const size_t D = 2;
-const std::array<size_t, D> BS = {2, 6};
+const std::array<size_t, D> BS = {4, 4};
 const std::array<size_t, D> input_size = {10, 10};
-const std::array<int8_t, D> direction = {1, 1};
+const std::array<int8_t, D> direction = {1, -2};
 
 int main(void) {
   DynamicBlock<INPUTUNIT, D> input_block(input_size.data());

@@ -374,13 +374,13 @@ void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABAC
 template <size_t D>
 void printPredictionType(uint64_t prediction_type) {
   if (prediction_type == 0) {
-    std::cerr << "NO PREDICTION\n";
+    std::cerr << "NO PREDICTION";
   }
   else if (prediction_type == 1) {
-    std::cerr << "DC PREDICTION\n";
+    std::cerr << "DC PREDICTION";
   }
   else if (prediction_type == 2) {
-    std::cerr << "PLANAR PREDICTION\n";
+    std::cerr << "PLANAR PREDICTION";
   }
   else if (prediction_type >= 3) {
     size_t dir = prediction_type - 3;
@@ -392,7 +392,7 @@ void printPredictionType(uint64_t prediction_type) {
       direction[d] -= 2;
       std::cerr << std::setw(3) << std::fixed << (int)direction[d];
     }
-    std::cerr << " ]\n";
+    std::cerr << " ]";
   }
 }
 
