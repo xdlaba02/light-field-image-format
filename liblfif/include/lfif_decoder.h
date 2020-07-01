@@ -259,76 +259,73 @@ void decodeScanCABAC(LfifDecoder<D> &dec, std::istream &input, IF &&puller, OF &
         if (block[i]) {
           previous_block_available[i] = true;
           any_block_available = true;
-
         }
         else {
           previous_block_available[i] = false;
         }
       }
 
-      uint64_t prediction_type {};
-      for (size_t channel = 0; channel < 3; channel++) {
-        auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
-          if (!any_block_available) {
-            return 0;
-          }
-
-          for (size_t i { 1 }; i < D; i++) {
-            if (block_pos[i] >= static_cast<int64_t>(dec.block_size[i])) {
-              block_pos[i] = dec.block_size[i] - 1;
-            }
-          }
-
-          for (size_t i { 0 }; i < D; i++) {
-            if (!previous_block_available[i] && block_pos[i] < 0) {
-              block_pos[i] = 0;
-            }
-          }
-
-          int64_t max_pos {};
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i] && (block_pos[i] + 1) > max_pos) {
-              max_pos = block_pos[i] + 1;
-            }
-          }
-
-          int64_t min_pos { max_pos }; // asi bude lepsi int64t maximum
-
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i] && (block_pos[i] + 1) < min_pos) {
-              min_pos = block_pos[i] + 1;
-            }
-          }
-
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i]) {
-              block_pos[i] -= min_pos;
-            }
-          }
-
-          std::array<size_t, D> image_pos {};
-          for (size_t i { 0 }; i < D; i++) {
-            image_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
-
-            std::clamp<size_t>(image_pos[i], 0, dec.img_dims_unaligned[i] - 1);
-          }
-
-          return inputF(image_pos)[channel];
-        };
-
-        if (dec.use_prediction) {
-          if (channel == 0) {
-            decodePredictionType<D>(prediction_type, cabac, contexts[0]);
-          }
-
-          predict<D>(prediction_block, prediction_type, predInputF);
+      auto predInputF = [&](std::array<int64_t, D> &block_pos, size_t channel) -> INPUTUNIT {
+        if (!any_block_available) {
+          return 0;
         }
 
+        //resi pokud se prediktor chce divat na vzorky, ktere jeste nebyly komprimovane
+        for (size_t i = 1; i <= D; i++) {
+          size_t idx = D - i;
+
+          if (block_pos[idx] < 0) {
+            if (previous_block_available[idx]) {
+              break;
+            }
+          }
+          else if (block_pos[idx] >= static_cast<int64_t>(dec.block_size[idx])) {
+            block_pos[idx] = dec.block_size[idx] - 1;
+          }
+        }
+
+        //resi pokud se prediktor chce divat na vzorky mimo obrazek v zapornych souradnicich
+        int64_t min_pos = std::numeric_limits<int64_t>::max();
+        for (size_t i = 0; i < D; i++) {
+          if (previous_block_available[i]) {
+            if (block_pos[i] < min_pos) {
+              min_pos = block_pos[i];
+            }
+          }
+          else if (block_pos[i] < 0) {
+            block_pos[i] = 0;
+          }
+        }
+
+        for (size_t i = 0; i < D; i++) {
+          if (previous_block_available[i]) {
+            block_pos[i] -= min_pos + 1;
+          }
+        }
+
+        std::array<size_t, D> image_pos {};
+        for (size_t i = 0; i < D; i++) {
+          image_pos[i] = block[i] * dec.block_size[i] + block_pos[i];
+
+          //resi pokud se prediktor chce divat na vzorky mimo obrazek v kladnych souradnicich
+          image_pos[i] = std::clamp<size_t>(image_pos[i], 0, dec.img_dims_unaligned[i] - 1);
+        }
+
+        return inputF(image_pos)[channel];
+      };
+
+      uint64_t prediction_type {};
+      if (dec.use_prediction) {
+        decodePredictionType<D>(prediction_type, cabac, contexts[0]);
+      }
+
+      for (size_t channel = 0; channel < 3; channel++) {
         decodeCABAC_DIAGONAL<D>(dec.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
         dequantize<D>(dec.quantized_block, dec.dct_block, *dec.quant_table_ptr[channel]);
         inverseDiscreteCosineTransform<D>(dec.dct_block, dec.output_block);
 
         if (dec.use_prediction) {
+          predict<D>(prediction_block, prediction_type, [&](std::array<int64_t, D> &block_pos) { return predInputF(block_pos, channel); });
           disusePrediction<D>(dec.output_block, prediction_block);
         }
 

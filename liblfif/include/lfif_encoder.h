@@ -442,6 +442,17 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &block) {
+      std::cerr << "block [";
+      for (size_t i = 0; i < D; i++) {
+        std::cerr << block[i] << " ";
+      }
+      std::cerr << "] out of [";
+
+      for (size_t i = 0; i < D; i++) {
+        std::cerr << enc.block_dims[i] << " ";
+      }
+      std::cerr << "]: ";
+
       getBlock<D>(enc.block_size.data(), inputF, block, enc.img_dims_unaligned, [&](const auto &block_pos, const auto &value) { enc.current_block[block_pos] = value; });
 
       bool any_block_available {};
@@ -456,6 +467,55 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
         }
       }
 
+      auto predInputF = [&](std::array<int64_t, D> &block_pos, size_t channel) -> INPUTUNIT {
+        if (!any_block_available) {
+          return 0;
+        }
+
+        //resi pokud se prediktor chce divat na vzorky, ktere jeste nebyly komprimovane
+        for (size_t i = 1; i <= D; i++) {
+          size_t idx = D - i;
+
+          if (block_pos[idx] < 0) {
+            if (previous_block_available[idx]) {
+              break;
+            }
+          }
+          else if (block_pos[idx] >= static_cast<int64_t>(enc.block_size[idx])) {
+            block_pos[idx] = enc.block_size[idx] - 1;
+          }
+        }
+
+        //resi pokud se prediktor chce divat na vzorky mimo obrazek v zapornych souradnicich
+        int64_t min_pos = std::numeric_limits<int64_t>::max();
+        for (size_t i = 0; i < D; i++) {
+          if (previous_block_available[i]) {
+            if (block_pos[i] < min_pos) {
+              min_pos = block_pos[i];
+            }
+          }
+          else if (block_pos[i] < 0) {
+            block_pos[i] = 0;
+          }
+        }
+
+        for (size_t i = 0; i < D; i++) {
+          if (previous_block_available[i]) {
+            block_pos[i] -= min_pos + 1;
+          }
+        }
+
+        std::array<size_t, D> image_pos {};
+        for (size_t i = 0; i < D; i++) {
+          image_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
+
+          //resi pokud se prediktor chce divat na vzorky mimo obrazek v kladnych souradnicich
+          image_pos[i] = std::clamp<size_t>(image_pos[i], 0, enc.img_dims_unaligned[i] - 1);
+        }
+
+        return inputF(image_pos)[channel];
+      };
+
       uint64_t prediction_type {};
 
       for (size_t channel = 0; channel < 3; channel++) {
@@ -463,52 +523,19 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
           enc.input_block[i] = enc.current_block[i][channel];
         }
 
-        auto predInputF = [&](std::array<int64_t, D> &block_pos) -> INPUTUNIT {
-          if (!any_block_available) {
-            return 0;
-          }
-
-          for (size_t i = 1; i < D; i++) { // you can look to the future only for first dimension (scanline)
-            if (block_pos[i] >= static_cast<int64_t>(enc.block_size[i])) {
-              block_pos[i] = enc.block_size[i] - 1;
-            }
-          }
-
-          int64_t min_pos = std::numeric_limits<int64_t>::max();
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i]) {
-              if ((block_pos[i] + 1) < min_pos) {
-                min_pos = block_pos[i] + 1;
-              }
-            }
-            else if (block_pos[i] < 0) {
-              block_pos[i] = 0;
-            }
-          }
-
-          for (size_t i = 0; i < D; i++) {
-            if (previous_block_available[i]) {
-              block_pos[i] -= min_pos;
-            }
-          }
-
-          std::array<size_t, D> image_pos {};
-          for (size_t i = 0; i < D; i++) {
-            image_pos[i] = block[i] * enc.block_size[i] + block_pos[i];
-            image_pos[i] = std::clamp<size_t>(image_pos[i], 0, enc.img_dims_unaligned[i] - 1);
-          }
-
-          return inputF(image_pos)[channel];
-        };
-
-        if (enc.use_prediction) {
-          if (channel == 0) {
-            prediction_type = find_best_prediction_type<D>(enc.input_block, predInputF);
+        if (channel == 0) {
+          if (enc.use_prediction) {
+            prediction_type = find_best_prediction_type<D>(enc.input_block, [&](std::array<int64_t, D> &block_pos) { return predInputF(block_pos, 0); });
             prediction_stats[prediction_type]++;
             encodePredictionType<D>(prediction_type, cabac, contexts[0]);
+            printPredictionType<D>(prediction_type);
           }
 
-          predict<D>(prediction_block, prediction_type, predInputF);
+          std::cerr << "\n";
+        }
+
+        if (enc.use_prediction) {
+          predict<D>(prediction_block, prediction_type, [&](std::array<int64_t, D> &block_pos) { return predInputF(block_pos, channel); });
           applyPrediction<D>(enc.input_block, prediction_block);
         }
 
