@@ -23,7 +23,7 @@ bool IBitstream::readBit() {
     m_index = 0;
   }
 
-  bool data { m_accumulator & (1 << (7 - m_index)) };
+  bool data = m_accumulator & (1 << (7 - m_index));
 
   m_index++;
 

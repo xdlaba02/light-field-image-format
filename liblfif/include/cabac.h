@@ -132,6 +132,12 @@ public:
   inline void init(OBitstream &stream);
 
   /**
+  * @brief Function changes stream for the encoder.
+  * @param stream Bitstream to which the data will be written.
+  */
+  inline void setStream(OBitstream &stream);
+
+  /**
   * @brief Function which encodes one bit.
   * @param context Context specifiing probabilities of binary decision.
   * @param bit Value that is encoded.
@@ -201,6 +207,10 @@ void CABACEncoder::init(OBitstream &stream) {
   m_low         = 0;
   m_range       = HALF - 2;
   m_outstanding = 0;
+  m_stream      = &stream;
+}
+
+void CABACEncoder::setStream(OBitstream &stream) {
   m_stream      = &stream;
 }
 
