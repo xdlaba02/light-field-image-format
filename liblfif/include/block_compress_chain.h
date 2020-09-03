@@ -624,10 +624,10 @@ void encodeCABAC_RUNLENGTH(const DynamicBlock<RunLengthPair, D> &runlength, CABA
 }
 
 template <size_t D, typename T>
-T SAE(const DynamicBlock<T, D> &b1, const DynamicBlock<T, D> &b2) {
+T SAE(const DynamicBlock<T, D> &b) {
   T sae {};
-  for (size_t i = 0; i < b1.stride(D); i++) {
-    sae += std::abs(b1[i] - b2[i]);
+  for (size_t i = 0; i < b.stride(D); i++) {
+    sae += std::abs(b[i]);
   }
   return sae;
 }
@@ -635,24 +635,31 @@ T SAE(const DynamicBlock<T, D> &b1, const DynamicBlock<T, D> &b2) {
 template <size_t D, typename F>
 uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block, F &&inputF) {
   DynamicBlock<INPUTUNIT, D> prediction_block(input_block.size());
+  DynamicBlock<DCTDATAUNIT, D> dct_block(input_block.size());
   uint64_t                   best_prediction_type    {};
 
-  INPUTUNIT lowest_sae {};
-  INPUTUNIT sae {};
+  DCTDATAUNIT lowest_sae {};
+  DCTDATAUNIT sae {};
 
-  lowest_sae = SAE<D>(input_block, prediction_block);
+  lowest_sae = SAE<D>(input_block);
 
   predict_DC<D>(prediction_block, inputF);
-
-  sae = SAE<D>(input_block, prediction_block);
+  for (size_t i = 0; i < input_block.stride(D); i++) {
+    prediction_block[i] = input_block[i] - prediction_block[i];
+  }
+  forwardDiscreteCosineTransform(prediction_block, dct_block);
+  sae = SAE<D>(dct_block);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 1;
   }
 
   predict_planar<D>(prediction_block, inputF);
-
-  sae = SAE<D>(input_block, prediction_block);
+  for (size_t i = 0; i < input_block.stride(D); i++) {
+    prediction_block[i] = input_block[i] - prediction_block[i];
+  }
+  forwardDiscreteCosineTransform(prediction_block, dct_block);
+  sae = SAE<D>(dct_block);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 2;
@@ -688,8 +695,11 @@ uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block
     }
 
     predict_direction<D>(prediction_block, direction, inputF);
-
-    sae = SAE<D>(input_block, prediction_block);
+    for (size_t i = 0; i < input_block.stride(D); i++) {
+      prediction_block[i] = input_block[i] - prediction_block[i];
+    }
+    forwardDiscreteCosineTransform(prediction_block, dct_block);
+    sae = SAE<D>(dct_block);
     if (sae < lowest_sae) {
       lowest_sae = sae;
       best_prediction_type = make_cube_index<5, D>(pos) + 3;
