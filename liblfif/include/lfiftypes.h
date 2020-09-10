@@ -63,6 +63,14 @@ public:
   }
 
   T &operator[](const std::array<size_t, D> &pos) {
+    return operator[](pos.data());
+  }
+
+  const T &operator[](const std::array<size_t, D> &pos) const {
+    return operator[](pos.data());
+  }
+
+  T &operator[](const size_t pos[D]) {
     size_t index {};
     for (size_t i { 1 }; i <= D; i++) {
       index *= m_size[D - i];
@@ -71,7 +79,7 @@ public:
     return m_data[index];
   }
 
-  const T &operator[](const std::array<size_t, D> &pos) const {
+  const T &operator[](const size_t pos[D]) const {
     size_t index {};
     for (size_t i { 1 }; i <= D; i++) {
       index *= m_size[D - i];
@@ -86,6 +94,10 @@ public:
 
   size_t size(size_t i) const {
     return m_size[i];
+  }
+
+  std::vector<T> &data() {
+    return m_data;
   }
 
   size_t stride(size_t depth) const {

@@ -215,7 +215,7 @@ void summariseSuffixArray(const std::vector<int64_t> &string, std::vector<int64_
   summary_alphabet_size = current_name + 1;
 }
 
-std::vector<int64_t> accurateLmsSort(const std::vector<int64_t> &string, const std::map<int64_t, size_t> &bucket_sizes, const std::vector<bool> &typemap, const std::vector<int64_t> &summary_suffix_array, const std::vector<size_t> &summary_suffix_offsets) {
+std::vector<int64_t> accurateLmsSort(const std::vector<int64_t> &string, const std::map<int64_t, size_t> &bucket_sizes, const std::vector<int64_t> &summary_suffix_array, const std::vector<size_t> &summary_suffix_offsets) {
   std::vector<int64_t> suffix_offsets(string.size() + 1);
   std::fill(std::begin(suffix_offsets), std::end(suffix_offsets), -1);
 
@@ -251,7 +251,7 @@ std::vector<int64_t> makeSuffixArrayByInducedSorting(const std::vector<int64_t> 
 
   std::vector<int64_t> summary_suffix_array = makeSummarySuffixArray(summary_string, summary_alphabet_size);
 
-  std::vector<int64_t> accurate_suffix_array = accurateLmsSort(string, bucket_sizes, typemap, summary_suffix_array, summary_suffix_offsets);
+  std::vector<int64_t> accurate_suffix_array = accurateLmsSort(string, bucket_sizes, summary_suffix_array, summary_suffix_offsets);
 
   induceSortL(string, accurate_suffix_array, bucket_sizes, typemap);
   induceSortS(string, accurate_suffix_array, bucket_sizes, typemap);
@@ -290,7 +290,7 @@ void reorder(OI order_begin, OI order_end, VI values_begin) {
       value_t tA = values_begin[i];
       diff_t j = i;
 
-      diff_t k = order_begin[j];
+      index_t k = order_begin[j];
       while (i != k) {
         values_begin[j] = values_begin[k];
         order_begin[j] = j;

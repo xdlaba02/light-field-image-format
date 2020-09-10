@@ -10,16 +10,25 @@
 
 #include <vector>
 #include <cstdint>
+#include <cmath>
 #include <map>
 
-template<typename T, typename F>
-void move_to_front(std::vector<T> &dictionary, T *data, size_t size, F &&update) {
-  for (size_t i {}; i < size; i++) {
+template<typename F>
+void moveToFront(std::vector<uint64_t> &dictionary, std::vector<int64_t> &data, F &&update) {
+  for (size_t i = 0; i < data.size(); i++) {
+    if (data[i] >= dictionary.size()) {
+      size_t dict_end = dictionary.size();
+
+      dictionary.resize(data[i] + 1);
+
+      for (size_t i = dict_end; i < dictionary.size(); i++) {
+        dictionary[i] = i;
+      }
+    }
+
     auto it = std::find(std::begin(dictionary), std::end(dictionary), data[i]);
 
-    assert(it != std::end(dictionary));
-
-    T k = std::distance(std::begin(dictionary), it);
+    size_t k = std::distance(std::begin(dictionary), it);
 
     data[i] = k;
 
@@ -27,24 +36,32 @@ void move_to_front(std::vector<T> &dictionary, T *data, size_t size, F &&update)
   }
 }
 
-template<typename T, typename F>
-void move_from_front(std::vector<T> &dictionary, T *data, size_t size, F &&update) {
-  for (size_t i {}; i < size; i++) {
-    T k = data[i];
-    data[i] = dictionary[k];
+template<typename F>
+void moveFromFront(std::vector<uint64_t> &dictionary, std::vector<int64_t> &data, F &&update) {
+  for (size_t i {}; i < data.size(); i++) {
+    uint64_t k = data[i];
 
+    if (k >= dictionary.size()) {
+      size_t dict_end = dictionary.size();
+
+      dictionary.resize(k + 1);
+
+      for (size_t i = dict_end; i < dictionary.size(); i++) {
+        dictionary[i] = i;
+      }
+    }
+
+    data[i] = dictionary[k];
     update(dictionary, k);
   }
 }
 
-template<typename T>
-void update_base(std::vector<T> &dictionary, T i) {
+void updateBase(std::vector<uint64_t> &dictionary, size_t i) {
   auto it = std::begin(dictionary) + i;
   std::rotate(std::begin(dictionary), it, std::next(it));
 }
 
-template<typename T>
-void update_m1ff(std::vector<T> &dictionary, T i) {
+void updateM1ff(std::vector<uint64_t> &dictionary, size_t i) {
   auto it = std::begin(dictionary) + i;
   if (it <= std::next(std::begin(dictionary))) {
     std::rotate(std::begin(dictionary), it, std::next(it));
@@ -54,11 +71,10 @@ void update_m1ff(std::vector<T> &dictionary, T i) {
   }
 }
 
-template<typename T>
-void update_m1ff2(std::vector<T> &dictionary, T i, int16_t prev[2]) {
+void updateM1ff2(std::vector<uint64_t> &dictionary, size_t i, uint64_t prev[2]) {
   auto it = std::begin(dictionary) + i;
 
-  T c = *it;
+  uint64_t c = *it;
 
   if (it <= std::next(std::begin(dictionary))) {
     std::rotate(std::begin(dictionary), it, std::next(it));
@@ -74,23 +90,21 @@ void update_m1ff2(std::vector<T> &dictionary, T i, int16_t prev[2]) {
   prev[0] = c;
 }
 
-template<typename T>
-void update_sticky(std::vector<T> &dictionary, T i, double v) {
+void updateSticky(std::vector<uint64_t> &dictionary, size_t i, double v) {
   auto it = std::begin(dictionary) + i;
 
   size_t new_pos = std::round(i * v);
   std::rotate(std::begin(dictionary) + new_pos, it, std::next(it));
 }
 
-void update_k(std::vector<T> &dictionary, T i, size_t k) {
+void update_k(std::vector<uint64_t> &dictionary, size_t i, size_t k) {
   auto it = std::begin(dictionary) + i;
 
   size_t new_pos = std::max<int64_t>(0, static_cast<int64_t>(i) - static_cast<int64_t>(k));
   std::rotate(std::begin(dictionary) + new_pos, it, std::next(it));
 }
 
-template<typename T>
-void update_c(std::vector<T> &dictionary, T i, size_t c, std::map<T, size_t> &counts) {
+void updateC(std::vector<uint64_t> &dictionary, size_t i, size_t c, std::map<uint64_t, size_t> &counts) {
   auto it = std::begin(dictionary) + i;
 
   if (counts[*it] >= c) {

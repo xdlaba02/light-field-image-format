@@ -8,7 +8,7 @@
 #ifndef BWT_H
 #define BWT_H
 
-size_t bwt(std::vector<int64_t> &string)
+size_t bwt(std::vector<int64_t> &string);
 void ibwt(std::vector<int64_t> &string, size_t pidx);
 
 #endif
