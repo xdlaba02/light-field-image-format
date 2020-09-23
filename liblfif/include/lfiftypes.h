@@ -63,14 +63,6 @@ public:
   }
 
   T &operator[](const std::array<size_t, D> &pos) {
-    return operator[](pos.data());
-  }
-
-  const T &operator[](const std::array<size_t, D> &pos) const {
-    return operator[](pos.data());
-  }
-
-  T &operator[](const size_t pos[D]) {
     size_t index {};
     for (size_t i { 1 }; i <= D; i++) {
       index *= m_size[D - i];
@@ -79,7 +71,7 @@ public:
     return m_data[index];
   }
 
-  const T &operator[](const size_t pos[D]) const {
+  const T &operator[](const std::array<size_t, D> &pos) const {
     size_t index {};
     for (size_t i { 1 }; i <= D; i++) {
       index *= m_size[D - i];
