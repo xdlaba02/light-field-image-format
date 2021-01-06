@@ -25,8 +25,6 @@
 #include <cstdint>
 
 #include <algorithm>
-#include <iostream>
-#include <iomanip>
 
 /**
  * @brief Function which performs the forward DCT to the block. Output coefficients are returned in second parameter.
@@ -363,37 +361,12 @@ void encodeCABAC_JPEG(const DynamicBlock<QDATAUNIT, D> &traversed_block, CABACEn
 }
 
 template <size_t D>
-void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABACContextsDIAGONAL<D> &contexts) {
+void encodePredictionType(uint64_t prediction_type, CABACEncoder &encoder, CABACContextsPredictionMode<D> &contexts) {
   size_t i {};
   for (i = 0; i < prediction_type; i++) {
     encoder.encodeBit(contexts.prediction_ctx[i], 1);
   }
   encoder.encodeBit(contexts.prediction_ctx[i], 0);
-}
-
-template <size_t D>
-void printPredictionType(uint64_t prediction_type) {
-  if (prediction_type == 0) {
-    std::cerr << "NO PREDICTION";
-  }
-  else if (prediction_type == 1) {
-    std::cerr << "DC PREDICTION";
-  }
-  else if (prediction_type == 2) {
-    std::cerr << "PLANAR PREDICTION";
-  }
-  else if (prediction_type >= 3) {
-    size_t dir = prediction_type - 3;
-    int8_t direction[D] {};
-
-    std::cerr << "[";
-    for (size_t d { 0 }; d < D; d++) {
-      direction[d] = dir % constpow(5, d + 1) / constpow(5, d);
-      direction[d] -= 2;
-      std::cerr << std::setw(3) << std::fixed << (int)direction[d];
-    }
-    std::cerr << " ]";
-  }
 }
 
 /**
@@ -624,9 +597,9 @@ void encodeCABAC_RUNLENGTH(const DynamicBlock<RunLengthPair, D> &runlength, CABA
 }
 
 template <size_t D, typename T>
-T SAE(const DynamicBlock<T, D> &b) {
+T SAEAC(const DynamicBlock<T, D> &b) {
   T sae {};
-  for (size_t i = 0; i < b.stride(D); i++) {
+  for (size_t i = 1; i < b.stride(D); i++) {
     sae += std::abs(b[i]);
   }
   return sae;
@@ -641,14 +614,16 @@ uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block
   DCTDATAUNIT lowest_sae {};
   DCTDATAUNIT sae {};
 
-  lowest_sae = SAE<D>(input_block);
+  forwardDiscreteCosineTransform(input_block, dct_block);
+  lowest_sae = SAEAC<D>(dct_block);
+  //lowest_sae = std::numeric_limits<DCTDATAUNIT>::max();
 
-  predict_DC<D>(prediction_block, inputF);
+  QDATAUNIT predicted_dc = predict_DC<D>(prediction_block.size(), inputF);
   for (size_t i = 0; i < input_block.stride(D); i++) {
-    prediction_block[i] = input_block[i] - prediction_block[i];
+    prediction_block[i] = input_block[i] - predicted_dc;
   }
   forwardDiscreteCosineTransform(prediction_block, dct_block);
-  sae = SAE<D>(dct_block);
+  sae = SAEAC<D>(dct_block);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 1;
@@ -659,7 +634,7 @@ uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block
     prediction_block[i] = input_block[i] - prediction_block[i];
   }
   forwardDiscreteCosineTransform(prediction_block, dct_block);
-  sae = SAE<D>(dct_block);
+  sae = SAEAC<D>(dct_block);
   if (sae < lowest_sae) {
     lowest_sae = sae;
     best_prediction_type = 2;
@@ -699,7 +674,7 @@ uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block
       prediction_block[i] = input_block[i] - prediction_block[i];
     }
     forwardDiscreteCosineTransform(prediction_block, dct_block);
-    sae = SAE<D>(dct_block);
+    sae = SAEAC<D>(dct_block);
     if (sae < lowest_sae) {
       lowest_sae = sae;
       best_prediction_type = make_cube_index<5, D>(pos) + 3;
@@ -712,7 +687,10 @@ uint64_t find_best_prediction_type(const DynamicBlock<INPUTUNIT, D> &input_block
 template <size_t D, typename F>
 void predict(DynamicBlock<INPUTUNIT, D> &prediction_block, uint64_t prediction_type, F &&inputF) {
   if (prediction_type == 1) {
-    predict_DC<D>(prediction_block, inputF);
+    QDATAUNIT value = predict_DC<D>(prediction_block.size(), inputF);
+    for (size_t i = 0; i < prediction_block.stride(D); i++) {
+      prediction_block[i] = value;
+    }
   }
   else if (prediction_type == 2) {
     predict_planar<D>(prediction_block, inputF);

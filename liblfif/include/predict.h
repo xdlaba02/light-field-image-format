@@ -260,15 +260,16 @@ void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t directio
 }
 
 template<size_t D, typename F>
-void predict_DC(DynamicBlock<INPUTUNIT, D> &output, F &inputF) {
+INPUTUNIT predict_DC(const std::array<size_t, D> &size, F &inputF) {
   INPUTUNIT sum         {};
   size_t    samples_cnt {};
 
-  for (size_t neighbour_idx { 0 }; neighbour_idx < D; neighbour_idx++) {
+  for (size_t neighbour_idx = 0; neighbour_idx < D; neighbour_idx++) {
     std::array<size_t, D - 1> neighbour_block_size {};
-    for (size_t i { 0 }; i < D - 1; i++) {
+
+    for (size_t i = 0; i < D - 1; i++) {
       size_t idx              = i < neighbour_idx ? i : i + 1;
-      neighbour_block_size[i] = output.size()[idx];
+      neighbour_block_size[i] = size[idx];
     }
 
     samples_cnt += get_stride<D - 1>(neighbour_block_size.data());
@@ -287,9 +288,7 @@ void predict_DC(DynamicBlock<INPUTUNIT, D> &output, F &inputF) {
     });
   }
 
-  for (size_t i { 0 }; i < get_stride<D>(output.size()); i++) {
-    output[i] = sum / samples_cnt;
-  }
+  return sum / samples_cnt;
 }
 
 template<size_t D, typename F>

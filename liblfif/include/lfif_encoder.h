@@ -183,9 +183,6 @@ int constructQuantizationTables(LfifEncoder<D> &enc, const std::string &table_ty
   return -1;
 }
 
-#include <iostream>
-#include <iomanip>
-
 /**
 * @brief Function which performs arbitrary scan of an image. This function prepares a block into the encoding structure buffers.
 * @param enc The encoder structure.
@@ -397,7 +394,8 @@ void outputScanHuffman_RUNLENGTH(LfifEncoder<D> &enc, F &&puller, std::ostream &
 */
 template<size_t D, typename IF, typename OF>
 void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std::ostream &output) {
-  std::array<CABACContextsDIAGONAL<D>, 2> contexts         {CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size)};
+  std::array<CABACContextsDIAGONAL<D>, 2>  contexts         {CABACContextsDIAGONAL<D>(enc.block_size), CABACContextsDIAGONAL<D>(enc.block_size)};
+  CABACContextsPredictionMode<D>           prediction_ctx   {};
   std::vector<std::vector<size_t>>         scan_table       {};
   OBitstream                               bitstream        {};
   CABACEncoder                             cabac            {};
@@ -442,17 +440,6 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
     };
 
     iterate_dimensions<D>(enc.block_dims, [&](const std::array<size_t, D> &block) {
-      std::cerr << "block [";
-      for (size_t i = 0; i < D; i++) {
-        std::cerr << block[i] << " ";
-      }
-      std::cerr << "] out of [";
-
-      for (size_t i = 0; i < D; i++) {
-        std::cerr << enc.block_dims[i] << " ";
-      }
-      std::cerr << "]: ";
-
       getBlock<D>(enc.block_size.data(), inputF, block, enc.img_dims_unaligned, [&](const auto &block_pos, const auto &value) { enc.current_block[block_pos] = value; });
 
       bool any_block_available {};
@@ -527,11 +514,8 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
           if (enc.use_prediction) {
             prediction_type = find_best_prediction_type<D>(enc.input_block, [&](std::array<int64_t, D> &block_pos) { return predInputF(block_pos, 0); });
             prediction_stats[prediction_type]++;
-            encodePredictionType<D>(prediction_type, cabac, contexts[0]);
-            printPredictionType<D>(prediction_type);
+            encodePredictionType<D>(prediction_type, cabac, prediction_ctx);
           }
-
-          std::cerr << "\n";
         }
 
         if (enc.use_prediction) {
@@ -541,6 +525,7 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
         forwardDiscreteCosineTransform<D>(enc.input_block, enc.dct_block);
         quantize<D>(enc.dct_block, enc.quantized_block, *enc.quant_tables[channel]);
+
         encodeCABAC_DIAGONAL<D>(enc.quantized_block, cabac, contexts[channel != 0], threshold, scan_table);
 
         dequantize<D>(enc.quantized_block, enc.dct_block, *enc.quant_tables[channel]);
@@ -561,13 +546,6 @@ void outputScanCABAC_DIAGONAL(LfifEncoder<D> &enc, IF &&puller, OF &&pusher, std
 
   cabac.terminate();
   bitstream.flush();
-
-  if (enc.use_prediction) {
-    for (auto &pred: prediction_stats) {
-      printPredictionType<D>(pred.first);
-      std::cerr << ": " << pred.second << "\n";
-    }
-  }
 }
 
 template<size_t D, typename F>

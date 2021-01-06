@@ -13,7 +13,7 @@ BS			 = 8
 CC 			 = g++
 INCLUDE  = -Iinclude -I../liblfif/include -I../libppm/include
 OTHERINC = -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/xvc_enc_lib -I../xvc/src/xvc_dec_lib
-CFLAGS   = $(INCLUDE) -O3 -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS   = $(INCLUDE) -O3 -march=native -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
@@ -29,7 +29,9 @@ $(shell mkdir -p $(DEPDIR) > /dev/null)
 
 all: tools
 
-tools: $(BINDIR)/lfif2d_compress \
+tools: $(BINDIR)/ctu2d_compress \
+			 $(BINDIR)/ctu4d_compress \
+			 $(BINDIR)/lfif2d_compress \
 			 $(BINDIR)/lfif2d_decompress \
 			 $(BINDIR)/lfif3d_compress \
 			 $(BINDIR)/lfif3d_decompress \
@@ -53,6 +55,12 @@ others: $(BINDIR)/hevc_compress \
 				$(BINDIR)/cabac_test \
 				$(BINDIR)/predict_test \
 
+
+$(BINDIR)/ctu4d_compress: $(OBJDIR)/ctu4d_compress.o $(LFIF)
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/ctu2d_compress: $(OBJDIR)/ctu2d_compress.o $(LFIF)
+	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
@@ -129,6 +137,12 @@ $(BINDIR)/ppm_test: $(OBJDIR)/ppm_test.o $(OBJDIR)/plenoppm.o $(OBJDIR)/file_mas
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/tiler: $(OBJDIR)/tiler.o $(OBJDIR)/plenoppm.o $(OBJDIR)/file_mask.o ../libppm/bin/libppm.a
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/dct_fiddle: $(OBJDIR)/dct_fiddle.o ../libppm/bin/libppm.a ../liblfif/build/bwt.o
+	$(CC) -lm $^ -o $@
+
+$(BINDIR)/zigzag_test: $(OBJDIR)/zigzag_test.o
 	$(CC) -lm $^ -o $@
 
 ../libppm/bin/libppm.a:

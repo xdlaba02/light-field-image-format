@@ -20,9 +20,10 @@ struct CABACContextsH264 {
   CABAC::ContextModel                  coef_greater_one_ctx[NUM_GREATER_ONE_CTXS];
   CABAC::ContextModel                  coef_abs_level_ctx[NUM_ABS_LEVEL_CTXS];
 
-  CABACContextsH264(const std::array<size_t, D> &BS): coded_block_flag_ctx{},
-                                                      significant_coef_flag_ctx(BS),
-                                                 last_significant_coef_flag_ctx(BS) {}
+  CABACContextsH264(const std::array<size_t, D> &BS):
+    coded_block_flag_ctx{},
+    significant_coef_flag_ctx(BS),
+    last_significant_coef_flag_ctx(BS) {}
 };
 
 template <size_t D>
@@ -42,16 +43,27 @@ struct CABACContextsDIAGONAL {
   std::vector<CABAC::ContextModel> coef_greater_one_ctx;
   std::vector<CABAC::ContextModel> coef_greater_two_ctx;
   std::vector<CABAC::ContextModel> coef_abs_level_ctx;
-  std::vector<CABAC::ContextModel> prediction_ctx;
 
-  CABACContextsDIAGONAL(const std::array<size_t, D> &BS): coded_diag_flag_ctx(num_diagonals<D>(BS)),
-                                                     last_coded_diag_flag_ctx(num_diagonals<D>(BS)),
-                                               significant_coef_flag_high_ctx(D + 1),
-                                                significant_coef_flag_low_ctx(D + 1),
-                                                         coef_greater_one_ctx(num_diagonals<D>(BS)),
-                                                         coef_greater_two_ctx(num_diagonals<D>(BS)),
-                                                           coef_abs_level_ctx(num_diagonals<D>(BS)),
-                                                              prediction_ctx(pow(5, D) + 3) {}
+  CABACContextsDIAGONAL(const std::array<size_t, D> &BS):
+      coded_diag_flag_ctx(num_diagonals<D>(BS)),
+      last_coded_diag_flag_ctx(num_diagonals<D>(BS)),
+      significant_coef_flag_high_ctx(D + 1),
+      significant_coef_flag_low_ctx(D + 1),
+      coef_greater_one_ctx(num_diagonals<D>(BS)),
+      coef_greater_two_ctx(num_diagonals<D>(BS)),
+      coef_abs_level_ctx(num_diagonals<D>(BS))
+      {}
+};
+
+template <class T>
+inline constexpr T pow(const T base, const uint64_t exponent) {
+    return (exponent == 0) ? 1 : (base * pow(base, exponent - 1));
+}
+
+
+template <size_t D>
+struct CABACContextsPredictionMode {
+  std::array<CABAC::ContextModel, pow(5, D) + 3> prediction_ctx;
 };
 
 template<size_t D>
