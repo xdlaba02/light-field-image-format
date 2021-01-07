@@ -13,7 +13,7 @@ BS			 = 8
 CC 			 = g++
 INCLUDE  = -Iinclude -I../liblfif/include -I../libppm/include
 OTHERINC = -I/opt/mozjpeg/include -I/usr/include/ffmpeg -I/usr/local/include/ -I../xvc/src/xvc_enc_lib -I../xvc/src/xvc_dec_lib
-CFLAGS   = $(INCLUDE) -O3 -march=native -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
+CFLAGS   = $(INCLUDE) -O3 -fopenmp -march=native -std=c++17 -Wall -Wextra -pedantic -Wfatal-errors
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 SRCS = $(wildcard $(SRCDIR)/*.cc)
@@ -29,9 +29,7 @@ $(shell mkdir -p $(DEPDIR) > /dev/null)
 
 all: tools
 
-tools: $(BINDIR)/ctu2d_compress \
-			 $(BINDIR)/ctu4d_compress \
-			 $(BINDIR)/lfif2d_compress \
+tools: $(BINDIR)/lfif2d_compress \
 			 $(BINDIR)/lfif2d_decompress \
 			 $(BINDIR)/lfif3d_compress \
 			 $(BINDIR)/lfif3d_decompress \
@@ -55,13 +53,6 @@ others: $(BINDIR)/hevc_compress \
 				$(BINDIR)/cabac_test \
 				$(BINDIR)/predict_test \
 
-
-$(BINDIR)/ctu4d_compress: $(OBJDIR)/ctu4d_compress.o $(LFIF)
-	$(CC) -lm $^ -o $@
-
-$(BINDIR)/ctu2d_compress: $(OBJDIR)/ctu2d_compress.o $(LFIF)
-	$(CC) -lm $^ -o $@
-
 $(BINDIR)/lfif2d_compress: $(OBJDIR)/lfif2d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
 
@@ -69,7 +60,7 @@ $(BINDIR)/lfif3d_compress: $(OBJDIR)/lfif3d_compress.o $(OBJDIR)/compress.o $(LF
 	$(CC) -lm $^ -o $@
 
 $(BINDIR)/lfif4d_compress: $(OBJDIR)/lfif4d_compress.o $(OBJDIR)/compress.o $(LFIF)
-	$(CC) -lm $^ -o $@
+	$(CC) -lm -fopenmp $^ -o $@
 
 $(BINDIR)/lfif5d_compress: $(OBJDIR)/lfif5d_compress.o $(OBJDIR)/compress.o $(LFIF)
 	$(CC) -lm $^ -o $@
