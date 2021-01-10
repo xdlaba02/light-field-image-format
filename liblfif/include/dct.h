@@ -91,10 +91,17 @@ struct fdct<1> {
   template <typename IF, typename OF>
   fdct(const size_t BS[1], IF &&input, OF &&output) {
     static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]);
+    DynamicBlock<DCTDATAUNIT, 1> inputs(BS[0]);
+
+    for (size_t x = 0; x < BS[0]; x++) {
+      inputs[{x}] = input(x);
+    }
 
     for (size_t u = 0; u < BS[0]; u++) {
+      output(u) = 0.f;
+
       for (size_t x = 0; x < BS[0]; x++) {
-        output(u) += input(x) * coefs[u * BS[0] + x];
+        output(u) += inputs[x] * coefs[u * BS[0] + x];
       }
     }
   }
@@ -155,10 +162,17 @@ struct idct<1> {
   template <typename IF, typename OF>
   idct(const size_t BS[1], IF &&input, OF &&output) {
     static DynamicBlock<DCTDATAUNIT, 2> coefs = init_coefs(BS[0]);
+    DynamicBlock<DCTDATAUNIT, 1> inputs(BS[0]);
 
     for (size_t x = 0; x < BS[0]; x++) {
+      inputs[{x}] = input(x);
+    }
+
+    for (size_t x = 0; x < BS[0]; x++) {
+      output(x) = 0.f;
+
       for (size_t u = 0; u < BS[0]; u++) {
-        output(x) += input(u) * coefs[u * BS[0] + x];
+        output(x) += inputs[u] * coefs[u * BS[0] + x];
       }
     }
   }

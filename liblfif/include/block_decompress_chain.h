@@ -262,8 +262,6 @@ template <size_t D>
 void inverseDiscreteCosineTransform(const DynamicBlock<DCTDATAUNIT, D> &dct_block, DynamicBlock<INPUTUNIT, D> &output_block) {
   assert(dct_block.size() == output_block.size());
 
-  output_block.fill(0);
-
   auto inputF = [&](size_t index) {
     return dct_block[index];
   };
