@@ -1,6 +1,6 @@
 # Light Field Image Format
 Light Field Image Format (LFIF) is an implementation of a lossy light field image compression method which compresses the light field as a four-dimensional volume to exploit the correlation between adjacent views. The method is based on JPEG baseline encoder. The LFIF library can handle a variety of data and is able to compress a light field as a series of (two or three)-dimensional images or as one four-dimensional image. This project also contains a minimalistic PPM library for reading and writing PPM files and set of tools for light field image compression and decompression.
-Evaluation of this encoder was performed in the paper (Barina, 2019). The method is described in the paper (Dlabaja, 2019).
+Evaluation of this encoder was performed in the paper [1]. The method is described in the paper [2].
 
 ## Compile
 The project depends on ``GCC`` with C++ 20 implemented. The compilation is organized with the ``cmake`` and ``make`` tool.
@@ -45,6 +45,6 @@ The ``#`` characters will be expanded in a similar way as with compression tools
 See [LICENSE](https://github.com/xdlaba02/light-field-image-format/blob/master/LICENSE) for license and copyright information.
 
 ## References
-Barina, D.; Chlubna, T.; Solony, M.; aj.: Evaluation of 4D Light Field Compression Methods. In International Conference in Central Europe on Computer Graphics, Visualization and Computer Vision (WSCG), 2019.
+[1] Barina, D.; Chlubna, T.; Solony, M.; aj.: Evaluation of 4D Light Field Compression Methods. In International Conference in Central Europe on Computer Graphics, Visualization and Computer Vision (WSCG), 2019.
 
-Dlabaja, D.: 4D-DCT Based Light Field Image Compression. In Excel\@FIT, 2019.
+[2] Dlabaja, D.: 4D-DCT Based Light Field Image Compression. In Excel\@FIT, 2019.
