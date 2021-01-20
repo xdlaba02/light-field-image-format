@@ -11,4 +11,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fopenmp -march=native -DNDEBUG -s")
 add_subdirectory(liblfif)
 add_subdirectory(libppm)
 add_subdirectory(tools)
-add_subdirectory(extra)
+
+add_custom_target(doc COMMAND doxygen ../Doxyfile
+  COMMENT "Generating API documentation with Doxygen")
