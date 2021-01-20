@@ -21,7 +21,6 @@ int main(int argc, char *argv[]) {
   const char *output_file_name {};
   float quality                {};
 
-  bool use_huffman             {};
   bool predict                 {};
   bool shift                   {};
 
@@ -35,7 +34,7 @@ int main(int argc, char *argv[]) {
   LfifEncoder<4> encoder {};
   ofstream       output  {};
 
-  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, use_huffman, predict, shift)) {
+  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, predict, shift)) {
     return 1;
   }
 
@@ -84,7 +83,7 @@ int main(int argc, char *argv[]) {
   encoder.img_dims[4] = 1;
   encoder.color_depth = ceil(log2(max_rgb_value + 1));
 
-  encoder.use_huffman    = use_huffman;
+  encoder.use_huffman    = false;
   encoder.use_prediction = predict;
   encoder.shift          = shift;
 
@@ -170,17 +169,8 @@ int main(int argc, char *argv[]) {
   initEncoder(encoder);
   constructQuantizationTables(encoder, "DEFAULT", quality);
 
-  if (use_huffman) {
-    constructTraversalTables(encoder, "DEFAULT");
-    huffmanScan(encoder, yuv_puller);
-    constructHuffmanTables(encoder);
-    writeHeader(encoder, output);
-    outputScanHuffman_RUNLENGTH(encoder, yuv_puller, output);
-  }
-  else {
-    writeHeader(encoder, output);
-    outputScanCABAC_DIAGONAL(encoder, yuv_puller, yuv_pusher, output);
-  }
+  writeHeader(encoder, output);
+  outputScanCABAC_DIAGONAL(encoder, yuv_puller, yuv_pusher, output);
 
   output << shift;
 

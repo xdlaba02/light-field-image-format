@@ -9,11 +9,9 @@
 
 #include <iostream>
 
-using namespace std;
-
 void print_usage(const char *argv0) {
-  cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <file> -o <file-mask>" << endl;
+  std::cerr << "Usage: \n";
+  std::cerr << argv0 << " -i <file> -o <file-mask>\n";
 }
 
 bool parse_args(int argc, char *argv[], const char *&input_file_name, const char *&output_file_mask) {

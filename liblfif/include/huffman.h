@@ -12,6 +12,8 @@
 class IBitstream;
 class OBitstream;
 
+#include <cstdint>
+
 #include <iosfwd>
 #include <vector>
 #include <unordered_map>

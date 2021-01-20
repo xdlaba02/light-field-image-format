@@ -6,26 +6,24 @@
 #include "compress.h"
 
 #include <iostream>
-
-using namespace std;
+#include <sstream>
 
 void print_usage(const char *argv0) {
-  cerr << "Usage: " << endl;
-  cerr << argv0 << " -i <file-mask> -o <file> -q <quality> {-h} {-p} {-s}" << endl;
+  std::cerr << "Usage: \n";
+  std::cerr << argv0 << " -i <file-mask> -o <file> -q <quality> {-p} {-s}\n";
 }
 
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman, bool &predict, bool &shift) {
-  const char *arg_quality {};
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &predict, bool &shift) {
+  std::stringstream arg_quality {};
 
   input_file_mask  = nullptr;
   output_file_name = nullptr;
   quality          = 0.f;
-  huffman          = false;
   predict          = false;
   shift            = false;
 
   char opt;
-  while ((opt = getopt(argc, argv, "i:o:q:hps")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:q:ps")) >= 0) {
     switch (opt) {
       case 'i':
         if (!input_file_mask) {
@@ -43,16 +41,10 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
 
       case 'q':
         if (!arg_quality) {
-          arg_quality = optarg;
+          arg_quality << optarg;
           continue;
         }
         break;
-
-      case 'h':
-        if (!huffman) {
-          huffman = true;
-        }
-        continue;
 
       case 'p':
         if (!predict) {
@@ -79,13 +71,12 @@ bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char
     return false;
   }
 
-  float tmp_quality = atof(arg_quality);
-  if ((tmp_quality < 1.f) || (tmp_quality > 100.f)) {
+  arg_quality >> quality;
+  if (!arg_quality || (quality < 1.f) || (quality > 100.f)) {
+    quality = 0.f;
     print_usage(argv[0]);
     return false;
   }
-
-  quality = tmp_quality;
 
   return true;
 }

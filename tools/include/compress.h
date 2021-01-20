@@ -27,7 +27,9 @@ void print_usage(const char *argv0);
  * @param input_file_mask Return value for a tool which contains input file mask.
  * @param output_file_name Return value for a tool which containts output file name.
  * @param quality Return value containing quality coefficient.
+ * @param predict True if image should be predicted.
+ * @param shift True if image should be shifted.
  */
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &huffman, bool &predict, bool &shift);
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &predict, bool &shift);
 
 #endif
