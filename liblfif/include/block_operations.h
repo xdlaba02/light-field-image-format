@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include "quant_table.h"
 #include "cabac.h"
 #include "contexts.h"
 #include "dct.h"
+#include "dwt.h"
 #include "block.h"
 #include "predict.h"
 

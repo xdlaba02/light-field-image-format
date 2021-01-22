@@ -52,18 +52,35 @@ struct fdwt<1> {
 
   template <typename F>
   fdwt(const std::array<size_t, 1> &block_size, F &&block) {
-    for (size_t x = 1; x < block_size[0]; x += 2) {
-      int32_t left  = block(x - 1);
-      int32_t right = x >= block_size[0] - 1 ? 0 : block(x + 1);
+    DynamicBlock<int32_t, 1> inputs({block_size[0]});
 
-      block(x) -= shift_right_and_round(left + right, 1);
+    for (size_t x = 0; x < block_size[0]; x++) {
+      inputs[x] = block(x);
+    }
+
+    for (size_t x = 1; x < block_size[0]; x += 2) {
+      int32_t left  = inputs[x - 1];
+      int32_t right = x >= block_size[0] - 1 ? 0 : inputs[x + 1];
+
+      inputs[x] -= shift_right_and_round(left + right, 1);
     }
 
     for (size_t x = 0; x < block_size[0]; x += 2) {
-      int32_t left  = x == 0 ? 0 : block(x - 1);
-      int32_t right = x >= block_size[0] - 1 ? 0 : block(x + 1);
+      int32_t left  = x ? inputs[x - 1] : 0;
+      int32_t right = x >= block_size[0] - 1 ? 0 : inputs[x + 1];
 
-      block(x) += shift_right_and_round(left + right, 2);
+      inputs[x] += shift_right_and_round(left + right, 2);
+    }
+
+    size_t bigger_half = (block_size[0] + 1) >> 1;
+    size_t smaller_half = block_size[0] >> 1;
+
+    for (size_t x = 0; x < bigger_half; x++) {
+      block(x) = inputs[2 * x];
+    }
+
+    for (size_t x = 0; x < smaller_half; x++) {
+      block(bigger_half + x) = inputs[2 * x + 1];
     }
   }
 };
@@ -103,18 +120,35 @@ struct idwt<1> {
 
   template <typename F>
   idwt(const std::array<size_t, 1> &block_size, F &&block) {
-    for (size_t x = 0; x < block_size[0]; x += 2) {
-      int32_t left  = x == 0 ? 0 : block(x - 1);
-      int32_t right = x >= block_size[0] - 1 ? 0 : block(x + 1);
+    DynamicBlock<int32_t, 1> inputs({block_size[0]});
 
-      block(x) -= shift_right_and_round(left + right, 2);
+    size_t bigger_half = (block_size[0] + 1) >> 1;
+    size_t smaller_half = block_size[0] >> 1;
+
+    for (size_t x = 0; x < bigger_half; x++) {
+      inputs[2 * x] = block(x);
+    }
+
+    for (size_t x = 0; x < smaller_half; x++) {
+      inputs[2 * x + 1] = block(bigger_half + x);
+    }
+
+    for (size_t x = 0; x < block_size[0]; x += 2) {
+      int32_t left  = x ? inputs[x - 1] : 0;
+      int32_t right = x >= block_size[0] - 1 ? 0 : inputs[x + 1];
+
+      inputs[x] -= shift_right_and_round(left + right, 2);
     }
 
     for (size_t x = 1; x < block_size[0]; x += 2) {
-      int32_t left  = block(x - 1);
-      int32_t right = x >= block_size[0] - 1 ? 0 : block(x + 1);
+      int32_t left  = inputs[x - 1];
+      int32_t right = x >= block_size[0] - 1 ? 0 : inputs[x + 1];
 
-      block(x) += shift_right_and_round(left + right, 1);
+      inputs[x] += shift_right_and_round(left + right, 1);
+    }
+
+    for (size_t x = 0; x < block_size[0]; x++) {
+      block(x) = inputs[x];
     }
   }
 };
