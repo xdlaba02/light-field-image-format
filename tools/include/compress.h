@@ -6,13 +6,13 @@
 * @brief Common helper function for compression tools.
 */
 
-#ifndef COMPRESS_H
-#define COMPRESS_H
+#pragma once
+
+#include <getopt.h>
 
 #include <cstdint>
 #include <cstddef>
 
-#include <getopt.h>
 
 /**
  * @brief Fucntion which prints usage of a compress tool.
@@ -31,5 +31,3 @@ void print_usage(const char *argv0);
  * @param shift True if image should be shifted.
  */
 bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &distortion, bool &predict, bool &shift);
-
-#endif

@@ -5,9 +5,9 @@
 #include <cassert>
 
 class StackAllocator {
-  static uint8_t *m_base;
-  static uint8_t *m_head;
-  static uint8_t *m_end;
+  inline static uint8_t *m_base = nullptr;
+  inline static uint8_t *m_head = nullptr;
+  inline static uint8_t *m_end = nullptr;
 
   StackAllocator() = delete;
 

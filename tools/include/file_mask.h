@@ -6,8 +6,7 @@
 * @brief Module for expanding the file mask into individual file names.
 */
 
-#ifndef FILE_MASK_H
-#define FILE_MASK_H
+#pragma once
 
 #include <vector>
 #include <string>
@@ -43,5 +42,3 @@ private:
 
 size_t get_mask_names_count(const std::string &mask, char masking_char);
 std::string get_name_from_mask(const std::string &mask, char masking_char, size_t index);
-
-#endif

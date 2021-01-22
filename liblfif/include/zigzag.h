@@ -257,5 +257,3 @@ void zigzagScan4D(const size_t size[4], F &&callback) {
     }
   }
 }
-
-#endif
