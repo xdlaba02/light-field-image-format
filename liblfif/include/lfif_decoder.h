@@ -27,7 +27,7 @@
 * @param output Output callback function which will be returning pixels with signature void output(size_t index, std::array<float, 3> value), where index is a pixel index in memory and value is said pixel.
 */
 template<size_t D, typename IF, typename OF>
-void decodeStream(std::istream &input, const LFIF<D> &image, IF &&puller, OF &&pusher) {
+void decodeStreamDCT(std::istream &input, const LFIF<D> &image, IF &&puller, OF &&pusher) {
   StackAllocator::init(2147483648); //FIXME
 
   DynamicBlock<float,   D> current_block[3] {image.block_size, image.block_size, image.block_size};
@@ -139,6 +139,71 @@ void decodeStream(std::istream &input, const LFIF<D> &image, IF &&puller, OF &&p
     }
 
     moveBlock<D>([&](const auto &pos) { return  std::array<float, 3> { current_block[0][pos], current_block[1][pos], current_block[2][pos] }; }, image.block_size, {},
+    pusher, image.size, offset,
+    image.block_size);
+  });
+
+  cabac.terminate();
+
+  StackAllocator::cleanup();
+}
+
+template<size_t D, typename IF, typename OF>
+void decodeStreamDWT(std::istream &input, const LFIF<D> &image, IF &&puller, OF &&pusher) {
+  StackAllocator::init(2147483648); //FIXME
+
+  DynamicBlock<int32_t, D> current_block[3] {image.block_size, image.block_size, image.block_size};
+  DynamicBlock<int64_t, D> quantized_block(image.block_size);
+
+  std::array<size_t, D> aligned_image_size {};
+  for (size_t i = 0; i < D; i++) {
+    aligned_image_size[i] = (image.size[i] + image.block_size[i] - 1) / image.block_size[i] * image.block_size[i];
+  }
+
+  std::array<ThresholdedDiagonalContexts<D>, 2> contexts {
+    ThresholdedDiagonalContexts<D>(image.block_size),
+    ThresholdedDiagonalContexts<D>(image.block_size)
+  };
+
+  std::vector<std::vector<size_t>> scan_table     {};
+  IBitstream                       bitstream      {};
+  CABACDecoder                     cabac          {};
+
+  //inti scan table
+  scan_table.resize(num_diagonals<D>(image.block_size));
+  iterate_dimensions<D>(image.block_size, [&](const auto &pos) {
+    size_t diagonal {};
+    for (size_t i = 0; i < D; i++) {
+      diagonal += pos[i];
+    }
+
+    scan_table[diagonal].push_back(make_index(image.block_size, pos));
+  });
+
+  bitstream.open(input);
+  cabac.init(bitstream);
+
+  block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
+    for (size_t i = 0; i < D; i++) {
+      std::cerr << offset[i] << " ";
+    }
+    std::cerr << " out of ";
+    for (size_t i = 0; i < D; i++) {
+      std::cerr << aligned_image_size[i] << " ";
+    }
+    std::cerr << "\n";
+
+    for (size_t channel = 0; channel < 3; channel++) {
+      decodeBlock<D>(quantized_block, cabac, contexts[channel != 0], scan_table);
+
+      for (size_t i = 0; i < get_stride<D>(image.block_size); i++) {
+        current_block[channel][i] = quantized_block[i] << image.discarded_bits;
+      }
+
+      inverseDiscreteWaveletTransform<D>(current_block[channel]);
+    }
+
+    moveBlock<D>([&](const auto &pos) { return  std::array<int16_t, 3> { current_block[0][pos], current_block[1][pos], current_block[2][pos] }; }, image.block_size, {},
     pusher, image.size, offset,
     image.block_size);
   });

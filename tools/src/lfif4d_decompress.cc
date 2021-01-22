@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
     rgb_pusher(pos, {R, G, B});
   };
 
-  decodeStream(input_stream, input, yuv_puller, yuv_pusher);
+  decodeStreamDCT(input_stream, input, yuv_puller, yuv_pusher);
 
   if (std::any_of(std::begin(shift), std::end(shift), [](auto &val) { return val != 0.f; })) {
     for (size_t y {}; y < input.size[3]; y++) {

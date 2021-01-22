@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     rgb_pusher(pos, {R, G, B});
   };
 
-  decodeStream(input_stream, input, yuv_puller, yuv_pusher);
+  decodeStreamDCT(input_stream, input, yuv_puller, yuv_pusher);
 
   return 0;
 }

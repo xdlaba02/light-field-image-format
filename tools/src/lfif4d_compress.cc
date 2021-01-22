@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
   LFIF<4> output {};
   output.create(output_file, image_size, block_size, color_depth, distortion, predict);
 
-  encodeStream(output_file, output, yuv_puller, yuv_pusher);
+  encodeStreamDCT(output_file, output, yuv_puller, yuv_pusher);
 
   return 0;
 }
