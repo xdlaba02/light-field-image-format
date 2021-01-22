@@ -8,7 +8,6 @@
 #include "tiler.h"
 
 #include <lfif.h>
-#include <colorspace.h>
 #include <lfif_decoder.h>
 
 #include <cmath>
@@ -54,43 +53,21 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  auto rgb_puller = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
+  auto puller = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
     size_t img_index = pos[1] * input.size[0] + pos[0];
     size_t img       = pos[3] * input.size[2] + pos[2];
 
     return ppm_data[img].get(img_index);
   };
 
-  auto rgb_pusher = [&](const std::array<size_t, 4> &pos, const std::array<uint16_t, 3> &RGB) {
+  auto pusher = [&](const std::array<size_t, 4> &pos, const std::array<uint16_t, 3> &RGB) {
     size_t img_index = pos[1] * input.size[0] + pos[0];
     size_t img       = pos[3] * input.size[2] + pos[2];
 
     ppm_data[img].put(img_index, RGB);
   };
 
-  auto yuv_puller = [&](const std::array<size_t, 4> &pos) -> std::array<float, 3> {
-    std::array<uint16_t, 3> RGB = rgb_puller(pos);
-
-    float Y  = YCbCr::RGBToY(RGB[0], RGB[1], RGB[2]) - pow(2, input.depth_bits - 1);
-    float Cb = YCbCr::RGBToCb(RGB[0], RGB[1], RGB[2]);
-    float Cr = YCbCr::RGBToCr(RGB[0], RGB[1], RGB[2]);
-
-    return {Y, Cb, Cr};
-  };
-
-  auto yuv_pusher = [&](const std::array<size_t, 4> &pos, const std::array<float, 3> &values) {
-    float Y  = values[0] + pow(2, input.depth_bits - 1);
-    float Cb = values[1];
-    float Cr = values[2];
-
-    uint16_t R = clamp<float>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, input.depth_bits) - 1);
-    uint16_t G = clamp<float>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, input.depth_bits) - 1);
-    uint16_t B = clamp<float>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, input.depth_bits) - 1);
-
-    rgb_pusher(pos, {R, G, B});
-  };
-
-  decodeStreamDCT(input_stream, input, yuv_puller, yuv_pusher);
+  decodeStreamDCT(input_stream, input, puller, pusher);
 
   if (std::any_of(std::begin(shift), std::end(shift), [](auto &val) { return val != 0.f; })) {
     for (size_t y {}; y < input.size[3]; y++) {
@@ -103,7 +80,7 @@ int main(int argc, char *argv[]) {
           whole_image_pos[2] = x;
           whole_image_pos[3] = y;
 
-          return rgb_puller(whole_image_pos);
+          return puller(whole_image_pos);
         };
 
         auto shiftOutputF = [&](const std::array<size_t, 2> &pos, const auto &value) {
@@ -114,7 +91,7 @@ int main(int argc, char *argv[]) {
           whole_image_pos[2] = x;
           whole_image_pos[3] = y;
 
-          return rgb_pusher(whole_image_pos, value);
+          return pusher(whole_image_pos, value);
         };
 
         shift_image(shiftInputF, shiftOutputF, {input.size[0], input.size[1]}, get_shift_coef({x, y}, {input.size[2], input.size[3]}, shift));

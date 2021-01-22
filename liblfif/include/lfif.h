@@ -1,6 +1,6 @@
 #pragma once
 
-#include "endian_t.h"
+#include "components/endian.h"
 
 #include <cstdint>
 #include <cstddef>

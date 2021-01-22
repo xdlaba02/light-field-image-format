@@ -6,9 +6,8 @@
 #include "compress.h"
 #include "plenoppm.h"
 
-#include <lfif_encoder.h>
-#include <colorspace.h>
 #include <lfif.h>
+#include <block_encoder_dct.h>
 #include <ppm.h>
 
 #include <cmath>
@@ -56,34 +55,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  auto rgb_puller = [&](const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
+  auto puller = [&](const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
     return ppm_image.get(pos[1] * image_size[0] + pos[0]);
-  };
-
-  auto rgb_pusher = [&](const std::array<size_t, 2> &pos, const std::array<uint16_t, 3> &RGB) {
-    ppm_image.put(pos[1] * image_size[0] + pos[0], RGB);
-  };
-
-  auto yuv_puller = [&](const std::array<size_t, 2> &pos) -> std::array<float, 3> {
-    std::array<uint16_t, 3> RGB = rgb_puller(pos);
-
-    float Y  = YCbCr::RGBToY(RGB[0], RGB[1], RGB[2]) - pow(2, color_depth - 1);
-    float Cb = YCbCr::RGBToCb(RGB[0], RGB[1], RGB[2]);
-    float Cr = YCbCr::RGBToCr(RGB[0], RGB[1], RGB[2]);
-
-    return {Y, Cb, Cr};
-  };
-
-  auto yuv_pusher = [&](const std::array<size_t, 2> &pos, const std::array<float, 3> &values) {
-    float Y  = values[0] + pow(2, color_depth - 1);
-    float Cb = values[1];
-    float Cr = values[2];
-
-    uint16_t R = std::clamp<float>(std::round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, std::pow(2, color_depth) - 1);
-    uint16_t G = std::clamp<float>(std::round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, std::pow(2, color_depth) - 1);
-    uint16_t B = std::clamp<float>(std::round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, std::pow(2, color_depth) - 1);
-
-    rgb_pusher(pos, {R, G, B});
   };
 
   if (create_directory(output_file_name)) {
@@ -103,7 +76,9 @@ int main(int argc, char *argv[]) {
   LFIF<2> output {};
   output.create(output_file, image_size, block_size, color_depth, distortion, predict);
 
-  encodeStreamDCT(output_file, output, yuv_puller, yuv_pusher);
+  BlockEncoderDCT<2> encoder(output);
+
+  encoder.encodeStream(puller, output_file);
 
   return 0;
 }

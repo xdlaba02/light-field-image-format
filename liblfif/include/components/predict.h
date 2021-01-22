@@ -9,6 +9,7 @@
 #pragma once
 
 #include "block.h"
+#include "meta.h"
 
 #include <cstdint>
 #include <cassert>

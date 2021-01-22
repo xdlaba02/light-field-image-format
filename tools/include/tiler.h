@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include <block.h>
-#include <meta.h>
+#include <components/block.h>
+#include <components/meta.h>
 
 #include <cmath>
 #include <numeric>

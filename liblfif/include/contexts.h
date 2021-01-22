@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "cabac.h"
+#include "components/cabac.h"
 
 #include <cstddef>
 

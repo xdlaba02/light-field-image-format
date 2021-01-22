@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include "cabac.h"
+#include "components/cabac.h"
+#include "components/dct.h"
+#include "components/dwt.h"
+#include "components/block.h"
+#include "components/predict.h"
+
 #include "contexts.h"
-#include "dct.h"
-#include "dwt.h"
-#include "block.h"
-#include "predict.h"
 
 #include <cstdlib>
 #include <cstdint>

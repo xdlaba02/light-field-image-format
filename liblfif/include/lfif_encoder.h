@@ -8,11 +8,12 @@
 
 #pragma once
 
+#include "components/colorspace.h"
+#include "components/bitstream.h"
+#include "components/predict.h"
+
 #include "block_operations.h"
 #include "contexts.h"
-#include "bitstream.h"
-#include "predict.h"
-#include "stack_allocator.h"
 #include "lfif.h"
 
 #include <cstdint>
@@ -77,9 +78,9 @@ void encodeStreamDCT(std::ostream &output, const LFIF<D> &image, IF &&puller, OF
 
     moveBlock<D>(puller, image.size, offset,
                  [&](const auto &block_pos, const auto &value) {
-                   current_block[0][block_pos] = value[0];
-                   current_block[1][block_pos] = value[1];
-                   current_block[2][block_pos] = value[2];
+                   current_block[0][block_pos] = YCbCr::RGBToY(value[0], value[1], value[2]) - pow(2, image.depth_bits - 1);
+                   current_block[1][block_pos] = YCbCr::RGBToCb(value[0], value[1], value[2]);
+                   current_block[2][block_pos] = YCbCr::RGBToCr(value[0], value[1], value[2]);
                  }, image.block_size, {},
                  image.block_size);
 
@@ -157,84 +158,18 @@ void encodeStreamDCT(std::ostream &output, const LFIF<D> &image, IF &&puller, OF
 
     if (image.predicted) {
       moveBlock<D>([&](const auto &pos) {
-        return std::array<float, 3> { current_block[0][pos], current_block[1][pos], current_block[2][pos] };
+        float Y  = current_block[0][pos] + pow(2, image.depth_bits - 1);
+        float Cb = current_block[1][pos];
+        float Cr = current_block[2][pos];
+
+        uint16_t R = std::clamp<float>(std::round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, std::pow(2, image.depth_bits) - 1);
+        uint16_t G = std::clamp<float>(std::round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, std::pow(2, image.depth_bits) - 1);
+        uint16_t B = std::clamp<float>(std::round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, std::pow(2, image.depth_bits) - 1);
+
+        return std::array<uint16_t, 3> { R, G, B };
       }, image.block_size, {},
       pusher, image.size, offset,
       image.block_size);
-    }
-  });
-
-  cabac.terminate();
-  bitstream.flush();
-
-  StackAllocator::cleanup();
-}
-
-
-
-
-template<size_t D, typename IF, typename OF>
-void encodeStreamDWT(std::ostream &output, const LFIF<D> &image, IF &&puller, OF &&pusher) {
-  StackAllocator::init(2147483648); //FIXME
-
-  DynamicBlock<int32_t, D> current_block[3] {image.block_size, image.block_size, image.block_size};
-  DynamicBlock<int64_t, D> quantized_block(image.block_size);
-
-  std::array<size_t, D> aligned_image_size {};
-  for (size_t i = 0; i < D; i++) {
-    aligned_image_size[i] = ((image.size[i] + image.block_size[i] - 1) / image.block_size[i]) * image.block_size[i];
-  }
-
-  std::array<ThresholdedDiagonalContexts<D>, 2> contexts {
-    ThresholdedDiagonalContexts<D>(image.block_size),
-    ThresholdedDiagonalContexts<D>(image.block_size)
-  };
-
-  std::vector<std::vector<size_t>> scan_table     {};
-  OBitstream                       bitstream      {};
-  CABACEncoder                     cabac          {};
-
-  // init scan table
-  scan_table.resize(num_diagonals<D>(image.block_size));
-  iterate_dimensions<D>(image.block_size, [&](const auto &pos) {
-    size_t diagonal {};
-    for (size_t i = 0; i < D; i++) {
-      diagonal += pos[i];
-    }
-
-    scan_table[diagonal].push_back(make_index(image.block_size, pos));
-  });
-
-
-  bitstream.open(output);
-  cabac.init(bitstream);
-
-  block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
-    for (size_t i = 0; i < D; i++) {
-      std::cerr << offset[i] << " ";
-    }
-    std::cerr << " out of ";
-    for (size_t i { 0 }; i < D; i++) {
-      std::cerr << aligned_image_size[i] << " ";
-    }
-    std::cerr << "\n";
-
-    moveBlock<D>(puller, image.size, offset,
-                 [&](const auto &block_pos, const auto &value) {
-                   current_block[0][block_pos] = value[0];
-                   current_block[1][block_pos] = value[1];
-                   current_block[2][block_pos] = value[2];
-                 }, image.block_size, {},
-                 image.block_size);
-
-    for (size_t channel = 0; channel < 3; channel++) {
-      forwardDiscreteWaveletTransform<D>(current_block[channel]);
-
-      for (size_t i = 0; i < get_stride<D>(image.block_size); i++) {
-        quantized_block[i] = std::round(ldexp(current_block[channel][i], -image.discarded_bits));
-      }
-
-      encodeBlock<D>(quantized_block, cabac, contexts[channel != 0], scan_table);
     }
   });
 

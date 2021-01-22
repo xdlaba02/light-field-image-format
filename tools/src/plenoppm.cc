@@ -10,16 +10,6 @@
 
 using namespace std;
 
-bool isSquare(uint64_t num) {
-  for (size_t i = 0; i * i <= num; i++) {
-    if (i * i == num) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 int mapPPMs(const char *input_file_mask, uint64_t &width, uint64_t &height, uint32_t &color_depth, std::vector<PPM> &data) {
   FileMask file_name(input_file_mask);
 
