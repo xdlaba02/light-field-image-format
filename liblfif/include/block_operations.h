@@ -49,6 +49,26 @@ void inverseDiscreteCosineTransform(DynamicBlock<float, D> &block) {
   idct<D>(block.size(), proxy);
 }
 
+template <size_t D>
+void forwardDiscreteWaveletTransform(DynamicBlock<int32_t, D> &block) {
+  auto proxy = [&](size_t index) -> auto & {
+    return block[index];
+  };
+
+
+  fdwt<D>(block.size(), proxy);
+}
+
+template <size_t D>
+void inverseDiscreteWaveletTransform(DynamicBlock<int32_t, D> &block) {
+  auto proxy = [&](size_t index) -> auto & {
+    return block[index];
+  };
+
+  idwt<D>(block.size(), proxy);
+}
+
+
 /**
  * @brief Function which performs the quantization step on a block.
  * @param transformed_block The block of DCT coefficients to be quantized.
