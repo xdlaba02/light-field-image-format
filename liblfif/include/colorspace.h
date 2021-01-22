@@ -6,13 +6,10 @@
 * @brief Handy functions for color space conversion.
 */
 
-#ifndef COLORSPACE_H
-#define COLORSPACE_H
-
-#include "lfiftypes.h"
+#pragma once
 
 #include <cmath>
-
+#include <cstdint>
 
 /**
 * @brief Set of functions for conversion RGB - YCbCr.
@@ -26,7 +23,7 @@ namespace YCbCr {
   * @param  B Blue sample.
   * @return Y sample.
   */
-  inline INPUTUNIT RGBToY(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  inline float RGBToY(uint16_t R, uint16_t G, uint16_t B) {
     return (0.299 * R) + (0.587 * G) + (0.114 * B);
   }
 
@@ -37,7 +34,7 @@ namespace YCbCr {
   * @param  B Blue sample.
   * @return Cb sample.
   */
-  inline INPUTUNIT RGBToCb(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  inline float RGBToCb(uint16_t R, uint16_t G, uint16_t B) {
     return - (0.168736 * R) - (0.331264 * G) + (0.5 * B);
   }
 
@@ -48,7 +45,7 @@ namespace YCbCr {
   * @param  B Blue sample.
   * @return Cr sample.
   */
-  inline INPUTUNIT RGBToCr(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  inline float RGBToCr(uint16_t R, uint16_t G, uint16_t B) {
     return (0.5 * R) - (0.418688 * G) - (0.081312 * B);
   }
 
@@ -58,7 +55,7 @@ namespace YCbCr {
   * @param  Cr Cr sample.
   * @return R sample.
   */
-  inline INPUTUNIT YCbCrToR(INPUTUNIT Y, INPUTUNIT, INPUTUNIT Cr) {
+  inline float YCbCrToR(float Y, float, float Cr) {
     return Y + 1.402 * Cr;
   }
 
@@ -69,7 +66,7 @@ namespace YCbCr {
   * @param  Cr Cr sample.
   * @return G sample.
   */
-  inline INPUTUNIT YCbCrToG(INPUTUNIT Y, INPUTUNIT Cb, INPUTUNIT Cr) {
+  inline float YCbCrToG(float Y, float Cb, float Cr) {
     return Y - 0.344136 * Cb - 0.714136 * Cr;
   }
 
@@ -79,7 +76,7 @@ namespace YCbCr {
   * @param  Cb Cb sample.
   * @return B sample.
   */
-  inline INPUTUNIT YCbCrToB(INPUTUNIT Y, INPUTUNIT Cb, INPUTUNIT) {
+  inline float YCbCrToB(float Y, float Cb, float) {
     return Y + 1.772 * Cb;
   }
 }
@@ -96,7 +93,7 @@ namespace YCoCg {
   * @param  B Blue sample.
   * @return Y sample.
   */
-  inline INPUTUNIT RGBToY(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  inline float RGBToY(uint16_t R, uint16_t G, uint16_t B) {
     return (0.25 * R) + (0.5 * G) + (0.25 * B);
   }
 
@@ -106,7 +103,7 @@ namespace YCoCg {
   * @param  B Blue sample.
   * @return Co sample.
   */
-  inline INPUTUNIT RGBToCo(RGBUNIT R, RGBUNIT, RGBUNIT B) {
+  inline float RGBToCo(uint16_t R, uint16_t, uint16_t B) {
     return (0.5 * R) - (0.5 * B);
   }
 
@@ -117,7 +114,7 @@ namespace YCoCg {
   * @param  B Blue sample.
   * @return Cg sample.
   */
-  inline INPUTUNIT RGBToCg(RGBUNIT R, RGBUNIT G, RGBUNIT B) {
+  inline float RGBToCg(uint16_t R, uint16_t G, uint16_t B) {
     return - (0.25 * R) + (0.5 * G) - (0.25 * B);
   }
 
@@ -128,7 +125,7 @@ namespace YCoCg {
   * @param  Cg Cg sample.
   * @return R sample.
   */
-  inline INPUTUNIT YCoCgToR(INPUTUNIT Y, INPUTUNIT Co, INPUTUNIT Cg) {
+  inline float YCoCgToR(float Y, float Co, float Cg) {
     return Y + Co - Cg;
   }
 
@@ -138,7 +135,7 @@ namespace YCoCg {
   * @param  Cg Cg sample.
   * @return G sample.
   */
-  inline INPUTUNIT YCoCgToG(INPUTUNIT Y, INPUTUNIT, INPUTUNIT Cg) {
+  inline float YCoCgToG(float Y, float, float Cg) {
     return Y + Cg;
   }
 
@@ -149,8 +146,7 @@ namespace YCoCg {
   * @param  Cg Cg sample.
   * @return B sample.
   */
-  inline INPUTUNIT YCoCgToB(INPUTUNIT Y, INPUTUNIT Co, INPUTUNIT Cg) {
+  inline float YCoCgToB(float Y, float Co, float Cg) {
     return Y - Co - Cg;
   }
 }
-#endif

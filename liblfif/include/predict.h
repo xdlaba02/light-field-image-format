@@ -6,10 +6,9 @@
 * @brief Prediction stuff.
 */
 
-#ifndef PREDICT_H
-#define PREDICT_H
+#pragma once
 
-#include "lfiftypes.h"
+#include "block.h"
 
 #include <cstdint>
 #include <cassert>
@@ -18,7 +17,7 @@
 template <size_t D>
 struct interpolate {
   template <typename F>
-  interpolate(const size_t BS[D], F &&main_ref, const int64_t main_ref_pos[D], int8_t multiplier, INPUTUNIT &output) {
+  interpolate(const size_t BS[D], F &&main_ref, const int64_t main_ref_pos[D], int8_t multiplier, float &output) {
     int64_t pos = std::floor(main_ref_pos[D - 1] / static_cast<double>(multiplier));
     int64_t frac = main_ref_pos[D - 1] % multiplier;
 
@@ -30,8 +29,8 @@ struct interpolate {
       interpolate<D - 1>(BS, inputF1, main_ref_pos, multiplier, output);
     }
     else {
-      INPUTUNIT val1 {};
-      INPUTUNIT val2 {};
+      float val1 {};
+      float val2 {};
 
       auto inputF2 = [&](size_t index) {
         return main_ref((pos + 1) * get_stride<D - 1>(BS) + index);
@@ -48,7 +47,7 @@ struct interpolate {
 template <>
 struct interpolate<0> {
   template <typename F>
-  interpolate(const size_t *, F &&main_ref, const int64_t *, int8_t, INPUTUNIT &output) {
+  interpolate(const size_t *, F &&main_ref, const int64_t *, int8_t, float &output) {
     output = main_ref(0);
   }
 };
@@ -92,7 +91,7 @@ struct low_pass_sum<1> {
 };
 
 template <size_t D>
-void low_pass_filter(DynamicBlock<INPUTUNIT, D> &main_ref) {
+void low_pass_filter(DynamicBlock<float, D> &main_ref) {
   auto inputF = [&](size_t index) -> auto & {
     return main_ref[index];
   };
@@ -105,7 +104,7 @@ void low_pass_filter(DynamicBlock<INPUTUNIT, D> &main_ref) {
 }
 
 template <size_t D, typename F>
-void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBlock<INPUTUNIT, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, F &&inputF) {
+void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBlock<float, D - 1> &main_ref, const int8_t direction[D], size_t main_ref_idx, F &&inputF) {
   std::array<int64_t, D> start_offsets {};
   std::array<int64_t, D> end_offsets   {};
 
@@ -175,7 +174,7 @@ void project_neighbours_to_main_ref(const std::array<size_t, D> &BS, DynamicBloc
 }
 
 template <size_t D>
-void predict_from_main_ref(DynamicBlock<INPUTUNIT, D> &output, const int8_t direction[D], const DynamicBlock<INPUTUNIT, D - 1> &main_ref, size_t main_ref_idx) {
+void predict_from_main_ref(DynamicBlock<float, D> &output, const int8_t direction[D], const DynamicBlock<float, D - 1> &main_ref, size_t main_ref_idx) {
   std::array<int64_t, D> offsets {};
 
   for (size_t i = 0; i < D; i++) {
@@ -222,7 +221,7 @@ void predict_from_main_ref(DynamicBlock<INPUTUNIT, D> &output, const int8_t dire
 }
 
 template <size_t D, typename F>
-void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t direction[D], F &&inputF) {
+void predict_direction(DynamicBlock<float, D> &output, const int8_t direction[D], F &&inputF) {
   size_t  main_ref_idx { 0 };
 
   auto positive = [&]() {
@@ -252,7 +251,7 @@ void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t directio
     ref_size[i] = output.size(idx) + output.size(main_ref_idx) + 1;
   }
 
-  DynamicBlock<INPUTUNIT, D - 1> ref(ref_size);
+  DynamicBlock<float, D - 1> ref(ref_size);
 
   project_neighbours_to_main_ref<D>(output.size(), ref, direction, main_ref_idx, inputF);
   low_pass_filter<D - 1>(ref);
@@ -260,8 +259,8 @@ void predict_direction(DynamicBlock<INPUTUNIT, D> &output, const int8_t directio
 }
 
 template<size_t D, typename F>
-INPUTUNIT predict_DC(const std::array<size_t, D> &size, F &inputF) {
-  INPUTUNIT sum         {};
+float predict_DC(const std::array<size_t, D> &size, F &inputF) {
+  float sum         {};
   size_t    samples_cnt {};
 
   for (size_t neighbour_idx = 0; neighbour_idx < D; neighbour_idx++) {
@@ -292,11 +291,11 @@ INPUTUNIT predict_DC(const std::array<size_t, D> &size, F &inputF) {
 }
 
 template<size_t D, typename F>
-void predict_planar(DynamicBlock<INPUTUNIT, D> &output, F &inputF) {
+void predict_planar(DynamicBlock<float, D> &output, F &inputF) {
   output.fill(0);
 
   for (size_t neighbour_idx { 0 }; neighbour_idx < D; neighbour_idx++) {
-    DynamicBlock<INPUTUNIT, D> tmp_prediction(output.size());
+    DynamicBlock<float, D> tmp_prediction(output.size());
 
     int8_t direction[D] {};
     direction[neighbour_idx] = 1;
@@ -312,5 +311,3 @@ void predict_planar(DynamicBlock<INPUTUNIT, D> &output, F &inputF) {
     output[i] /= D;
   }
 }
-
-#endif

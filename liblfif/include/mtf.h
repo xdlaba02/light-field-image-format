@@ -5,13 +5,13 @@
 * @brief
 */
 
-#ifndef MTF_H
-#define MTF_H
+#pragma once
 
-#include <vector>
 #include <cstdint>
 #include <cmath>
+
 #include <map>
+#include <vector>
 
 template<typename F>
 void moveToFront(std::vector<uint64_t> &dictionary, std::vector<int64_t> &data, F &&update) {
@@ -113,5 +113,3 @@ void updateC(std::vector<uint64_t> &dictionary, size_t i, size_t c, std::map<uin
 
   counts[*it]++;
 }
-
-#endif

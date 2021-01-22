@@ -6,8 +6,7 @@
 * @brief Module for performing run-length encoding.
 */
 
-#ifndef RUNLENGTH_H
-#define RUNLENGTH_H
+#pragma once
 
 #include "quant_table.h"
 #include "huffman.h"
@@ -16,6 +15,7 @@
 
 #include <cstdint>
 #include <cmath>
+
 #include <algorithm>
 
 using RLAMPUNIT = int64_t;    /**< @brief Unit intended to contain amplitude value in un-length pair.*/
@@ -100,5 +100,3 @@ public:
   }
 
 };
-
-#endif

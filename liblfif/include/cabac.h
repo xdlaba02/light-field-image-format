@@ -6,8 +6,7 @@
 * @brief Context-Adaptive Binary Arithmetic Coding.
 */
 
-#ifndef CABAC_H
-#define CABAC_H
+#pragma once
 
 #include "bitstream.h"
 
@@ -461,5 +460,3 @@ uint64_t CABACDecoder::decodeEG(uint64_t k) {
 
   return value;
 }
-
-#endif

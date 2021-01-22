@@ -5,10 +5,10 @@
 * @copyright 2019 Drahomír Dlabaja
 */
 
-#ifndef TILER_H
-#define TILER_H
+#pragma once
 
 #include <block.h>
+#include <meta.h>
 
 #include <cmath>
 #include <numeric>
@@ -225,5 +225,3 @@ std::array<int64_t, 2> find_best_shift_params(F &&inputF, const std::array<size_
 
   return best_param;
 }
-
-#endif

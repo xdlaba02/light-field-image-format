@@ -8,171 +8,153 @@
 #include "tiler.h"
 
 #include <lfif_encoder.h>
+#include <colorspace.h>
+#include <lfif.h>
 
 #include <cmath>
 
 #include <iostream>
+#include <fstream>
 #include <vector>
-
-using namespace std;
+#include <sstream>
 
 int main(int argc, char *argv[]) {
   const char *input_file_mask  {};
   const char *output_file_name {};
-  float quality                {};
 
-  bool predict                 {};
-  bool shift                   {};
+  uint8_t distortion {};
+  bool    predict    {};
+  bool    do_shift   {};
 
-  vector<PPM> ppm_data         {};
-
-  uint64_t width               {};
-  uint64_t height              {};
-  uint64_t image_count         {};
-  uint32_t max_rgb_value       {};
-
-  LfifEncoder<4> encoder {};
-  ofstream       output  {};
-
-  if (!parse_args(argc, argv, input_file_mask, output_file_name, quality, predict, shift)) {
+  if (!parse_args(argc, argv, input_file_mask, output_file_name, distortion, predict, do_shift)) {
     return 1;
   }
 
+  std::vector<PPM> ppm_data {};
+
+  uint64_t width         {};
+  uint64_t height        {};
+  uint64_t image_count   {};
+  uint32_t max_rgb_value {};
+
   if (mapPPMs(input_file_mask, width, height, max_rgb_value, ppm_data) < 0) {
-    cerr << "ERROR: IMAGES PROPERTIES MISMATCH\n";
+    std::cerr << "ERROR: IMAGES PROPERTIES MISMATCH\n";
     return 2;
   }
 
   image_count = ppm_data.size();
-
   if (!image_count) {
-    cerr << "ERROR: NO IMAGES LOADED\n";
+    std::cerr << "ERROR: NO IMAGES LOADED\n";
     return 2;
   }
 
-  if (create_directory(output_file_name)) {
-    cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
-    return 1;
-  }
+  size_t  side        = sqrt(image_count);
+  uint8_t color_depth = ceil(log2(max_rgb_value + 1));
 
-  output.open(output_file_name, ios::binary);
-  if (!output) {
-    cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
-    return 1;
-  }
-
-  size_t side = sqrt(image_count);
+  std::array<uint64_t, 4> image_size { width, height, side, side };
+  std::array<uint64_t, 4> block_size {};
   if (optind + 4 == argc) {
     for (size_t i { 0 }; i < 4; i++) {
-      int tmp = atoi(argv[optind++]);
-      if (tmp <= 0) {
-        encoder.block_size = {side, side, side, side};
+      std::stringstream ss {};
+      ss << argv[optind++];
+      size_t tmp {};
+      ss >> tmp;
+      if (!ss) {
+        block_size = {side, side, side, side};
         break;
       }
-      encoder.block_size[i] = tmp;
+
+      block_size[i] = tmp;
     }
   }
   else {
-    encoder.block_size = {side, side, side, side};
+    block_size = {side, side, side, side};
   }
 
-  encoder.img_dims[0] = width;
-  encoder.img_dims[1] = height;
-  encoder.img_dims[2] = side;
-  encoder.img_dims[3] = side;
-  encoder.img_dims[4] = 1;
-  encoder.color_depth = ceil(log2(max_rgb_value + 1));
-
-  encoder.use_huffman    = false;
-  encoder.use_prediction = predict;
-  encoder.shift          = shift;
-
-  auto rgb_puller = [&](const std::array<size_t, 5> &pos) -> std::array<uint16_t, 3> {
-    size_t img_index = pos[1] * width + pos[0];
-    size_t img       = (pos[4] * side + pos[3]) * side + pos[2];
+  auto rgb_puller = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
+    size_t img_index = pos[1] * image_size[0] + pos[0];
+    size_t img       = pos[3] * image_size[2] + pos[2];
 
     return ppm_data[img].get(img_index);
   };
 
-  auto rgb_pusher = [&](const std::array<size_t, 5> &pos, const std::array<uint16_t, 3> &RGB) {
-    size_t img_index = pos[1] * width + pos[0];
-    size_t img       = (pos[4] * side + pos[3]) * side + pos[2];
+  auto rgb_pusher = [&](const std::array<size_t, 4> &pos, const std::array<uint16_t, 3> &RGB) {
+    size_t img_index = pos[1] * image_size[0] + pos[0];
+    size_t img       = pos[3] * image_size[2] + pos[2];
 
     ppm_data[img].put(img_index, RGB);
   };
 
-  auto yuv_puller = [&](const std::array<size_t, 5> &pos) -> std::array<INPUTUNIT, 3> {
+  auto yuv_puller = [&](const std::array<size_t, 4> &pos) -> std::array<float, 3> {
     std::array<uint16_t, 3> RGB = rgb_puller(pos);
 
-    INPUTUNIT Y  = YCbCr::RGBToY(RGB[0], RGB[1], RGB[2]) - pow(2, encoder.color_depth - 1);
-    INPUTUNIT Cb = YCbCr::RGBToCb(RGB[0], RGB[1], RGB[2]);
-    INPUTUNIT Cr = YCbCr::RGBToCr(RGB[0], RGB[1], RGB[2]);
+    float Y  = YCbCr::RGBToY(RGB[0], RGB[1], RGB[2]) - pow(2, color_depth - 1);
+    float Cb = YCbCr::RGBToCb(RGB[0], RGB[1], RGB[2]);
+    float Cr = YCbCr::RGBToCr(RGB[0], RGB[1], RGB[2]);
 
     return {Y, Cb, Cr};
   };
 
-  auto yuv_pusher = [&](const std::array<size_t, 5> &pos, const std::array<INPUTUNIT, 3> &values) {
-    INPUTUNIT Y  = values[0] + pow(2, encoder.color_depth - 1);
-    INPUTUNIT Cb = values[1];
-    INPUTUNIT Cr = values[2];
+  auto yuv_pusher = [&](const std::array<size_t, 4> &pos, const std::array<float, 3> &values) {
+    float Y  = values[0] + pow(2, color_depth - 1);
+    float Cb = values[1];
+    float Cr = values[2];
 
-    uint16_t R = clamp<INPUTUNIT>(round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
-    uint16_t G = clamp<INPUTUNIT>(round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
-    uint16_t B = clamp<INPUTUNIT>(round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, pow(2, encoder.color_depth) - 1);
+    uint16_t R = std::clamp<float>(std::round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, std::pow(2, color_depth) - 1);
+    uint16_t G = std::clamp<float>(std::round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, std::pow(2, color_depth) - 1);
+    uint16_t B = std::clamp<float>(std::round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, std::pow(2, color_depth) - 1);
 
     rgb_pusher(pos, {R, G, B});
   };
 
-  if (shift) {
-    auto inputF = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
-      std::array<size_t, 5> whole_image_pos {};
-      std::copy(std::begin(pos), std::end(pos), std::begin(whole_image_pos));
-      return rgb_puller(whole_image_pos);
-    };
+  std::array<int64_t, 2> shift {};
 
+  if (do_shift) {
     int64_t width_shift  {static_cast<int64_t>((width  * 2) / side)};
     int64_t height_shift {static_cast<int64_t>((height * 2) / side)};
 
-    encoder.shift_param = find_best_shift_params(inputF, {width, height, side, side}, {-width_shift, -height_shift}, {width_shift, height_shift}, 10, 8);
+    shift = find_best_shift_params(rgb_puller, image_size, {-width_shift, -height_shift}, {width_shift, height_shift}, 10, 8);
 
-    std::cerr << encoder.shift_param[0] << " " << encoder.shift_param[1] << "\n";
+    for (size_t y = 0; y < side; y++) {
+      for (size_t x = 0; x < side; x++) {
+        std::array<size_t, 4> whole_image_pos {0, 0, x, y};
 
-    for (size_t y {}; y < side; y++) {
-      for (size_t x {}; x < side; x++) {
         auto shiftInputF = [&](const std::array<size_t, 2> &pos) {
-          std::array<size_t, 5> whole_image_pos {};
-
           whole_image_pos[0] = pos[0];
           whole_image_pos[1] = pos[1];
-          whole_image_pos[2] = x;
-          whole_image_pos[3] = y;
-
           return rgb_puller(whole_image_pos);
         };
 
         auto shiftOutputF = [&](const std::array<size_t, 2> &pos, const auto &value) {
-          std::array<size_t, 5> whole_image_pos {};
-
           whole_image_pos[0] = pos[0];
           whole_image_pos[1] = pos[1];
-          whole_image_pos[2] = x;
-          whole_image_pos[3] = y;
-
           return rgb_pusher(whole_image_pos, value);
         };
 
-        shift_image(shiftInputF, shiftOutputF, {width, height}, get_shift_coef({x, y}, {side, side}, encoder.shift_param));
+        shift_image(shiftInputF, shiftOutputF, {width, height}, get_shift_coef({x, y}, {side, side}, shift));
       }
     }
   }
 
-  initEncoder(encoder);
-  constructQuantizationTables(encoder, "DEFAULT", quality);
+  if (create_directory(output_file_name)) {
+    std::cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
+    return 1;
+  }
 
-  writeHeader(encoder, output);
-  outputScanCABAC_DIAGONAL(encoder, yuv_puller, yuv_pusher, output);
+  std::ofstream output_file {};
+  output_file.open(output_file_name, std::ios::binary);
+  if (!output_file) {
+    std::cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
+    return 1;
+  }
 
-  output << shift;
+  output_file << "LFIF-4D\n";
+  output_file << shift[0] << " " << shift[1] << "\n";
+
+  LFIF<4> output {};
+  output.create(output_file, image_size, block_size, color_depth, distortion, predict);
+
+  encodeStream(output_file, output, yuv_puller, yuv_pusher);
 
   return 0;
 }

@@ -30,6 +30,6 @@ void print_usage(const char *argv0);
  * @param predict True if image should be predicted.
  * @param shift True if image should be shifted.
  */
-bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, float &quality, bool &predict, bool &shift);
+bool parse_args(int argc, char *argv[], const char *&input_file_mask, const char *&output_file_name, uint8_t &distortion, bool &predict, bool &shift);
 
 #endif

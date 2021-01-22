@@ -6,10 +6,11 @@
 * @brief Compile-time stuff.
 */
 
-#ifndef META_H
-#define META_H
+#pragma once
+
 
 #include <cstddef>
+
 #include <array>
 
 /**
@@ -21,17 +22,6 @@
 template<class T>
 inline constexpr T constpow(const T base, const unsigned exponent) {
     return (exponent == 0) ? 1 : (base * constpow(base, exponent - 1));
-}
-
-template<size_t BS, size_t D>
-inline constexpr std::array<size_t, D> make_cube() {
-  std::array<size_t, D> positions {};
-
-  for(size_t i { 0 }; i < D; i++) {
-    positions[i] = BS;
-  }
-
-  return positions;
 }
 
 template<size_t D>
@@ -60,6 +50,30 @@ struct iterate_dimensions<0> {
   template<typename F, typename T>
   iterate_dimensions(const T &, F &&callback) {
     callback({});
+  }
+};
+
+template<size_t D>
+struct block_for {
+  template<typename F, typename T>
+  block_for(const T &start, const T &step, const T &stop, F &&callback) {
+    for (size_t i = start[D - 1]; i < stop[D - 1]; i += step[D - 1]) {
+      auto new_callback = [&](T &indices) {
+        indices[D - 1] = i;
+        callback(indices);
+      };
+
+      block_for<D - 1>(start, step, stop, new_callback);
+    }
+  }
+};
+
+template<>
+struct block_for<0> {
+  template<typename F, typename T>
+  block_for(const T &, const T &, const T &, F &&callback) {
+    T pos {};
+    callback(pos);
   }
 };
 
@@ -109,23 +123,14 @@ size_t get_stride(const size_t BS[D]) {
   return get_stride<D - 1>(BS) * BS[D - 1];
 }
 
-template<size_t D>
-size_t get_stride(const std::array<size_t, D> &size) {
-  return get_stride<D>(size.data());
-}
-
 template<>
 inline size_t get_stride<0>(const size_t *) {
   return 1;
 }
 
-inline size_t get_stride(const size_t *BS, size_t D) {
-  if (D == 0) {
-    return 1;
-  }
-  else {
-    return get_stride(BS, D - 1) * BS[D - 1];
-  }
+template<size_t D, size_t N>
+size_t get_stride(const std::array<size_t, N> &size) {
+  return get_stride<D>(size.data());
 }
 
 template<size_t D, typename T>
@@ -140,22 +145,6 @@ size_t make_index(const T &BS, const std::array<size_t, D> &pos) {
   return index;
 }
 
-template<const size_t *BS, size_t D>
-size_t make_index(const std::array<size_t, D> &pos) {
-  return make_index<D>(BS, pos);
-}
-
-template<size_t D>
-std::array<size_t, D> get_cube_dims_array(size_t BS) {
-  std::array<size_t, D> array {};
-
-  for (size_t i { 0 }; i < D; i++) {
-    array[i] = BS;
-  }
-
-  return array;
-}
-
 template <size_t D, typename T>
 size_t num_diagonals(const T &BS) {
   size_t diagonals_cnt {};
@@ -166,5 +155,3 @@ size_t num_diagonals(const T &BS) {
 
   return diagonals_cnt + 1;
 }
-
-#endif

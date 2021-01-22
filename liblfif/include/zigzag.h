@@ -6,10 +6,9 @@
 * @brief The algorithm for generating zig-zag matrices.
 */
 
-#ifndef ZIGZAG_H
-#define ZIGZAG_H
+#pragma once
 
-#include "lfiftypes.h"
+#include "block.h"
 
 #include <cstdint>
 #include <vector>

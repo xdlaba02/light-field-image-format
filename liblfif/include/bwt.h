@@ -5,10 +5,12 @@
 * @brief
 */
 
-#ifndef BWT_H
-#define BWT_H
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+
+#include <vector>
 
 size_t bwt(std::vector<int64_t> &string);
 void ibwt(std::vector<int64_t> &string, size_t pidx);
-
-#endif

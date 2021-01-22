@@ -6,8 +6,7 @@
 * @brief Functions which performs endian conversions.
 */
 
-#ifndef ENDIAN_T_H
-#define ENDIAN_T_H
+#pragma once
 
 #include <algorithm>
 #include <istream>
@@ -33,12 +32,7 @@ inline T endianSwap(T data) {
 */
 template <typename T>
 inline T bigEndianSwap(T data) {
-  if (htobe16(1) == 1) {
-    return data;
-  }
-  else {
-    return endianSwap(data);
-  }
+  return (htobe16(1) == 1) ? data : endianSwap(data);
 }
 
 /**
@@ -48,12 +42,7 @@ inline T bigEndianSwap(T data) {
 */
 template <typename T>
 inline T littleEndianSwap(T data) {
-  if (htobe16(1) == 1) {
-    return endianSwap(data);
-  }
-  else {
-    return data;
-  }
+  return (htobe16(1) == 1) ? endianSwap(data) : data;
 }
 
 /**
@@ -78,5 +67,3 @@ inline T readValueFromStream(std::istream &stream) {
   stream.read(reinterpret_cast<char *>(&dataBE), sizeof(dataBE));
   return bigEndianSwap(dataBE);
 }
-
-#endif
