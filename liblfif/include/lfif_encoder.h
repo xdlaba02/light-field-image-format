@@ -48,7 +48,7 @@ void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, F &&puller) {
 
   std::array<size_t, D> aligned_image_size {};
   for (size_t i = 0; i < D; i++) {
-    aligned_image_size[i] = aligned_image_size[i] = image.size[i] + image.block_size[i] - (image.size[i] % image.block_size[i]);
+    aligned_image_size[i] = (image.size[i] + image.block_size[i] - 1) / image.block_size[i] * image.block_size[i];
   }
 
   block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {

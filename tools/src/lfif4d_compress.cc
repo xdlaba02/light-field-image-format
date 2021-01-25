@@ -128,10 +128,10 @@ int main(int argc, char *argv[]) {
   output_file << "LFIF-4D\n";
   output_file << shift[0] << " " << shift[1] << "\n";
 
-  LFIF<4> output {};
-  output.create(output_file, image_size, block_size, color_depth, distortion, predict);
+  LFIF<4> image {};
+  image.create(output_file, image_size, block_size, color_depth, distortion, predict);
 
-  encodeStreamDCT<4>(output, output_file, puller);
+  encodeStreamDCT<4>(image, output_file, puller);
 
   return 0;
 }

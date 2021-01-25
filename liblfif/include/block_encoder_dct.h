@@ -161,6 +161,7 @@ public:
   }
 
   void decodeBlock(CABACDecoder &decoder, DynamicBlock<float, D> &block) {
+    block.fill(0.f);
     std::vector<bool> nonzero_diags(diagonals);
 
     for (size_t diag = 0; diag < diagonals; diag++) {

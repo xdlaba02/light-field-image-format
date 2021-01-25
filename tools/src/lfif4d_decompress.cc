@@ -45,33 +45,33 @@ int main(int argc, char *argv[]) {
   input_stream >> shift[1];
   input_stream.ignore();
 
-  LFIF<4> input {};
-  input.open(input_stream);
+  LFIF<4> image {};
+  image.open(input_stream);
 
-  vector<PPM> ppm_data(input.size[2] * input.size[3]);
-  if (createPPMs(output_file_mask, input.size[0], input.size[1], std::pow<float>(2, input.depth_bits) - 1, ppm_data) < 0) {
+  vector<PPM> ppm_data(image.size[2] * image.size[3]);
+  if (createPPMs(output_file_mask, image.size[0], image.size[1], std::pow<float>(2, image.depth_bits) - 1, ppm_data) < 0) {
     return 3;
   }
 
   auto puller = [&](const std::array<size_t, 4> &pos) -> std::array<uint16_t, 3> {
-    size_t img_index = pos[1] * input.size[0] + pos[0];
-    size_t img       = pos[3] * input.size[2] + pos[2];
+    size_t img_index = pos[1] * image.size[0] + pos[0];
+    size_t img       = pos[3] * image.size[2] + pos[2];
 
     return ppm_data[img].get(img_index);
   };
 
   auto pusher = [&](const std::array<size_t, 4> &pos, const std::array<uint16_t, 3> &RGB) {
-    size_t img_index = pos[1] * input.size[0] + pos[0];
-    size_t img       = pos[3] * input.size[2] + pos[2];
+    size_t img_index = pos[1] * image.size[0] + pos[0];
+    size_t img       = pos[3] * image.size[2] + pos[2];
 
     ppm_data[img].put(img_index, RGB);
   };
 
-  decodeStreamDCT(input, input_stream, pusher);
+  decodeStreamDCT(image, input_stream, pusher);
 
   if (std::any_of(std::begin(shift), std::end(shift), [](auto &val) { return val != 0.f; })) {
-    for (size_t y {}; y < input.size[3]; y++) {
-      for (size_t x {}; x < input.size[2]; x++) {
+    for (size_t y {}; y < image.size[3]; y++) {
+      for (size_t x {}; x < image.size[2]; x++) {
         auto shiftInputF = [&](const std::array<size_t, 2> &pos) {
           std::array<size_t, 4> whole_image_pos {};
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
           return pusher(whole_image_pos, value);
         };
 
-        shift_image(shiftInputF, shiftOutputF, {input.size[0], input.size[1]}, get_shift_coef({x, y}, {input.size[2], input.size[3]}, shift));
+        shift_image(shiftInputF, shiftOutputF, {image.size[0], image.size[1]}, get_shift_coef({x, y}, {image.size[2], image.size[3]}, shift));
       }
     }
   }

@@ -36,7 +36,7 @@ void decodeStreamDCT(const LFIF<D> &image, std::istream &input, F &&pusher) {
 
   std::array<size_t, D> aligned_image_size {};
   for (size_t i = 0; i < D; i++) {
-    aligned_image_size[i] = image.size[i] + image.block_size[i] - (image.size[i] % image.block_size[i]);
+    aligned_image_size[i] = (image.size[i] + image.block_size[i] - 1) / image.block_size[i] * image.block_size[i];
   }
 
   IBitstream   bitstream {};
