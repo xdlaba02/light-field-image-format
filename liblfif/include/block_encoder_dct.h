@@ -65,7 +65,11 @@ public:
       return block[index];
     };
 
-    fdct<D>(block.size(), proxy);
+    fdct<D>(block_size, proxy);
+
+    iterate_dimensions<D>(block_size, [&](const auto &pos) {
+      block[pos] = std::round(ldexp(block[pos], -discarded_bits)); // QUANTIZATION
+    });
 
     std::vector<bool> nonzero_diags(diagonals);
     size_t diags_cnt = 0;
@@ -102,7 +106,7 @@ public:
 
       if (nonzero_diags[diag]) {
         for (auto &i: scan_table[diag]) {
-          int64_t coef = std::round(ldexp(block[i], -discarded_bits)); // QUANTIZATION
+          int32_t coef = block[i];
 
           size_t nonzero_neighbours_cnt = 0;
 
@@ -180,7 +184,7 @@ public:
 
       if (nonzero_diags[diag]) {
         for (auto &i: scan_table[diag]) {
-          int64_t coef {};
+          int32_t coef = 0.f;
 
           size_t nonzero_neighbours_cnt = 0;
 
@@ -219,7 +223,7 @@ public:
             }
           }
 
-          block[i] = coef << discarded_bits;
+          block[i] = coef;
         }
       }
 
@@ -230,6 +234,10 @@ public:
         threshold++;
       }
     }
+
+    iterate_dimensions<D>(block_size, [&](const auto &pos) {
+      block[pos] = ldexp(block[pos], discarded_bits);
+    });
 
     auto proxy = [&](size_t index) -> auto & {
       return block[index];
