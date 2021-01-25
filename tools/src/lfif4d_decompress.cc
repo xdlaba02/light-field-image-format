@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     ppm_data[img].put(img_index, RGB);
   };
 
-  decodeStreamDCT(input_stream, input, puller, pusher);
+  decodeStreamDCT(input, input_stream, pusher);
 
   if (std::any_of(std::begin(shift), std::end(shift), [](auto &val) { return val != 0.f; })) {
     for (size_t y {}; y < input.size[3]; y++) {

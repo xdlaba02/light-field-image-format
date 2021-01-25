@@ -26,15 +26,15 @@
 * @brief Function which decodes CABAC encoded image from stream.
 * @param dec The decoder structure.
 * @param input Input stream from which the image will be decoded.
-* @param output Output callback function which will be returning pixels with signature void output(size_t index, Array<float, 3> value), where index is a pixel index in memory and value is said pixel.
+* @param output Output callback function which will be returning pixels with signature void output(size_t index, std::array<float, 3> value), where index is a pixel index in memory and value is said pixel.
 */
 template<size_t D, typename F>
-void decodeStreamDCT(std::istream &input, const LFIF<D> &image, F &&pusher) {
+void decodeStreamDCT(const LFIF<D> &image, std::istream &input, F &&pusher) {
   StackAllocator::init(2147483648); //FIXME
 
   DynamicBlock<float, D> current_block[3] {image.block_size, image.block_size, image.block_size};
 
-  Array<size_t, D> aligned_image_size {};
+  std::array<size_t, D> aligned_image_size {};
   for (size_t i = 0; i < D; i++) {
     aligned_image_size[i] = image.size[i] + image.block_size[i] - (image.size[i] % image.block_size[i]);
   }
@@ -52,7 +52,7 @@ void decodeStreamDCT(std::istream &input, const LFIF<D> &image, F &&pusher) {
   bitstream.open(input);
   cabac.init(bitstream);
 
-  block_for<D>({}, image.block_size, aligned_image_size, [&](const Array<size_t, D> &offset) {
+  block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
     for (size_t i = 0; i < D; i++) {
       std::cerr << offset[i] << " ";
     }

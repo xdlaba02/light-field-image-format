@@ -48,15 +48,11 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  auto puller = [&](const std::array<size_t, 2> &pos) -> std::array<uint16_t, 3> {
-    return ppm_image.get(pos[1] * input.size[0] + pos[0]);
-  };
-
   auto pusher = [&](const std::array<size_t, 2> &pos, const std::array<uint16_t, 3> &RGB) {
     ppm_image.put(pos[1] * input.size[0] + pos[0], RGB);
   };
 
-  decodeStreamDCT(input_stream, input, puller, pusher);
+  decodeStreamDCT(input, input_stream, pusher);
 
   return 0;
 }

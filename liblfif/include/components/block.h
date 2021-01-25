@@ -125,19 +125,19 @@ struct moveBlock {
     const size_t input_end = std::min(input_offset[D - 1] + size[D - 1], input_size[D - 1]);
     const size_t output_end = std::min(output_offset[D - 1] + size[D - 1], output_size[D - 1]);
 
-    Array<size_t, D> full_input_pos {};
-    Array<size_t, D> full_output_pos {};
+    std::array<size_t, D> full_input_pos {};
+    std::array<size_t, D> full_output_pos {};
 
     while (input_pos < input_end && output_pos < output_end) {
       full_input_pos[D - 1] = input_pos;
       full_output_pos[D - 1] = output_pos;
 
-      auto inputF = [&](const Array<size_t, D - 1> &pos) {
+      auto inputF = [&](const std::array<size_t, D - 1> &pos) {
         std::copy(std::begin(pos), std::end(pos), std::begin(full_input_pos));
         return input(full_input_pos);
       };
 
-      auto outputF = [&](const Array<size_t, D - 1> &pos, const auto &value) {
+      auto outputF = [&](const std::array<size_t, D - 1> &pos, const auto &value) {
         std::copy(std::begin(pos), std::end(pos), std::begin(full_output_pos));
         output(full_output_pos, value);
       };
@@ -151,12 +151,12 @@ struct moveBlock {
     while (output_pos < output_end) {
       full_output_pos[D - 1] = output_pos;
 
-      auto inputF = [&](const Array<size_t, D - 1> &pos) {
+      auto inputF = [&](const std::array<size_t, D - 1> &pos) {
         std::copy(std::begin(pos), std::end(pos), std::begin(full_input_pos));
         return input(full_input_pos);
       };
 
-      auto outputF = [&](const Array<size_t, D - 1> &pos, const auto &value) {
+      auto outputF = [&](const std::array<size_t, D - 1> &pos, const auto &value) {
         std::copy(std::begin(pos), std::end(pos), std::begin(full_output_pos));
         output(full_output_pos, value);
       };
@@ -177,17 +177,17 @@ struct moveBlock<1> {
    */
   template <typename IF, typename OF>
   moveBlock(
-      IF &&input, const Array<size_t, 1> &input_size, const Array<size_t, 1> &input_offset,
-      OF &&output, const Array<size_t, 1> &output_size, const Array<size_t, 1> &output_offset,
-      const Array<size_t, 1> &size) {
+      IF &&input, const std::array<size_t, 1> &input_size, const std::array<size_t, 1> &input_offset,
+      OF &&output, const std::array<size_t, 1> &output_size, const std::array<size_t, 1> &output_offset,
+      const std::array<size_t, 1> &size) {
     size_t input_pos = input_offset[0];
     size_t output_pos = output_offset[0];
 
     const size_t input_end = std::min(input_offset[0] + size[0], input_size[0]);
     const size_t output_end = std::min(output_offset[0] + size[0], output_size[0]);
 
-    Array<size_t, 1> full_input_pos {};
-    Array<size_t, 1> full_output_pos {};
+    std::array<size_t, 1> full_input_pos {};
+    std::array<size_t, 1> full_output_pos {};
 
     while (input_pos < input_end && output_pos < output_end) {
       full_input_pos[0]  = input_pos;

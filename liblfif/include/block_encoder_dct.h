@@ -28,18 +28,18 @@ class BlockEncoderDCT {
 
   std::vector<std::vector<size_t>> scan_table;
 
-  Array<size_t, D> block_size;
+  std::array<size_t, D> block_size;
   uint8_t discarded_bits;
 
 public:
-  BlockEncoderDCT(const Array<size_t, D> &block_size, uint8_t discarded_bits) {
+  BlockEncoderDCT(const std::array<size_t, D> &block_size, uint8_t discarded_bits) {
     this->block_size = block_size;
     this->discarded_bits = discarded_bits;
 
     diagonals = num_diagonals<D>(block_size);
 
     scan_table.resize(diagonals);
-    iterate_dimensions<D>(diagonals, [&](const auto &pos) {
+    iterate_dimensions<D>(block_size, [&](const auto &pos) {
       size_t diagonal {};
       for (size_t i = 0; i < D; i++) {
         diagonal += pos[i];

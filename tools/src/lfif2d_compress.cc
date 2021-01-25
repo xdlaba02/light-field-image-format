@@ -7,7 +7,7 @@
 #include "plenoppm.h"
 
 #include <lfif.h>
-#include <lfif_decoder.h>
+#include <lfif_encoder.h>
 #include <ppm.h>
 
 #include <cmath>
@@ -73,10 +73,10 @@ int main(int argc, char *argv[]) {
 
   output_file << "LFIF-2D\n";
 
-  LFIF<2> output {};
-  output.create(output_file, image_size, block_size, color_depth, distortion, predict);
+  LFIF<2> image {};
+  image.create(output_file, image_size, block_size, color_depth, distortion, predict);
 
-  encodeStreamDCT(puller, output_file);
+  encodeStreamDCT(image, output_file, puller);
 
   return 0;
 }

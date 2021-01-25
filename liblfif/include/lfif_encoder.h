@@ -27,8 +27,8 @@
 * @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
 * @param output Output stream to which the image shall be encoded.
 */
-template<size_t D, typename IF, typename OF>
-void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, IF &&puller) {
+template<size_t D, typename F>
+void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, F &&puller) {
   StackAllocator::init(2147483648); //FIXME
 
   DynamicBlock<float, D> current_block[3] {image.block_size, image.block_size, image.block_size};
@@ -46,12 +46,12 @@ void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, IF &&puller) {
   bitstream.open(output);
   cabac.init(bitstream);
 
-  Array<size_t, D> aligned_image_size {};
+  std::array<size_t, D> aligned_image_size {};
   for (size_t i = 0; i < D; i++) {
     aligned_image_size[i] = aligned_image_size[i] = image.size[i] + image.block_size[i] - (image.size[i] % image.block_size[i]);
   }
 
-  block_for<D>({}, image.block_size, aligned_image_size, [&](const Array<size_t, D> &offset) {
+  block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
     for (size_t i = 0; i < D; i++) {
       std::cerr << offset[i] << " ";
     }
@@ -70,13 +70,13 @@ void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, IF &&puller) {
                  image.block_size);
 
 
-    BlockPredictor<D>::PredictionType prediction_type {};
+    typename BlockPredictor<D>::PredictionType prediction_type {};
     if (image.predicted) {
       prediction_type = predictorY.selectPredictionType(current_block[0], offset);
 
-      predictorY.forwardPass(current_block[0], offset, prediction_type)
-      predictorU.forwardPass(current_block[1], offset, prediction_type)
-      predictorV.forwardPass(current_block[2], offset, prediction_type)
+      predictorY.forwardPass(current_block[0], offset, prediction_type);
+      predictorU.forwardPass(current_block[1], offset, prediction_type);
+      predictorV.forwardPass(current_block[2], offset, prediction_type);
     }
 
     block_encoder_Y.encodeBlock(current_block[0], cabac);
@@ -84,13 +84,13 @@ void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, IF &&puller) {
     block_encoder_UV.encodeBlock(current_block[2], cabac);
 
     if (image.predicted) {
-      predictorY.encodePredictionType<D>(prediction_type, cabac);
+      predictorY.encodePredictionType(prediction_type, cabac);
 
       //TODO decode encoded blocks from current_block[i], otherwise it does not work
 
-      predictorY.backwardPass(current_block[0], offset, prediction_type)
-      predictorU.backwardPass(current_block[1], offset, prediction_type)
-      predictorV.backwardPass(current_block[2], offset, prediction_type)
+      predictorY.backwardPass(current_block[0], offset, prediction_type);
+      predictorU.backwardPass(current_block[1], offset, prediction_type);
+      predictorV.backwardPass(current_block[2], offset, prediction_type);
     }
   });
 
