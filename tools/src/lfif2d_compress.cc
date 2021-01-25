@@ -7,7 +7,7 @@
 #include "plenoppm.h"
 
 #include <lfif.h>
-#include <block_encoder_dct.h>
+#include <lfif_decoder.h>
 #include <ppm.h>
 
 #include <cmath>
@@ -76,9 +76,7 @@ int main(int argc, char *argv[]) {
   LFIF<2> output {};
   output.create(output_file, image_size, block_size, color_depth, distortion, predict);
 
-  BlockEncoderDCT<2> encoder(output);
-
-  encoder.encodeStream(puller, output_file);
+  encodeStreamDCT(puller, output_file);
 
   return 0;
 }

@@ -6,8 +6,7 @@
 * @brief Functions for Huffman encoding and decoding.
 */
 
-#ifndef HUFFMAN_H
-#define HUFFMAN_H
+#pragma once
 
 class IBitstream;
 class OBitstream;
@@ -91,5 +90,3 @@ private:
   std::vector<HuffmanCodelength> m_huffman_counts;
   std::vector<HuffmanSymbol>     m_huffman_symbols;
 };
-
-#endif

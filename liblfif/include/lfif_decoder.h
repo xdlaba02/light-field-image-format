@@ -12,8 +12,8 @@
 #include "components/colorspace.h"
 #include "components/predict.h"
 
-#include "block_operations.h"
-#include "contexts.h"
+#include "block_predictor.h"
+#include "block_encoder_dct.h"
 #include "lfif.h"
 
 #include <cstdint>
@@ -26,46 +26,33 @@
 * @brief Function which decodes CABAC encoded image from stream.
 * @param dec The decoder structure.
 * @param input Input stream from which the image will be decoded.
-* @param output Output callback function which will be returning pixels with signature void output(size_t index, std::array<float, 3> value), where index is a pixel index in memory and value is said pixel.
+* @param output Output callback function which will be returning pixels with signature void output(size_t index, Array<float, 3> value), where index is a pixel index in memory and value is said pixel.
 */
-template<size_t D, typename IF, typename OF>
-void decodeStreamDCT(std::istream &input, const LFIF<D> &image, IF &&puller, OF &&pusher) {
+template<size_t D, typename F>
+void decodeStreamDCT(std::istream &input, const LFIF<D> &image, F &&pusher) {
   StackAllocator::init(2147483648); //FIXME
 
-  DynamicBlock<float,   D> current_block[3] {image.block_size, image.block_size, image.block_size};
-  DynamicBlock<int64_t, D> quantized_block(image.block_size);
-  DynamicBlock<float,   D> prediction_block(image.block_size);
+  DynamicBlock<float, D> current_block[3] {image.block_size, image.block_size, image.block_size};
 
-  std::array<size_t, D> aligned_image_size {};
+  Array<size_t, D> aligned_image_size {};
   for (size_t i = 0; i < D; i++) {
-    aligned_image_size[i] = (image.size[i] + image.block_size[i] - 1) / image.block_size[i] * image.block_size[i];
+    aligned_image_size[i] = image.size[i] + image.block_size[i] - (image.size[i] % image.block_size[i]);
   }
 
-  std::array<ThresholdedDiagonalContexts<D>, 2> contexts {
-    ThresholdedDiagonalContexts<D>(image.block_size),
-    ThresholdedDiagonalContexts<D>(image.block_size)
-  };
+  IBitstream   bitstream {};
+  CABACDecoder cabac     {};
 
-  PredictionModeContexts<D>        prediction_ctx {};
-  std::vector<std::vector<size_t>> scan_table     {};
-  IBitstream                       bitstream      {};
-  CABACDecoder                     cabac          {};
+  BlockEncoderDCT<D> block_decoder_Y(image.block_size, image.discarded_bits);
+  BlockEncoderDCT<D> block_decoder_UV(image.block_size, image.discarded_bits);
 
-  //inti scan table
-  scan_table.resize(num_diagonals<D>(image.block_size));
-  iterate_dimensions<D>(image.block_size, [&](const auto &pos) {
-    size_t diagonal {};
-    for (size_t i = 0; i < D; i++) {
-      diagonal += pos[i];
-    }
-
-    scan_table[diagonal].push_back(make_index(image.block_size, pos));
-  });
+  BlockPredictor<D> predictorY(image.size);
+  BlockPredictor<D> predictorU(image.size);
+  BlockPredictor<D> predictorV(image.size);
 
   bitstream.open(input);
   cabac.init(bitstream);
 
-  block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
+  block_for<D>({}, image.block_size, aligned_image_size, [&](const Array<size_t, D> &offset) {
     for (size_t i = 0; i < D; i++) {
       std::cerr << offset[i] << " ";
     }
@@ -75,69 +62,15 @@ void decodeStreamDCT(std::istream &input, const LFIF<D> &image, IF &&puller, OF 
     }
     std::cerr << "\n";
 
-    auto predInputF = [&](std::array<int64_t, D> &block_pos, size_t channel) -> float {
-      if (offset == std::array<size_t, D>{}) {
-        return 0.f;
-      }
+    block_decoder_Y.decodeBlock(cabac, current_block[0]);
+    block_decoder_UV.decodeBlock(cabac, current_block[1]);
+    block_decoder_UV.decodeBlock(cabac, current_block[2]);
 
-      //resi pokud se prediktor chce divat na vzorky, ktere jeste nebyly komprimovane
-      for (size_t i = 1; i <= D; i++) {
-        size_t idx = D - i;
-
-        if (block_pos[idx] < 0) {
-          if (offset[idx] > 0) {
-            break;
-          }
-        }
-        else if (block_pos[idx] >= static_cast<int64_t>(image.block_size[idx])) {
-          block_pos[idx] = image.block_size[idx] - 1;
-        }
-      }
-
-      //resi pokud se prediktor chce divat na vzorky mimo obrazek v zapornych souradnicich
-      int64_t min_pos = std::numeric_limits<int64_t>::max();
-      for (size_t i = 0; i < D; i++) {
-        if (offset[i] > 0) {
-          if (block_pos[i] < min_pos) {
-            min_pos = block_pos[i];
-          }
-        }
-        else if (block_pos[i] < 0) {
-          block_pos[i] = 0;
-        }
-      }
-
-      for (size_t i = 0; i < D; i++) {
-        if (offset[i] > 0) {
-          block_pos[i] -= min_pos + 1;
-        }
-      }
-
-      std::array<size_t, D> image_pos {};
-      for (size_t i = 0; i < D; i++) {
-        //resi pokud se prediktor chce divat na vzorky mimo obrazek v kladnych souradnicich
-        image_pos[i] = std::clamp<size_t>(offset[i] + block_pos[i], 0, image.size[i] - 1);
-      }
-
-      return puller(image_pos)[channel];
-    };
-
-    uint64_t prediction_type {};
     if (image.predicted) {
-      decodePredictionType<D>(prediction_type, cabac, prediction_ctx);
-    }
-
-    for (size_t channel = 0; channel < 3; channel++) {
-      decodeBlock<D>(quantized_block, cabac, contexts[channel != 0], scan_table);
-
-      dequantize<D>(quantized_block, current_block[channel], image.discarded_bits);
-
-      inverseDiscreteCosineTransform<D>(current_block[channel]);
-
-      if (image.predicted) {
-        predict<D>(prediction_block, prediction_type, [&](std::array<int64_t, D> &block_pos) { return predInputF(block_pos, channel); });
-        disusePrediction<D>(current_block[channel], prediction_block);
-      }
+      auto prediction_type = predictorY.decodePredictionType(cabac);
+      predictorY.backwardPass(current_block[0], offset, prediction_type);
+      predictorU.backwardPass(current_block[1], offset, prediction_type);
+      predictorV.backwardPass(current_block[2], offset, prediction_type);
     }
 
     moveBlock<D>([&](const auto &pos) {
