@@ -8,94 +8,124 @@
 
 #pragma once
 
-#include "components/colorspace.h"
 #include "components/bitstream.h"
+#include "components/colorspace.h"
 
 #include "block_predictor.h"
-#include "block_encoder_dct.h"
+#include "dct_block_stream.h"
 #include "lfif.h"
 
 #include <cstdint>
 
-#include <ostream>
 #include <sstream>
 #include <map>
 
-/**
-* @brief Function which encodes the image to the stream.
-* @param enc The encoder structure.
-* @param input Callback function specified by client with signature T input(size_t index), where T is pixel/sample type.
-* @param output Output stream to which the image shall be encoded.
-*/
-template<size_t D, typename F>
-void encodeStreamDCT(const LFIF<D> &image, std::ostream &output, F &&puller) {
-  StackAllocator::init(2147483648); //FIXME
-
-  DynamicBlock<float, D> current_block[3] {image.block_size, image.block_size, image.block_size};
-
-  OBitstream   bitstream {};
-  CABACEncoder cabac     {};
-
-  BlockEncoderDCT block_encoder_Y(image.block_size, image.discarded_bits);
-  BlockEncoderDCT block_encoder_UV(image.block_size, image.discarded_bits);
-
-  BlockPredictor predictorY(image.size);
-  BlockPredictor predictorU(image.size);
-  BlockPredictor predictorV(image.size);
-
-  bitstream.open(output);
-  cabac.init(bitstream);
-
-  std::array<size_t, D> aligned_image_size {};
-  for (size_t i = 0; i < D; i++) {
-    aligned_image_size[i] = (image.size[i] + image.block_size[i] - 1) / image.block_size[i] * image.block_size[i];
+template <size_t D>
+struct LFIFEncoder: public LFIF<D> {
+  LFIFEncoder(): LFIF<D>() {
+    StackAllocator::init(2147483648 * 4); //FIXME
   }
 
-  block_for<D>({}, image.block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
+  ~LFIFEncoder() {
+    StackAllocator::cleanup();
+  }
+
+  void create(
+            std::ostream          &output,
+      const std::array<size_t, D> &size,
+      const std::array<size_t, D> &block_size,
+            uint8_t                depth_bits,
+            uint8_t                discarded_bits,
+            bool                   predicted) {
+
+    this->size = size;
+    this->block_size = block_size;
+    this->depth_bits = depth_bits;
+    this->discarded_bits = discarded_bits;
+    this->predicted = predicted;
+
+    writeValueToStream<uint8_t>(depth_bits, output);
+    writeValueToStream<uint8_t>(discarded_bits, output);
+    writeValueToStream<bool>(predicted, output);
+
     for (size_t i = 0; i < D; i++) {
-      std::cerr << offset[i] << " ";
-    }
-    std::cerr << " out of ";
-    for (size_t i { 0 }; i < D; i++) {
-      std::cerr << aligned_image_size[i] << " ";
-    }
-    std::cerr << "\n";
-
-    moveBlock<D>(puller, image.size, offset,
-                 [&](const auto &block_pos, const auto &value) {
-                   current_block[0][block_pos] = YCbCr::RGBToY(value[0], value[1], value[2]) - pow(2, image.depth_bits - 1);
-                   current_block[1][block_pos] = YCbCr::RGBToCb(value[0], value[1], value[2]);
-                   current_block[2][block_pos] = YCbCr::RGBToCr(value[0], value[1], value[2]);
-                 }, image.block_size, {},
-                 image.block_size);
-
-
-    typename BlockPredictor<D>::PredictionType prediction_type {};
-    if (image.predicted) {
-      prediction_type = predictorY.selectPredictionType(current_block[0], offset);
-
-      predictorY.forwardPass(current_block[0], offset, prediction_type);
-      predictorU.forwardPass(current_block[1], offset, prediction_type);
-      predictorV.forwardPass(current_block[2], offset, prediction_type);
+      writeValueToStream<uint64_t>(size[i], output);
     }
 
-    block_encoder_Y.encodeBlock(current_block[0], cabac);
-    block_encoder_UV.encodeBlock(current_block[1], cabac);
-    block_encoder_UV.encodeBlock(current_block[2], cabac);
-
-    if (image.predicted) {
-      predictorY.encodePredictionType(prediction_type, cabac);
-
-      //TODO decode encoded blocks from current_block[i], otherwise it does not work
-
-      predictorY.backwardPass(current_block[0], offset, prediction_type);
-      predictorU.backwardPass(current_block[1], offset, prediction_type);
-      predictorV.backwardPass(current_block[2], offset, prediction_type);
+    for (size_t i = 0; i < D; i++) {
+      writeValueToStream<uint64_t>(block_size[i], output);
     }
-  });
+  }
 
-  cabac.terminate();
-  bitstream.flush();
+  template <typename F>
+  void encodeStream(F &&puller, std::ostream &output) {
+    DynamicBlock<float, D> block_Y(this->block_size);
+    DynamicBlock<float, D> block_U(this->block_size);
+    DynamicBlock<float, D> block_V(this->block_size);
 
-  StackAllocator::cleanup();
-}
+    LFIFBlockEncoder block_encoder_Y(this->block_size, this->discarded_bits);
+    LFIFBlockEncoder block_encoder_UV(this->block_size, this->discarded_bits);
+
+    BlockPredictor predictor_Y(this->size);
+    BlockPredictor predictor_U(this->size);
+    BlockPredictor predictor_V(this->size);
+
+    OBitstream   bitstream {};
+    CABACEncoder cabac     {};
+
+    bitstream.open(output);
+    cabac.init(bitstream);
+
+    std::array<size_t, D> aligned_image_size {};
+    for (size_t i = 0; i < D; i++) {
+      aligned_image_size[i] = (this->size[i] + this->block_size[i] - 1) / this->block_size[i] * this->block_size[i];
+    }
+
+    block_for<D>({}, this->block_size, aligned_image_size, [&](const std::array<size_t, D> &offset) {
+      for (size_t i = 0; i < D; i++) {
+        std::cerr << offset[i] << " ";
+      }
+      std::cerr << " out of ";
+      for (size_t i { 0 }; i < D; i++) {
+        std::cerr << aligned_image_size[i] << " ";
+      }
+      std::cerr << "\n";
+
+      moveBlock<D>(puller, this->size, offset,
+                   [&](const auto &block_pos, const auto &value) {
+                     block_Y[block_pos] = YCbCr::RGBToY(value[0], value[1], value[2]) - pow(2, this->depth_bits - 1);
+                     block_U[block_pos] = YCbCr::RGBToCb(value[0], value[1], value[2]);
+                     block_V[block_pos] = YCbCr::RGBToCr(value[0], value[1], value[2]);
+                   }, this->block_size, {},
+                   this->block_size);
+
+
+      typename BlockPredictor<D>::PredictionType prediction_type {};
+      if (this->predicted) {
+        prediction_type = predictor_Y.selectPredictionType(block_Y, offset);
+
+        predictor_Y.forwardPass(block_Y, offset, prediction_type);
+        predictor_U.forwardPass(block_U, offset, prediction_type);
+        predictor_V.forwardPass(block_V, offset, prediction_type);
+      }
+
+      block_encoder_Y.encodeBlock(block_Y, cabac);
+      block_encoder_UV.encodeBlock(block_U, cabac);
+      block_encoder_UV.encodeBlock(block_V, cabac);
+
+      if (this->predicted) {
+        predictor_Y.encodePredictionType(prediction_type, cabac);
+        block_encoder_Y.decodeEncodedBlock(block_Y);
+        block_encoder_UV.decodeEncodedBlock(block_U);
+        block_encoder_UV.decodeEncodedBlock(block_V);
+
+        predictor_Y.backwardPass(block_Y, offset, prediction_type);
+        predictor_U.backwardPass(block_U, offset, prediction_type);
+        predictor_V.backwardPass(block_V, offset, prediction_type);
+      }
+    });
+
+    cabac.terminate();
+    bitstream.flush();
+  }
+};

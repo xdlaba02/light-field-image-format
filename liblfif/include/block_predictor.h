@@ -9,26 +9,26 @@
 
 template <size_t D>
 class BlockPredictor {
-  template <class T>
-  static inline constexpr T pow(const T base, const uint64_t exponent) {
-      return (exponent == 0) ? 1 : (base * pow(base, exponent - 1));
-  }
-
-  CABAC::ContextModel dc_prediction_ctx;
-  CABAC::ContextModel planar_prediction_ctx;
-  CABAC::ContextModel direction_prediction_ctx;
-  std::array<std::array<CABAC::ContextModel, 5>, D> directions_prediction_ctx;
-
-  DynamicBlock<float, D> decoded_image;
-  std::array<size_t, D> image_size;
-
 public:
   struct PredictionType {
     uint64_t type;
     std::array<int8_t, D> direction;
   };
 
+
 private:
+  template <class T>
+  static inline constexpr T pow(const T base, const uint64_t exponent) {
+      return (exponent == 0) ? 1 : (base * pow(base, exponent - 1));
+  }
+
+  CABAC::ContextModel is_dc_prediction_ctx {};
+  CABAC::ContextModel is_planar_prediction_ctx {};
+  CABAC::ContextModel is_direction_prediction_ctx {};
+  std::array<std::array<CABAC::ContextModel, 3>, D> directions_prediction_ctx {};
+
+  DynamicBlock<float, D> decoded_image;
+
   void predict(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType type) {
     auto inputF = [&](std::array<int64_t, D> block_pos) -> float {
       if (offset == std::array<size_t, D>{}) {
@@ -71,16 +71,14 @@ private:
       std::array<size_t, D> image_pos {};
       for (size_t i = 0; i < D; i++) {
         //resi pokud se prediktor chce divat na vzorky mimo obrazek v kladnych souradnicich
-        image_pos[i] = std::clamp<size_t>(offset[i] + block_pos[i], 0, image_size[i] - 1);
+        image_pos[i] = std::clamp<size_t>(offset[i] + block_pos[i], 0, decoded_image.size(i) - 1);
       }
 
       return decoded_image[image_pos];
     };
 
     if (type.type == 0) {
-      for (size_t i = 0; i < block.stride(D); i++) {
-        block[i] = 0.f;
-      }
+      block.fill(0);
     }
     if (type.type == 1) {
       int64_t value = predict_DC<D>(block.size(), inputF);
@@ -98,19 +96,23 @@ private:
 
 public:
 
-  BlockPredictor(const std::array<size_t, D> &image_size): decoded_image(image_size), image_size(image_size) {};
+  BlockPredictor(const std::array<size_t, D> &image_size): decoded_image(image_size) {};
 
   void encodePredictionType(const PredictionType &type, CABACEncoder &encoder) {
-    encoder.encodeBit(dc_prediction_ctx, type.type == 1);
-    if (type.type > 1) {
-      encoder.encodeBit(planar_prediction_ctx, type.type == 2);
-      if (type.type > 2) {
-        encoder.encodeBit(direction_prediction_ctx, type.type == 3);
+    encoder.encodeBit(is_dc_prediction_ctx, type.type == 1);
+
+    if (type.type != 1) {
+      encoder.encodeBit(is_planar_prediction_ctx, type.type == 2);
+
+      if (type.type != 2) {
+        encoder.encodeBit(is_direction_prediction_ctx, type.type == 3);
+
         if (type.type == 3) {
           for (size_t i = 0; i < D; i++) {
-            encoder.encodeBit(directions_prediction_ctx[i][0], type.direction[i] == 0);
+            encoder.encodeBit(directions_prediction_ctx[i][0], type.direction[i]);
+
             if (type.direction[i]) {
-              encoder.encodeBit(directions_prediction_ctx[i][1], std::abs(type.direction[i]) == 1);
+              encoder.encodeBit(directions_prediction_ctx[i][1], std::abs(type.direction[i]) == 2);
               encoder.encodeBit(directions_prediction_ctx[i][2], type.direction[i] < 0);
             }
           }
@@ -122,18 +124,21 @@ public:
   PredictionType decodePredictionType(CABACDecoder &decoder) {
     PredictionType type {};
 
-    if (decoder.decodeBit(dc_prediction_ctx)) {
+    if (decoder.decodeBit(is_dc_prediction_ctx)) {
       type.type = 1;
     }
-    else if (decoder.decodeBit(planar_prediction_ctx)) {
+    else if (decoder.decodeBit(is_planar_prediction_ctx)) {
       type.type = 2;
     }
-    else if (decoder.decodeBit(direction_prediction_ctx)) {
+    else if (decoder.decodeBit(is_direction_prediction_ctx)) {
       type.type = 3;
 
       for (size_t i = 0; i < D; i++) {
-        if (decoder.decodeBit(directions_prediction_ctx[i][0])) {
-          type.direction[i] = decoder.decodeBit(directions_prediction_ctx[i][1]) ? 1 : 2;
+        type.direction[i] = decoder.decodeBit(directions_prediction_ctx[i][0]);
+
+        if (type.direction[i] != 0) {
+          type.direction[i] += decoder.decodeBit(directions_prediction_ctx[i][1]);
+
           if (decoder.decodeBit(directions_prediction_ctx[i][2])) {
             type.direction[i] = -type.direction[i];
           }
@@ -228,7 +233,7 @@ public:
     });
 
     moveBlock<D>([&](const auto &pos) { return block[pos]; }, block.size(), {},
-                 [&](const auto &pos, const auto &val) { return decoded_image[pos] = val; }, image_size, offset,
+                 [&](const auto &pos, const auto &val) { return decoded_image[pos] = val; }, decoded_image.size(), offset,
                  block.size());
   }
 };

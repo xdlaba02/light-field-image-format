@@ -40,19 +40,19 @@ int main(int argc, char *argv[]) {
     throw std::runtime_error("Magic number does not match!");
   }
 
-  LFIF<2> image {};
-  image.open(input_stream);
+  LFIFDecoder<2> decoder {};
+  decoder.open(input_stream);
 
   PPM ppm_image {};
-  if (ppm_image.createPPM(output_file_name, image.size[0], image.size[1], std::pow<float>(2, image.depth_bits) - 1) < 0) {
+  if (ppm_image.createPPM(output_file_name, decoder.size[0], decoder.size[1], std::pow<float>(2, decoder.depth_bits) - 1) < 0) {
     return 3;
   }
 
   auto pusher = [&](const std::array<size_t, 2> &pos, const std::array<uint16_t, 3> &RGB) {
-    ppm_image.put(pos[1] * image.size[0] + pos[0], RGB);
+    ppm_image.put(pos[1] * decoder.size[0] + pos[0], RGB);
   };
 
-  decodeStreamDCT(image, input_stream, pusher);
+  decoder.decodeStream(input_stream, pusher);
 
   return 0;
 }

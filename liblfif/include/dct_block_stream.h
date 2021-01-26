@@ -13,7 +13,7 @@
 #include <array>
 
 template<size_t D>
-class BlockEncoderDCT {
+class LFIFBlockEncoder {
   size_t diagonals;
 
   size_t threshold;
@@ -32,7 +32,7 @@ class BlockEncoderDCT {
   uint8_t discarded_bits;
 
 public:
-  BlockEncoderDCT(const std::array<size_t, D> &block_size, uint8_t discarded_bits) {
+  LFIFBlockEncoder(const std::array<size_t, D> &block_size, uint8_t discarded_bits) {
     this->block_size = block_size;
     this->discarded_bits = discarded_bits;
 
@@ -164,6 +164,18 @@ public:
     }
   }
 
+  void decodeEncodedBlock(DynamicBlock<float, D> &block) {
+    iterate_dimensions<D>(block_size, [&](const auto &pos) {
+      block[pos] = ldexp(block[pos], discarded_bits);
+    });
+
+    auto proxy = [&](size_t index) -> auto & {
+      return block[index];
+    };
+
+    idct<D>(block.size(), proxy);
+  }
+
   void decodeBlock(CABACDecoder &decoder, DynamicBlock<float, D> &block) {
     block.fill(0.f);
     std::vector<bool> nonzero_diags(diagonals);
@@ -235,14 +247,6 @@ public:
       }
     }
 
-    iterate_dimensions<D>(block_size, [&](const auto &pos) {
-      block[pos] = ldexp(block[pos], discarded_bits);
-    });
-
-    auto proxy = [&](size_t index) -> auto & {
-      return block[index];
-    };
-
-    idct<D>(block.size(), proxy);
+    decodeEncodedBlock(block);
   }
 };

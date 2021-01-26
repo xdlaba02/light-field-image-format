@@ -118,20 +118,20 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::ofstream output_file {};
-  output_file.open(output_file_name, std::ios::binary);
-  if (!output_file) {
+  std::ofstream output_stream {};
+  output_stream.open(output_file_name, std::ios::binary);
+  if (!output_stream) {
     std::cerr << "ERROR: CANNON OPEN " << output_file_name << " FOR WRITING\n";
     return 1;
   }
 
-  output_file << "LFIF-4D\n";
-  output_file << shift[0] << " " << shift[1] << "\n";
+  output_stream << "LFIF-4D\n";
+  output_stream << shift[0] << " " << shift[1] << "\n";
 
-  LFIF<4> image {};
-  image.create(output_file, image_size, block_size, color_depth, distortion, predict);
+  LFIFEncoder<4> encoder {};
+  encoder.create(output_stream, image_size, block_size, color_depth, distortion, predict);
 
-  encodeStreamDCT<4>(image, output_file, puller);
+  encoder.encodeStream(puller, output_stream);
 
   return 0;
 }
