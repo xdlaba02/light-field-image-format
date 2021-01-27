@@ -1,14 +1,8 @@
 #pragma once
 
-#include "components/endian.h"
-
-
 #include <cstdint>
 
 #include <array>
-#include <istream>
-#include <ostream>
-
 
 template <size_t D>
 struct LFIF {

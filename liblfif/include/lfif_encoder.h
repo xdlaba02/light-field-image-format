@@ -10,6 +10,7 @@
 
 #include "components/bitstream.h"
 #include "components/colorspace.h"
+#include "components/endian.h"
 
 #include "block_predictor.h"
 #include "dct_block_stream.h"
@@ -64,8 +65,8 @@ struct LFIFEncoder: public LFIF<D> {
     DynamicBlock<float, D> block_U(this->block_size);
     DynamicBlock<float, D> block_V(this->block_size);
 
-    LFIFBlockEncoder block_encoder_Y(this->block_size, this->discarded_bits);
-    LFIFBlockEncoder block_encoder_UV(this->block_size, this->discarded_bits);
+    DCTBlockStreamEncoder<D> block_encoder_Y(this->block_size, this->discarded_bits);
+    DCTBlockStreamEncoder<D> block_encoder_UV(this->block_size, this->discarded_bits);
 
     BlockPredictor predictor_Y(this->size);
     BlockPredictor predictor_U(this->size);

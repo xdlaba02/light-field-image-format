@@ -10,6 +10,7 @@
 
 #include "components/bitstream.h"
 #include "components/colorspace.h"
+#include "components/endian.h"
 
 #include "block_predictor.h"
 #include "dct_block_stream.h"
@@ -56,8 +57,8 @@ struct LFIFDecoder: public LFIF<D> {
     IBitstream   bitstream {};
     CABACDecoder cabac     {};
 
-    LFIFBlockEncoder block_decoder_Y(this->block_size, this->discarded_bits);
-    LFIFBlockEncoder block_decoder_UV(this->block_size, this->discarded_bits);
+    DCTBlockStreamDecoder<D> block_decoder_Y(this->block_size, this->discarded_bits);
+    DCTBlockStreamDecoder<D> block_decoder_UV(this->block_size, this->discarded_bits);
 
     BlockPredictor predictorY(this->size);
     BlockPredictor predictorU(this->size);
@@ -91,18 +92,18 @@ struct LFIFDecoder: public LFIF<D> {
       }
 
       moveBlock<D>([&](const auto &pos) {
-        float Y  = block_Y[pos] + pow(2, this->depth_bits - 1);
-        float Cb = block_U[pos];
-        float Cr = block_V[pos];
+                     float Y  = block_Y[pos] + pow(2, this->depth_bits - 1);
+                     float Cb = block_U[pos];
+                     float Cr = block_V[pos];
 
-        uint16_t R = std::clamp<float>(std::round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
-        uint16_t G = std::clamp<float>(std::round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
-        uint16_t B = std::clamp<float>(std::round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
+                     uint16_t R = std::clamp<float>(std::round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
+                     uint16_t G = std::clamp<float>(std::round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
+                     uint16_t B = std::clamp<float>(std::round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
 
-        return std::array<uint16_t, 3>({R, G, B});
-      }, this->block_size, {},
-      pusher, this->size, offset,
-      this->block_size);
+                     return std::array<uint16_t, 3>({R, G, B});
+                   }, this->block_size, {},
+                   pusher, this->size, offset,
+                   this->block_size);
     });
 
     cabac.terminate();
