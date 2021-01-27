@@ -14,6 +14,7 @@
 
 #include "block_predictor.h"
 #include "dct_block_stream.h"
+#include "dct_block_transformer.h"
 #include "prediction_type_stream.h"
 #include "lfif.h"
 
@@ -65,12 +66,19 @@ struct LFIFEncoder: public LFIF<D> {
     DynamicBlock<float, D> block_U(this->block_size);
     DynamicBlock<float, D> block_V(this->block_size);
 
-    DCTBlockStreamEncoder<D> block_encoder_Y(this->block_size, this->discarded_bits);
-    DCTBlockStreamEncoder<D> block_encoder_UV(this->block_size, this->discarded_bits);
+    DCTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
 
-    BlockPredictor predictor_Y(this->size);
-    BlockPredictor predictor_U(this->size);
-    BlockPredictor predictor_V(this->size);
+    DCTBlockStreamEncoder<D> block_encoder_Y(this->block_size);
+    DCTBlockStreamEncoder<D> block_encoder_UV(this->block_size);
+
+    std::array<size_t, D> predictor_size {};
+    if (this->predicted) {
+      predictor_size = this->size;
+    }
+
+    BlockPredictor predictor_Y(predictor_size);
+    BlockPredictor predictor_U(predictor_size);
+    BlockPredictor predictor_V(predictor_size);
 
     PredictionTypeEncoder<D> prediction_type_encoder {};
 
@@ -89,7 +97,7 @@ struct LFIFEncoder: public LFIF<D> {
       for (size_t i = 0; i < D; i++) {
         std::cerr << offset[i] << " ";
       }
-      std::cerr << " out of ";
+      std::cerr << "out of ";
       for (size_t i { 0 }; i < D; i++) {
         std::cerr << aligned_image_size[i] << " ";
       }
@@ -113,19 +121,24 @@ struct LFIFEncoder: public LFIF<D> {
         predictor_V.forwardPass(block_V, offset, prediction_type);
       }
 
+      block_transformer.forwardPass(block_Y);
+      block_transformer.forwardPass(block_U);
+      block_transformer.forwardPass(block_V);
+
       block_encoder_Y.encodeBlock(block_Y, cabac);
       block_encoder_UV.encodeBlock(block_U, cabac);
       block_encoder_UV.encodeBlock(block_V, cabac);
 
       if (this->predicted) {
-        prediction_type_encoder.encodePredictionType(prediction_type, cabac);
-        block_encoder_Y.decodeEncodedBlock(block_Y);
-        block_encoder_UV.decodeEncodedBlock(block_U);
-        block_encoder_UV.decodeEncodedBlock(block_V);
+        block_transformer.inversePass(block_Y);
+        block_transformer.inversePass(block_U);
+        block_transformer.inversePass(block_V);
 
         predictor_Y.backwardPass(block_Y, offset, prediction_type);
         predictor_U.backwardPass(block_U, offset, prediction_type);
         predictor_V.backwardPass(block_V, offset, prediction_type);
+
+        prediction_type_encoder.encodePredictionType(prediction_type, cabac);
       }
     });
 

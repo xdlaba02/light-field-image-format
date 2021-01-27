@@ -30,11 +30,9 @@ protected:
   std::vector<CABAC::ContextModel> coef_abs_level_ctx;
 
   std::array<size_t, D> block_size;
-  uint8_t discarded_bits;
 
-  DCTCompressedBlockStreamState(const std::array<size_t, D> &block_size, uint8_t discarded_bits) {
+  DCTCompressedBlockStreamState(const std::array<size_t, D> &block_size) {
     this->block_size = block_size;
-    this->discarded_bits = discarded_bits;
 
     diagonals = num_diagonals<D>(block_size);
 
@@ -54,19 +52,9 @@ template<size_t D>
 class DCTBlockStreamEncoder: public DCTCompressedBlockStreamState<D> {
 public:
 
-  DCTBlockStreamEncoder(const std::array<size_t, D> &block_size, uint8_t discarded_bits): DCTCompressedBlockStreamState<D>(block_size, discarded_bits) {}
+  DCTBlockStreamEncoder(const std::array<size_t, D> &block_size): DCTCompressedBlockStreamState<D>(block_size) {}
 
-  void encodeBlock(DynamicBlock<float, D> &block, CABACEncoder &encoder) {
-    auto proxy = [&](size_t index) -> auto & {
-      return block[index];
-    };
-
-    fdct<D>(this->block_size, proxy);
-
-    iterate_dimensions<D>(this->block_size, [&](const auto &pos) {
-      block[pos] = std::round(ldexp(block[pos], -this->discarded_bits)); // QUANTIZATION
-    });
-
+  void encodeBlock(const DynamicBlock<float, D> &block, CABACEncoder &encoder) {
     std::vector<bool> nonzero_diags(this->diagonals);
 
     for (size_t diag = 0; diag < this->diagonals; diag++) {
@@ -164,18 +152,6 @@ public:
       }
     }
   }
-
-  void decodeEncodedBlock(DynamicBlock<float, D> &block) {
-    iterate_dimensions<D>(this->block_size, [&](const auto &pos) {
-      block[pos] = ldexp(block[pos], this->discarded_bits);
-    });
-
-    auto proxy = [&](size_t index) -> auto & {
-      return block[index];
-    };
-
-    idct<D>(block.size(), proxy);
-  }
 };
 
 
@@ -183,19 +159,7 @@ template<size_t D>
 class DCTBlockStreamDecoder: public DCTCompressedBlockStreamState<D> {
 public:
 
-  DCTBlockStreamDecoder(const std::array<size_t, D> &block_size, uint8_t discarded_bits): DCTCompressedBlockStreamState<D>(block_size, discarded_bits) {}
-
-  void decodeEncodedBlock(DynamicBlock<float, D> &block) {
-    iterate_dimensions<D>(this->block_size, [&](const auto &pos) {
-      block[pos] = ldexp(block[pos], this->discarded_bits);
-    });
-
-    auto proxy = [&](size_t index) -> auto & {
-      return block[index];
-    };
-
-    idct<D>(block.size(), proxy);
-  }
+  DCTBlockStreamDecoder(const std::array<size_t, D> &block_size): DCTCompressedBlockStreamState<D>(block_size) {}
 
   void decodeBlock(CABACDecoder &decoder, DynamicBlock<float, D> &block) {
     block.fill(0.f);
@@ -268,7 +232,5 @@ public:
         this->threshold++;
       }
     }
-
-    decodeEncodedBlock(block);
   }
 };
