@@ -13,12 +13,10 @@
 
 #include "block_predictor.h"
 #include "dct_block_stream.h"
+#include "prediction_type_stream.h"
 #include "lfif.h"
 
 #include <cstdint>
-
-#include <istream>
-#include <sstream>
 
 template <size_t D>
 struct LFIFDecoder: public LFIF<D> {
@@ -65,6 +63,8 @@ struct LFIFDecoder: public LFIF<D> {
     BlockPredictor predictorU(this->size);
     BlockPredictor predictorV(this->size);
 
+    PredictionTypeDecoder<D> prediction_type_decoder {};
+
     bitstream.open(input);
     cabac.init(bitstream);
 
@@ -83,8 +83,8 @@ struct LFIFDecoder: public LFIF<D> {
       block_decoder_UV.decodeBlock(cabac, block_V);
 
       if (this->predicted) {
-        typename BlockPredictor<D>::PredictionType prediction_type {};
-        prediction_type = predictorY.decodePredictionType(cabac);
+        auto prediction_type = prediction_type_decoder.decodePredictionType(cabac);
+
         predictorY.backwardPass(block_Y, offset, prediction_type);
         predictorU.backwardPass(block_U, offset, prediction_type);
         predictorV.backwardPass(block_V, offset, prediction_type);

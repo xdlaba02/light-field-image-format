@@ -4,32 +4,17 @@
 #include "components/cabac.h"
 #include "components/predict.h"
 
+#include "prediction_type.h"
+
 #include <cstddef>
 #include <cstdint>
 
+
 template <size_t D>
 class BlockPredictor {
-public:
-  struct PredictionType {
-    uint64_t type;
-    std::array<int8_t, D> direction;
-  };
-
-
-private:
-  template <class T>
-  static inline constexpr T pow(const T base, const uint64_t exponent) {
-      return (exponent == 0) ? 1 : (base * pow(base, exponent - 1));
-  }
-
-  CABAC::ContextModel is_dc_prediction_ctx {};
-  CABAC::ContextModel is_planar_prediction_ctx {};
-  CABAC::ContextModel is_direction_prediction_ctx {};
-  std::array<std::array<CABAC::ContextModel, 3>, D> directions_prediction_ctx {};
-
   DynamicBlock<float, D> decoded_image;
 
-  void predict(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType type) {
+  void predict(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
     auto inputF = [&](std::array<int64_t, D> block_pos) -> float {
       if (offset == std::array<size_t, D>{}) {
         return 0.f;
@@ -98,58 +83,7 @@ public:
 
   BlockPredictor(const std::array<size_t, D> &image_size): decoded_image(image_size) {};
 
-  void encodePredictionType(const PredictionType &type, CABACEncoder &encoder) {
-    encoder.encodeBit(is_dc_prediction_ctx, type.type == 1);
-
-    if (type.type != 1) {
-      encoder.encodeBit(is_planar_prediction_ctx, type.type == 2);
-
-      if (type.type != 2) {
-        encoder.encodeBit(is_direction_prediction_ctx, type.type == 3);
-
-        if (type.type == 3) {
-          for (size_t i = 0; i < D; i++) {
-            encoder.encodeBit(directions_prediction_ctx[i][0], type.direction[i]);
-
-            if (type.direction[i]) {
-              encoder.encodeBit(directions_prediction_ctx[i][1], std::abs(type.direction[i]) == 2);
-              encoder.encodeBit(directions_prediction_ctx[i][2], type.direction[i] < 0);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  PredictionType decodePredictionType(CABACDecoder &decoder) {
-    PredictionType type {};
-
-    if (decoder.decodeBit(is_dc_prediction_ctx)) {
-      type.type = 1;
-    }
-    else if (decoder.decodeBit(is_planar_prediction_ctx)) {
-      type.type = 2;
-    }
-    else if (decoder.decodeBit(is_direction_prediction_ctx)) {
-      type.type = 3;
-
-      for (size_t i = 0; i < D; i++) {
-        type.direction[i] = decoder.decodeBit(directions_prediction_ctx[i][0]);
-
-        if (type.direction[i] != 0) {
-          type.direction[i] += decoder.decodeBit(directions_prediction_ctx[i][1]);
-
-          if (decoder.decodeBit(directions_prediction_ctx[i][2])) {
-            type.direction[i] = -type.direction[i];
-          }
-        }
-      }
-    }
-
-    return type;
-  }
-
-  PredictionType selectPredictionType(const DynamicBlock<float, D> &input_block, const std::array<size_t, D> &offset) {
+  PredictionType<D> selectPredictionType(const DynamicBlock<float, D> &input_block, const std::array<size_t, D> &offset) {
     DynamicBlock<float, D> prediction_block(input_block.size());
 
     auto prediction_error = [&]() -> auto {
@@ -162,10 +96,10 @@ public:
       return error;
     };
 
-    PredictionType best_prediction_type {};
+    PredictionType<D> best_prediction_type {};
     float lowest_error = prediction_error(); // No prediction, just input block energy.
 
-    auto eval_prediction = [&](PredictionType type) {
+    auto eval_prediction = [&](PredictionType<D> type) {
       predict(prediction_block, offset, type);
 
       float current_error = prediction_error();
@@ -213,7 +147,7 @@ public:
     return best_prediction_type;
   }
 
-  void forwardPass(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType type) {
+  void forwardPass(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
     DynamicBlock<float, D> prediction_block(block.size());
 
     predict(prediction_block, offset, type);
@@ -223,7 +157,7 @@ public:
     });
   }
 
-  void backwardPass(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType type) {
+  void backwardPass(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
     DynamicBlock<float, D> prediction_block(block.size());
 
     predict(prediction_block, offset, type);
