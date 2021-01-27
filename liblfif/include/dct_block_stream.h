@@ -44,9 +44,9 @@ protected:
     last_coded_diag_flag_ctx.resize(diagonals);
     significant_coef_flag_high_ctx.resize(D + 1);
     significant_coef_flag_low_ctx.resize(D + 1);
-    coef_greater_one_ctx.resize(D + 1);
-    coef_greater_two_ctx.resize(D + 1);
-    coef_abs_level_ctx.resize(D + 1);
+    coef_greater_one_ctx.resize(diagonals);
+    coef_greater_two_ctx.resize(diagonals);
+    coef_abs_level_ctx.resize(diagonals);
   }
 };
 
@@ -141,13 +141,13 @@ public:
               coef = -coef;
             }
 
-            encoder.encodeBit(this->coef_greater_one_ctx[nonzero_neighbours_cnt], coef > 1);
+            encoder.encodeBit(this->coef_greater_one_ctx[diag], coef > 1);
 
             if (coef > 1) {
-              encoder.encodeBit(this->coef_greater_two_ctx[nonzero_neighbours_cnt], coef > 2);
+              encoder.encodeBit(this->coef_greater_two_ctx[diag], coef > 2);
 
               if (coef > 2) {
-                encoder.encodeU(this->coef_abs_level_ctx[nonzero_neighbours_cnt], coef - 3);
+                encoder.encodeU(this->coef_abs_level_ctx[diag], coef - 3);
               }
             }
 
@@ -242,13 +242,13 @@ public:
           else {
             zero_coef_distr--;
 
-            coef += decoder.decodeBit(this->coef_greater_one_ctx[nonzero_neighbours_cnt]);
+            coef += decoder.decodeBit(this->coef_greater_one_ctx[diag]);
 
             if (coef > 1) {
-              coef += decoder.decodeBit(this->coef_greater_two_ctx[nonzero_neighbours_cnt]);
+              coef += decoder.decodeBit(this->coef_greater_two_ctx[diag]);
 
               if (coef > 2) {
-                coef += decoder.decodeU(this->coef_abs_level_ctx[nonzero_neighbours_cnt]);
+                coef += decoder.decodeU(this->coef_abs_level_ctx[diag]);
               }
             }
 
