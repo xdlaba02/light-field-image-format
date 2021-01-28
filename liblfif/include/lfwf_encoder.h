@@ -1,22 +1,21 @@
 /**
-* @file lfif_encoder.h
+* @file lfwf_encoder.h
 * @author Drahomír Dlabaja (xdlaba02)
-* @date 12. 5. 2019
-* @copyright 2019 Drahomír Dlabaja
-* @brief Functions for encoding an image.
+* @date 28. 1. 2021
+* @copyright 2021 Drahomír Dlabaja
+* @brief Class for encoding an image with wavelets.
 */
 
 #pragma once
 
 #include "components/bitstream.h"
-#include "components/colorspace.h"
 #include "components/endian.h"
 
 #include "block_predictor.h"
-#include "dct_block_stream.h"
-#include "dct_block_transformer.h"
+#include "dwt_block_stream.h"
+#include "dwt_block_transformer.h"
 #include "prediction_type_stream.h"
-#include "lfif.h"
+#include "lfwf.h"
 
 #include <cstdint>
 
@@ -24,12 +23,12 @@
 #include <map>
 
 template <size_t D>
-struct LFIFEncoder: public LFIF<D> {
-  LFIFEncoder(): LFIF<D>() {
+struct LFWFEncoder: public LFWF<D> {
+  LFWFEncoder(): LFWF<D>() {
     StackAllocator::init(2147483648 * 4); //FIXME
   }
 
-  ~LFIFEncoder() {
+  ~LFWFEncoder() {
     StackAllocator::cleanup();
   }
 
@@ -62,23 +61,23 @@ struct LFIFEncoder: public LFIF<D> {
 
   template <typename F>
   void encodeStream(F &&puller, std::ostream &output) {
-    DynamicBlock<float, D> block_Y(this->block_size);
-    DynamicBlock<float, D> block_U(this->block_size);
-    DynamicBlock<float, D> block_V(this->block_size);
+    DynamicBlock<int32_t, D> block_Y(this->block_size);
+    DynamicBlock<int32_t, D> block_U(this->block_size);
+    DynamicBlock<int32_t, D> block_V(this->block_size);
 
-    DCTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
+    DWTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
 
-    DCTBlockStreamEncoder<D> block_encoder_Y(this->block_size);
-    DCTBlockStreamEncoder<D> block_encoder_UV(this->block_size);
+    DWTBlockStreamEncoder<D> block_encoder_Y {};
+    DWTBlockStreamEncoder<D> block_encoder_UV {};
 
     std::array<size_t, D> predictor_size {};
     if (this->predicted) {
       predictor_size = this->size;
     }
 
-    BlockPredictor<D, float> predictor_Y(predictor_size);
-    BlockPredictor<D, float> predictor_U(predictor_size);
-    BlockPredictor<D, float> predictor_V(predictor_size);
+    BlockPredictor<D, int32_t> predictor_Y(predictor_size);
+    BlockPredictor<D, int32_t> predictor_U(predictor_size);
+    BlockPredictor<D, int32_t> predictor_V(predictor_size);
 
     PredictionTypeEncoder<D> prediction_type_encoder {};
 
@@ -105,9 +104,9 @@ struct LFIFEncoder: public LFIF<D> {
 
       moveBlock<D>(puller, this->size, offset,
                    [&](const auto &block_pos, const auto &value) {
-                     block_Y[block_pos] = YCbCr::RGBToY(value[0], value[1], value[2]) - pow(2, this->depth_bits - 1);
-                     block_U[block_pos] = YCbCr::RGBToCb(value[0], value[1], value[2]);
-                     block_V[block_pos] = YCbCr::RGBToCr(value[0], value[1], value[2]);
+                     block_Y[block_pos] = ((value[0] + (value[1] << 1) + value[2]) >> 2) - (1 << (this->depth_bits - 1));
+                     block_U[block_pos] = value[2] - value[1];
+                     block_V[block_pos] = value[0] - value[1];
                    }, this->block_size, {},
                    this->block_size);
 

@@ -13,20 +13,20 @@
 #include "components/endian.h"
 
 #include "block_predictor.h"
-#include "dct_block_stream.h"
-#include "dct_block_transformer.h"
+#include "dwt_block_transformer.h"
+#include "dwt_block_stream.h"
 #include "prediction_type_stream.h"
-#include "lfif.h"
+#include "lfwf.h"
 
 #include <cstdint>
 
 template <size_t D>
-struct LFIFDecoder: public LFIF<D> {
-  LFIFDecoder(): LFIF<D>() {
+struct LFWFDecoder: public LFWF<D> {
+  LFWFDecoder(): LFWF<D>() {
     StackAllocator::init(2147483648 * 4); //FIXME
   }
 
-  ~LFIFDecoder() {
+  ~LFWFDecoder() {
     StackAllocator::cleanup();
   }
 
@@ -46,9 +46,9 @@ struct LFIFDecoder: public LFIF<D> {
 
   template<typename F>
   void decodeStream(std::istream &input, F &&pusher) {
-    DynamicBlock<float, D> block_Y(this->block_size);
-    DynamicBlock<float, D> block_U(this->block_size);
-    DynamicBlock<float, D> block_V(this->block_size);
+    DynamicBlock<int32_t, D> block_Y(this->block_size);
+    DynamicBlock<int32_t, D> block_U(this->block_size);
+    DynamicBlock<int32_t, D> block_V(this->block_size);
 
     std::array<size_t, D> aligned_image_size {};
     for (size_t i = 0; i < D; i++) {
@@ -58,19 +58,19 @@ struct LFIFDecoder: public LFIF<D> {
     IBitstream   bitstream {};
     CABACDecoder cabac     {};
 
-    DCTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
+    DWTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
 
-    DCTBlockStreamDecoder<D> block_decoder_Y(this->block_size);
-    DCTBlockStreamDecoder<D> block_decoder_UV(this->block_size);
+    DWTBlockStreamDecoder<D> block_decoder_Y {};
+    DWTBlockStreamDecoder<D> block_decoder_UV {};
 
     std::array<size_t, D> predictor_size {};
     if (this->predicted) {
       predictor_size = this->size;
     }
 
-    BlockPredictor<D, float> predictor_Y(predictor_size);
-    BlockPredictor<D, float> predictor_U(predictor_size);
-    BlockPredictor<D, float> predictor_V(predictor_size);
+    BlockPredictor<D, int32_t> predictor_Y(predictor_size);
+    BlockPredictor<D, int32_t> predictor_U(predictor_size);
+    BlockPredictor<D, int32_t> predictor_V(predictor_size);
 
     PredictionTypeDecoder<D> prediction_type_decoder {};
 
@@ -104,13 +104,13 @@ struct LFIFDecoder: public LFIF<D> {
       }
 
       moveBlock<D>([&](const auto &pos) {
-                     float Y  = block_Y[pos] + pow(2, this->depth_bits - 1);
-                     float Cb = block_U[pos];
-                     float Cr = block_V[pos];
+                     int32_t Y  = block_Y[pos] + (1 << (this->depth_bits - 1));
+                     int32_t U = block_U[pos];
+                     int32_t V = block_V[pos];
 
-                     uint16_t R = std::clamp<float>(std::round(YCbCr::YCbCrToR(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
-                     uint16_t G = std::clamp<float>(std::round(YCbCr::YCbCrToG(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
-                     uint16_t B = std::clamp<float>(std::round(YCbCr::YCbCrToB(Y, Cb, Cr)), 0, std::pow(2, this->depth_bits) - 1);
+                     uint16_t G = std::clamp<int32_t>(Y - ((U + V) >> 2), 0, (1 << this->depth_bits) - 1);
+                     uint16_t R = std::clamp<int32_t>(V + G,              0, (1 << this->depth_bits) - 1);
+                     uint16_t B = std::clamp<int32_t>(U + G,              0, (1 << this->depth_bits) - 1);
 
                      return std::array<uint16_t, 3>({R, G, B});
                    }, this->block_size, {},

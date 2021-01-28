@@ -10,12 +10,12 @@
 #include <cstdint>
 
 
-template <size_t D>
+template <size_t D, typename T>
 class BlockPredictor {
-  DynamicBlock<float, D> decoded_image;
+  DynamicBlock<T, D> decoded_image;
 
-  void predict(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
-    auto inputF = [&](std::array<int64_t, D> block_pos) -> float {
+  void predict(DynamicBlock<T, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
+    auto inputF = [&](std::array<int64_t, D> block_pos) -> T {
       if (offset == std::array<size_t, D>{}) {
         return 0.f;
       }
@@ -66,7 +66,7 @@ class BlockPredictor {
       block.fill(0);
     }
     if (type.type == 1) {
-      int64_t value = predict_DC<D>(block.size(), inputF);
+      T value = predict_DC<D, T>(block.size(), inputF);
       for (size_t i = 0; i < block.stride(D); i++) {
         block[i] = value;
       }
@@ -83,11 +83,11 @@ public:
 
   BlockPredictor(const std::array<size_t, D> &image_size): decoded_image(image_size) {};
 
-  PredictionType<D> selectPredictionType(const DynamicBlock<float, D> &input_block, const std::array<size_t, D> &offset) {
-    DynamicBlock<float, D> prediction_block(input_block.size());
+  PredictionType<D> selectPredictionType(const DynamicBlock<T, D> &input_block, const std::array<size_t, D> &offset) {
+    DynamicBlock<T, D> prediction_block(input_block.size());
 
     auto prediction_error = [&]() -> auto {
-      float error = 0.f;
+      T error {};
 
       iterate_dimensions<D>(input_block.size(), [&](const auto &pos) {
         error += (input_block[pos] - prediction_block[pos]) * (input_block[pos] - prediction_block[pos]);
@@ -97,12 +97,12 @@ public:
     };
 
     PredictionType<D> best_prediction_type {};
-    float lowest_error = prediction_error(); // No prediction, just input block energy.
+    T lowest_error = prediction_error(); // No prediction, just input block energy.
 
     auto eval_prediction = [&](PredictionType<D> type) {
       predict(prediction_block, offset, type);
 
-      float current_error = prediction_error();
+      T current_error = prediction_error();
       if (current_error < lowest_error) {
         lowest_error = current_error;
         best_prediction_type = type;
@@ -115,12 +115,12 @@ public:
     iterate_cube<5, D>([&](const std::array<size_t, D> &pos) {
       std::array<int8_t, D> direction {};
 
-      for (size_t i { 0 }; i < D; i++) {
+      for (size_t i = 0; i < D; i++) {
         direction[i] = pos[i] - 2;
       }
 
       auto have_positive = [&]() {
-        for (size_t d { 0 }; d < D; d++) {
+        for (size_t d = 0; d < D; d++) {
           if (direction[d] > 0) {
             return true;
           }
@@ -129,7 +129,7 @@ public:
       };
 
       auto have_eight = [&]() {
-        for (size_t d { 0 }; d < D; d++) {
+        for (size_t d = 0; d < D; d++) {
           if (std::abs(direction[d]) == 2) {
             return true;
           }
@@ -147,8 +147,8 @@ public:
     return best_prediction_type;
   }
 
-  void forwardPass(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
-    DynamicBlock<float, D> prediction_block(block.size());
+  void forwardPass(DynamicBlock<T, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
+    DynamicBlock<T, D> prediction_block(block.size());
 
     predict(prediction_block, offset, type);
 
@@ -157,8 +157,8 @@ public:
     });
   }
 
-  void backwardPass(DynamicBlock<float, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
-    DynamicBlock<float, D> prediction_block(block.size());
+  void backwardPass(DynamicBlock<T, D> &block, const std::array<size_t, D> &offset, PredictionType<D> type) {
+    DynamicBlock<T, D> prediction_block(block.size());
 
     predict(prediction_block, offset, type);
 

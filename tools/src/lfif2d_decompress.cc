@@ -7,8 +7,8 @@
 #include "plenoppm.h"
 
 #include <ppm.h>
-#include <lfif.h>
 #include <lfif_decoder.h>
+#include <lfwf_decoder.h>
 
 #include <cmath>
 
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     throw std::runtime_error("Magic number does not match!");
   }
 
-  LFIFDecoder<2> decoder {};
+  LFWFDecoder<2> decoder {};
   decoder.open(input_stream);
 
   PPM ppm_image {};

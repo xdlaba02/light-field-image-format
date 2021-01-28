@@ -6,8 +6,8 @@
 #include "compress.h"
 #include "plenoppm.h"
 
-#include <lfif.h>
 #include <lfif_encoder.h>
+#include <lfwf_encoder.h>
 #include <ppm.h>
 
 #include <cmath>
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
   output_stream << "LFIF-2D\n";
 
-  LFIFEncoder<2> encoder {};
+  LFWFEncoder<2> encoder {};
   encoder.create(output_stream, image_size, block_size, color_depth, distortion, predict);
   encoder.encodeStream(puller, output_stream);
 
