@@ -65,7 +65,7 @@ struct LFWFEncoder: public LFWF<D> {
     DynamicBlock<int32_t, D> block_U(this->block_size);
     DynamicBlock<int32_t, D> block_V(this->block_size);
 
-    DWTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
+    DWTBlockTransformer<D> block_transformer(this->discarded_bits);
 
     DWTBlockStreamEncoder<D> block_encoder_Y {};
     DWTBlockStreamEncoder<D> block_encoder_UV {};

@@ -58,7 +58,7 @@ struct LFWFDecoder: public LFWF<D> {
     IBitstream   bitstream {};
     CABACDecoder cabac     {};
 
-    DWTBlockTransformer<D> block_transformer(this->block_size, this->discarded_bits);
+    DWTBlockTransformer<D> block_transformer(this->discarded_bits);
 
     DWTBlockStreamDecoder<D> block_decoder_Y {};
     DWTBlockStreamDecoder<D> block_decoder_UV {};

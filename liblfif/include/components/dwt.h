@@ -97,20 +97,22 @@ struct idwt {
     std::array<size_t, D - 1> subblock_size {};
     std::copy(std::begin(block_size), std::end(block_size) - 1, std::begin(subblock_size));
 
-    for (size_t slice = 0; slice < block_size[D - 1]; slice++) {
-      auto subblock = [&](size_t index) -> auto & {
-        return block(slice * get_stride<D - 1>(block_size) + index);
-      };
+    const size_t stride = get_stride<D - 1>(block_size);
 
-      idwt<D - 1>(subblock_size, subblock);
-    }
-
-    for (size_t noodle = 0; noodle < get_stride<D - 1>(block_size); noodle++) {
+    for (size_t noodle = 0; noodle < stride; noodle++) {
       auto subblock = [&](size_t index) -> auto & {
-        return block(index * get_stride<D - 1>(block_size) + noodle);
+        return block(index * stride + noodle);
       };
 
       idwt<1>({ block_size[D - 1] }, subblock);
+    }
+
+    for (size_t slice = 0; slice < block_size[D - 1]; slice++) {
+      auto subblock = [&](size_t index) -> auto & {
+        return block(slice * stride + index);
+      };
+
+      idwt<D - 1>(subblock_size, subblock);
     }
   }
 };
